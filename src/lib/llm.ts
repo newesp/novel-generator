@@ -13,12 +13,15 @@ export async function complete(prompt: string, options?: GenerationOptions): Pro
     throw new Error('請先在工具列設定 API Key 與 endpoint');
   }
 
-  const baseUrl = llmConfig.baseUrl.replace(/\/$/, '');
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const targetUrl = `${llmConfig.baseUrl.replace(/\/$/, '')}/chat/completions`;
+
+  // 透過本地 Vite proxy 轉發，繞過瀏覽器 CORS 限制
+  const response = await fetch('/llm-proxy', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${llmConfig.apiKey}`,
+      'Authorization': `Bearer ${llmConfig.apiKey}`,
+      'x-proxy-target': targetUrl,
     },
     body: JSON.stringify({
       model: llmConfig.model,
