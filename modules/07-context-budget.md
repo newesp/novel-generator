@@ -53,3 +53,66 @@
     ↓
 組裝最終 Prompt → 送出 LLM 請求
 ```
+
+---
+
+## Phase 1 實作狀況
+
+> Phase 1 不含 Wiki / RAG，以固定比例分配。
+
+### BudgetInputs 介面（`src/lib/context-budget.ts`）
+
+| 欄位 | 說明 |
+|------|------|
+| `worldSetting` | 世界觀設定 |
+| `mainPlot` | 主線劇情架構（Phase 1 新增） |
+| `characters` | 格式化角色字串，由 `formatCharacters()` 產出 |
+| `beat` | 故事節拍 |
+| `chapterPoints` | 章節要點 |
+| `referenceChapterTitle` | 參考章節標題 |
+| `referenceChapterContent` | 參考章節正文（`referenceDepth` 控制截斷）|
+| `olderChapterSummary` | 更早章節摘要（Phase 2 由摘要引擎填入；Phase 1 傳空字串）|
+
+### formatCharacters()
+
+將角色列表壓縮為多行字串：
+```
+- 角色名 (性別/年齡/種族)：性格：…；背景：…；外貌：…；能力：…；關係：…
+```
+每個角色一行，送入 prompt 的「主要角色」區塊。
+
+### buildGenerationPrompt() Prompt 結構
+
+依 `modules/03-chapters.md` 的預設提示詞模板實作，實際段落順序：
+
+```
+## 背景資訊
+### 世界觀
+### 主線劇情
+### 主要角色
+
+## 本章要求
+- 章節標題 / 故事節拍 / 章節要點 / 目標字數
+
+## 前文（參考章節：{title}）
+{referenceChapterContent}
+
+## 更早章節摘要（可選）
+
+## ⚠️ 用戶調整指令（最高優先級，必須遵守）
+{adjustInstruction}
+
+---
+請開始撰寫本章正文（4 條規則）
+```
+
+**調整指令設計原則**：置於 prompt 最末段，並以「最高優先級，必須遵守」標示。確保 LLM 的注意力集中在用戶的修改要求上（如「加強主角戲份」、「加快節奏」）。
+
+### Phase 1 預算分配（實際）
+
+| 優先級 | 內容 | 備註 |
+|--------|------|------|
+| 1（固定） | 世界觀 + 主線劇情 + 角色 + 節拍 + 要點 | 全量放入 |
+| 2（高） | 參考章節正文 | `shallow` 模式截至 1000 字 |
+| 3（可選） | 更早章節摘要 | 剩餘 token 填入 |
+| 4（保留） | 輸出緩衝區 | 佔 context window 15% |
