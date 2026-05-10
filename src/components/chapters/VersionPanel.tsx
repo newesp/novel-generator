@@ -28,6 +28,9 @@ export function VersionPanel({ onApplyVersion }: Props) {
                 {i === 0 && '★ '}
                 {v.isPinned && '📌 '}
                 v{currentChapterVersions.length - i}
+                {v.kind === 'inline' && (
+                  <span className="badge badge-gray" style={{ marginLeft: 6 }}>局部</span>
+                )}
               </span>
               <span className="version-time">{formatTime(v.createdAt)}</span>
             </div>

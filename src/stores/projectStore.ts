@@ -18,7 +18,7 @@ interface ProjectState {
   updateChapter: (id: string, data: Partial<Chapter>) => Promise<void>;
   deleteChapter: (id: string) => Promise<void>;
   setCurrentChapter: (chapterId: string) => Promise<void>;
-  saveVersion: (chapterId: string, content: string, prompt: string) => Promise<void>;
+  saveVersion: (chapterId: string, content: string, prompt: string, kind?: 'full' | 'inline') => Promise<void>;
   loadVersions: (chapterId: string) => Promise<void>;
   pinVersion: (versionId: string, pinned: boolean) => Promise<void>;
   deleteVersion: (versionId: string) => Promise<void>;
@@ -94,7 +94,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await get().loadVersions(chapterId);
   },
 
-  saveVersion: async (chapterId, content, prompt) => {
+  saveVersion: async (chapterId, content, prompt, kind = 'full') => {
     const id = uuid();
     const versions = get().currentChapterVersions;
 
@@ -108,6 +108,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const newVersion: ChapterVersion = {
       id, chapterId, content, prompt,
       isPinned: false, label: '',
+      kind,
       createdAt: Date.now(),
     };
     await db.versions.add(newVersion);

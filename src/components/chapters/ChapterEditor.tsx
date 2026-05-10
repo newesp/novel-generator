@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { VersionPanel } from './VersionPanel';
+import { AdjustContentModal } from './AdjustContentModal';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
+import { ContextMenu } from '../common/ContextMenu';
 import { complete } from '../../lib/llm';
 import { allocateBudget, buildGenerationPrompt, formatCharacters } from '../../lib/context-budget';
 
@@ -17,12 +19,18 @@ const BEATS = [
   '鋪墊/過渡',
 ];
 
+interface InlineEditTarget {
+  start: number;
+  end: number;
+}
+
 export function ChapterEditor() {
   const { project, chapters, characters, updateChapter, deleteChapter, saveVersion, loadVersions } = useProjectStore();
   const { selectedChapterId, setSelectedChapterId } = useUIStore();
   const { llmConfig } = useSettingsStore();
 
   const chapter = chapters.find((c) => c.id === selectedChapterId);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -31,10 +39,13 @@ export function ChapterEditor() {
   const [points, setPoints] = useState('');
   const [referenceChapterId, setReferenceChapterId] = useState('');
   const [showPointsModal, setShowPointsModal] = useState(false);
-  const [showAdjustModal, setShowAdjustModal] = useState(false);
-  const [adjustText, setAdjustText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [saveLabel, setSaveLabel] = useState('💾 儲存');
+
+  // Inline-edit (右鍵 → 調整內容) 相關狀態
+  const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const [inlineEditTarget, setInlineEditTarget] = useState<InlineEditTarget | null>(null);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
 
   useEffect(() => {
     if (chapter) {
@@ -82,10 +93,10 @@ export function ChapterEditor() {
   };
 
   const handleSaveVersion = async () => {
-    await saveVersion(chapter.id, content, '');
+    await saveVersion(chapter.id, content, '', 'full');
   };
 
-  const buildPrompt = (adjustInstruction = '') => {
+  const buildPrompt = () => {
     const refChapter = referenceChapterId
       ? chapters.find((c) => c.id === referenceChapterId)
       : undefined;
@@ -105,13 +116,12 @@ export function ChapterEditor() {
       allocation,
       title,
       targetWords ? parseInt(targetWords) : null,
-      adjustInstruction,
     );
   };
 
-  const runGeneration = async (adjustInstruction = '') => {
+  const runGeneration = async () => {
     if (!apiReady) {
-      alert('請先在工具列「🔑 API 設定」中設定 LLM endpoint 與 API Key');
+      alert('請先在「⚙️ 偏好設定」中設定 LLM endpoint 與 API Key');
       return;
     }
     if (!worldReady) {
@@ -120,11 +130,11 @@ export function ChapterEditor() {
     }
     setIsGenerating(true);
     try {
-      // Save current content as a version before regenerating, if not empty
+      // 重新生成前，先把當前內容存成 full 版本
       if (content.trim()) {
-        await saveVersion(chapter.id, content, '');
+        await saveVersion(chapter.id, content, '', 'full');
       }
-      const prompt = buildPrompt(adjustInstruction);
+      const prompt = buildPrompt();
       const result = await complete(prompt);
       setContent(result);
       await updateChapter(chapter.id, { content: result });
@@ -135,12 +145,33 @@ export function ChapterEditor() {
     }
   };
 
-  const handleGenerate = () => runGeneration();
+  // —— 右鍵選單：調整內容 ——
+  const handleTextareaContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    const ta = e.currentTarget;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
 
-  const handleRegenerate = async () => {
-    await runGeneration(adjustText);
-    setShowAdjustModal(false);
-    setAdjustText('');
+    // 無選取或選取全為空白 → 不攔截，讓瀏覽器原生選單顯示
+    if (start === end) return;
+    const selectedText = content.substring(start, end);
+    if (!selectedText.trim()) return;
+
+    e.preventDefault();
+    setInlineEditTarget({ start, end });
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const openInlineEditModal = () => {
+    if (!inlineEditTarget) return;
+    setShowAdjustModal(true);
+  };
+
+  const handleInlineEditAccept = async (newContent: string) => {
+    // 先把調整前的內容存為 inline 版本快照
+    await saveVersion(chapter.id, content, '', 'inline');
+    setContent(newContent);
+    await updateChapter(chapter.id, { content: newContent });
+    setInlineEditTarget(null);
   };
 
   const otherChapters = chapters.filter((c) => c.id !== chapter.id);
@@ -220,11 +251,13 @@ export function ChapterEditor() {
       <div className="editor-body">
         <div className="editor-content">
           <textarea
+            ref={textareaRef}
             className="editor-textarea"
             value={content}
             onChange={(e) => setContent(e.target.value)}
             onBlur={handleSave}
-            placeholder="在此輸入章節正文，或點擊「生成」讓 AI 為您創作..."
+            onContextMenu={handleTextareaContextMenu}
+            placeholder="在此輸入章節正文，或點擊「生成」讓 AI 為您創作（選取段落 → 右鍵可局部調整）..."
           />
         </div>
 
@@ -232,14 +265,6 @@ export function ChapterEditor() {
       </div>
 
       <div className="action-bar">
-        <Button
-          variant="secondary"
-          onClick={() => setShowAdjustModal(true)}
-          disabled={!content.trim()}
-          title={!content.trim() ? '需先有正文才能調整方向' : ''}
-        >
-          ↩️ 調整方向
-        </Button>
         <Button variant="secondary" onClick={handleSaveVersion} disabled={!content.trim()}>
           💾 存入版本
         </Button>
@@ -247,7 +272,7 @@ export function ChapterEditor() {
         <Button variant="secondary" onClick={handleSave}>{saveLabel}</Button>
         <Button
           variant="secondary"
-          onClick={() => runGeneration()}
+          onClick={runGeneration}
           disabled={isGenerating || !content.trim() || !apiReady}
           title={!content.trim() ? '尚無內容可重新生成' : ''}
         >
@@ -255,7 +280,7 @@ export function ChapterEditor() {
         </Button>
         <Button
           variant="primary"
-          onClick={handleGenerate}
+          onClick={runGeneration}
           disabled={isGenerating || !apiReady || !worldReady}
           title={
             !apiReady ? '請先設定 API'
@@ -267,6 +292,7 @@ export function ChapterEditor() {
         </Button>
       </div>
 
+      {/* 章節要點 Modal */}
       <Modal
         open={showPointsModal}
         onClose={() => setShowPointsModal(false)}
@@ -281,6 +307,9 @@ export function ChapterEditor() {
           </>
         }
       >
+        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>
+          整章生成時的指引。需要對「整章」做風格/方向調整，請寫在這裡。
+        </p>
         <textarea
           className="form-textarea"
           value={points}
@@ -290,30 +319,35 @@ export function ChapterEditor() {
         />
       </Modal>
 
-      <Modal
-        open={showAdjustModal}
-        onClose={() => setShowAdjustModal(false)}
-        title="調整方向"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowAdjustModal(false)}>取消</Button>
-            <Button variant="primary" onClick={handleRegenerate} disabled={isGenerating || !adjustText.trim()}>
-              {isGenerating ? '生成中...' : '重新生成'}
-            </Button>
-          </>
-        }
-      >
-        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>
-          下列指令將以最高優先級寫入 prompt，AI 必須遵守。
-        </p>
-        <textarea
-          className="form-textarea"
-          value={adjustText}
-          onChange={(e) => setAdjustText(e.target.value)}
-          placeholder="輸入您想要調整的方向，例如：「加強主角戲份」、「加快節奏」、「增加更多對話」、「描寫更細緻」..."
-          style={{ minHeight: 120 }}
+      {/* 右鍵選單 */}
+      {contextMenuPos && (
+        <ContextMenu
+          x={contextMenuPos.x}
+          y={contextMenuPos.y}
+          items={[
+            {
+              label: '調整內容',
+              icon: '✨',
+              onClick: openInlineEditModal,
+              disabled: !apiReady,
+            },
+          ]}
+          onClose={() => setContextMenuPos(null)}
         />
-      </Modal>
+      )}
+
+      {/* 局部調整 Modal */}
+      {inlineEditTarget && (
+        <AdjustContentModal
+          open={showAdjustModal}
+          onClose={() => { setShowAdjustModal(false); setInlineEditTarget(null); }}
+          chapter={{ title, beat, points }}
+          fullContent={content}
+          selectionStart={inlineEditTarget.start}
+          selectionEnd={inlineEditTarget.end}
+          onAccept={handleInlineEditAccept}
+        />
+      )}
     </>
   );
 }

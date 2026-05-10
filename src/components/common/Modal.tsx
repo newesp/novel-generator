@@ -6,9 +6,11 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  /** Modal 寬度（px），預設 480 */
+  width?: number;
 }
 
-export function Modal({ open, onClose, title, children, footer }: ModalProps) {
+export function Modal({ open, onClose, title, children, footer, width = 480 }: ModalProps) {
   if (!open) return null;
   return (
     <div
@@ -24,7 +26,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
         background: 'var(--bg-secondary)',
         borderRadius: 'var(--radius-xl)',
         padding: 24,
-        width: 480,
+        width,
         maxWidth: '90vw',
         maxHeight: '85vh',
         overflowY: 'auto',

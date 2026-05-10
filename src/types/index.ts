@@ -31,6 +31,12 @@ export interface ChapterVersion {
   prompt: string;
   isPinned: boolean;
   label: string;
+  /**
+   * 描述觸發此快照的編輯類型：
+   * - 'full'   ：完整重新生成 / 手動存入版本
+   * - 'inline' ：選取段落調整（局部 inline-edit）
+   */
+  kind: 'full' | 'inline';
   createdAt: number;
 }
 
