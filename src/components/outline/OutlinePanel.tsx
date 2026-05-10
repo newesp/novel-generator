@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { Button } from '../common/Button';
 import { complete } from '../../lib/llm';
 
@@ -8,6 +9,7 @@ const STYLES = ['輕鬆', '沉重', '黑暗', '熱血', '幽默', '爽文', '自
 
 export function OutlinePanel() {
   const { project, updateProject } = useProjectStore();
+  const { llmConfig } = useSettingsStore();
   const [genre, setGenre] = useState('');
   const [style, setStyle] = useState('');
   const [title, setTitle] = useState('');
@@ -33,6 +35,16 @@ export function OutlinePanel() {
       </div>
     );
   }
+
+  const apiReady = !!(llmConfig.apiKey && llmConfig.baseUrl);
+
+  // 是否有未儲存的變更（任一欄位與 DB 中的值不同）
+  const isDirty =
+    title !== project.title ||
+    genre !== project.genre ||
+    style !== project.style ||
+    worldSetting !== project.worldSetting ||
+    mainPlot !== project.mainPlot;
 
   const save = async () => {
     try {
@@ -126,10 +138,20 @@ export function OutlinePanel() {
           variant="primary"
           style={{ width: '100%', justifyContent: 'center' }}
           onClick={generateWorld}
-          disabled={genWorldBusy}
+          disabled={genWorldBusy || !apiReady || (!genre && !style)}
+          title={
+            !apiReady ? '請先設定 API'
+            : (!genre && !style) ? '請先填寫題材或風格'
+            : ''
+          }
         >
           {genWorldBusy ? '✨ 生成中...' : '✨ AI 生成世界觀 / 主線劇情'}
         </Button>
+        {!apiReady && (
+          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>
+            請先在工具列「🔑 API 設定」中設定 LLM endpoint 與 API Key
+          </p>
+        )}
       </div>
 
       <div className="section">
@@ -155,8 +177,14 @@ export function OutlinePanel() {
       </div>
 
       <div className="section" style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-        <Button variant="secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={save}>
-          {saveLabel}
+        <Button
+          variant="secondary"
+          style={{ width: '100%', justifyContent: 'center' }}
+          onClick={save}
+          disabled={!isDirty}
+          title={!isDirty ? '無變更' : ''}
+        >
+          {isDirty ? saveLabel : '✅ 已儲存'}
         </Button>
       </div>
     </div>

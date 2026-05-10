@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { VersionPanel } from './VersionPanel';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { complete } from '../../lib/llm';
-import { allocateBudget, buildGenerationPrompt } from '../../lib/context-budget';
+import { allocateBudget, buildGenerationPrompt, formatCharacters } from '../../lib/context-budget';
 
 const BEATS = [
   '引入 (Inciting Incident)',
@@ -17,8 +18,9 @@ const BEATS = [
 ];
 
 export function ChapterEditor() {
-  const { project, chapters, updateChapter, deleteChapter, saveVersion, loadVersions } = useProjectStore();
+  const { project, chapters, characters, updateChapter, deleteChapter, saveVersion, loadVersions } = useProjectStore();
   const { selectedChapterId, setSelectedChapterId } = useUIStore();
+  const { llmConfig } = useSettingsStore();
 
   const chapter = chapters.find((c) => c.id === selectedChapterId);
 
@@ -32,6 +34,7 @@ export function ChapterEditor() {
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [adjustText, setAdjustText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [saveLabel, setSaveLabel] = useState('💾 儲存');
 
   useEffect(() => {
     if (chapter) {
@@ -56,11 +59,20 @@ export function ChapterEditor() {
     );
   }
 
+  const apiReady = !!(llmConfig.apiKey && llmConfig.baseUrl);
+  const worldReady = !!(project?.worldSetting);
+
   const handleSave = async () => {
-    await updateChapter(chapter.id, {
-      title, content, beat, points,
-      targetWords: targetWords ? parseInt(targetWords) : null,
-    });
+    try {
+      await updateChapter(chapter.id, {
+        title, content, beat, points,
+        targetWords: targetWords ? parseInt(targetWords) : null,
+      });
+      setSaveLabel('✅ 已儲存');
+      setTimeout(() => setSaveLabel('💾 儲存'), 1500);
+    } catch (err) {
+      alert(`儲存失敗：${(err as Error).message}`);
+    }
   };
 
   const handleDelete = async () => {
@@ -76,15 +88,15 @@ export function ChapterEditor() {
   const buildPrompt = (adjustInstruction = '') => {
     const refChapter = referenceChapterId
       ? chapters.find((c) => c.id === referenceChapterId)
-      : (() => {
-          const idx = chapters.findIndex((c) => c.id === chapter.id);
-          return idx > 0 ? chapters[idx - 1] : undefined;
-        })();
+      : undefined;
 
     const allocation = allocateBudget({
       worldSetting: project?.worldSetting ?? '',
+      mainPlot: project?.mainPlot ?? '',
+      characters: formatCharacters(characters),
       beat,
       chapterPoints: points,
+      referenceChapterTitle: refChapter?.title ?? '',
       referenceChapterContent: refChapter?.content ?? '',
       olderChapterSummary: '',
     });
@@ -98,6 +110,14 @@ export function ChapterEditor() {
   };
 
   const runGeneration = async (adjustInstruction = '') => {
+    if (!apiReady) {
+      alert('請先在工具列「🔑 API 設定」中設定 LLM endpoint 與 API Key');
+      return;
+    }
+    if (!worldReady) {
+      alert('請先在「大綱」分頁設定世界觀，AI 才能依據設定生成內容');
+      return;
+    }
     setIsGenerating(true);
     try {
       // Save current content as a version before regenerating, if not empty
@@ -123,11 +143,19 @@ export function ChapterEditor() {
     setAdjustText('');
   };
 
+  const otherChapters = chapters.filter((c) => c.id !== chapter.id);
+
   return (
     <>
       <div className="editor-header">
+        <span className="toolbar-label" style={{ fontSize: 13 }}>章節標題</span>
         <div className="editor-title">
-          <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={handleSave} />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={handleSave}
+            placeholder="輸入章節標題..."
+          />
         </div>
         <Button variant="text" onClick={handleDelete} style={{ color: 'var(--text-tertiary)' }}>
           🗑 刪除
@@ -141,12 +169,12 @@ export function ChapterEditor() {
           value={referenceChapterId}
           onChange={(e) => setReferenceChapterId(e.target.value)}
         >
-          <option value="">前一章</option>
-          {chapters
-            .filter((c) => c.id !== chapter.id && c.content)
-            .map((c) => (
-              <option key={c.id} value={c.id}>{c.title}</option>
-            ))}
+          <option value="">無</option>
+          {otherChapters.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title}{c.content ? '' : '（無內容）'}
+            </option>
+          ))}
         </select>
 
         <div className="toolbar-divider" />
@@ -204,14 +232,37 @@ export function ChapterEditor() {
       </div>
 
       <div className="action-bar">
-        <Button variant="secondary" onClick={() => setShowAdjustModal(true)}>↩️ 調整方向</Button>
-        <Button variant="secondary" onClick={handleSaveVersion}>💾 存入版本</Button>
+        <Button
+          variant="secondary"
+          onClick={() => setShowAdjustModal(true)}
+          disabled={!content.trim()}
+          title={!content.trim() ? '需先有正文才能調整方向' : ''}
+        >
+          ↩️ 調整方向
+        </Button>
+        <Button variant="secondary" onClick={handleSaveVersion} disabled={!content.trim()}>
+          💾 存入版本
+        </Button>
         <div className="toolbar-spacer" />
-        <Button variant="secondary" onClick={handleSave}>💾 儲存</Button>
-        <Button variant="secondary" onClick={() => runGeneration()} disabled={isGenerating}>
+        <Button variant="secondary" onClick={handleSave}>{saveLabel}</Button>
+        <Button
+          variant="secondary"
+          onClick={() => runGeneration()}
+          disabled={isGenerating || !content.trim() || !apiReady}
+          title={!content.trim() ? '尚無內容可重新生成' : ''}
+        >
           ↩️ 重新生成
         </Button>
-        <Button variant="primary" onClick={handleGenerate} disabled={isGenerating}>
+        <Button
+          variant="primary"
+          onClick={handleGenerate}
+          disabled={isGenerating || !apiReady || !worldReady}
+          title={
+            !apiReady ? '請先設定 API'
+            : !worldReady ? '請先在大綱頁設定世界觀'
+            : ''
+          }
+        >
           {isGenerating ? '✨ 生成中...' : '✨ 生成本章'}
         </Button>
       </div>
@@ -246,17 +297,20 @@ export function ChapterEditor() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowAdjustModal(false)}>取消</Button>
-            <Button variant="primary" onClick={handleRegenerate} disabled={isGenerating}>
+            <Button variant="primary" onClick={handleRegenerate} disabled={isGenerating || !adjustText.trim()}>
               {isGenerating ? '生成中...' : '重新生成'}
             </Button>
           </>
         }
       >
+        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>
+          下列指令將以最高優先級寫入 prompt，AI 必須遵守。
+        </p>
         <textarea
           className="form-textarea"
           value={adjustText}
           onChange={(e) => setAdjustText(e.target.value)}
-          placeholder="輸入您想要調整的方向，例如：「加快節奏」、「增加更多對話」、「描寫更細緻」..."
+          placeholder="輸入您想要調整的方向，例如：「加強主角戲份」、「加快節奏」、「增加更多對話」、「描寫更細緻」..."
           style={{ minHeight: 120 }}
         />
       </Modal>

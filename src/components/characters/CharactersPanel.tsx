@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Textarea } from '../common/Textarea';
+import { generateCharacterDrafts } from '../../lib/ai-tasks';
 import type { Character } from '../../types';
 
 const EMPTY_CHARACTER = (projectId: string): Character => ({
@@ -23,7 +25,11 @@ const EMPTY_CHARACTER = (projectId: string): Character => ({
 
 export function CharactersPanel() {
   const { project, characters, loadCharacters, createCharacter, updateCharacter, deleteCharacter } = useProjectStore();
+  const { llmConfig } = useSettingsStore();
   const [editing, setEditing] = useState<Character | null>(null);
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiCount, setAiCount] = useState(3);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (project) loadCharacters(project.id);
@@ -54,11 +60,53 @@ export function CharactersPanel() {
     setEditing(null);
   };
 
+  const apiReady = !!(llmConfig.apiKey && llmConfig.baseUrl);
+  const outlineReady = !!(project.worldSetting || project.mainPlot);
+
+  const handleAIGenerate = async () => {
+    setIsGenerating(true);
+    try {
+      const drafts = await generateCharacterDrafts({
+        count: aiCount,
+        worldSetting: project.worldSetting,
+        mainPlot: project.mainPlot,
+        existingNames: characters.map((c) => c.name).filter(Boolean),
+      });
+
+      if (drafts.length === 0) {
+        alert('AI 未產出任何角色，請檢查 LLM 是否回傳預期格式');
+        return;
+      }
+
+      for (const draft of drafts) {
+        await createCharacter(project.id, draft);
+      }
+      setShowAIModal(false);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className="tab-panel">
       <div className="section">
         <Button
           variant="primary"
+          style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
+          onClick={() => setShowAIModal(true)}
+          disabled={!apiReady || !outlineReady}
+          title={
+            !apiReady ? '請先設定 API'
+            : !outlineReady ? '請先在大綱頁填寫世界觀或主線劇情'
+            : ''
+          }
+        >
+          ✨ AI 生成角色
+        </Button>
+        <Button
+          variant="secondary"
           style={{ width: '100%', justifyContent: 'center' }}
           onClick={() => setEditing(EMPTY_CHARACTER(project.id))}
         >
@@ -97,6 +145,41 @@ export function CharactersPanel() {
           onDelete={editing.id ? handleDelete : undefined}
         />
       )}
+
+      <Modal
+        open={showAIModal}
+        onClose={() => !isGenerating && setShowAIModal(false)}
+        title="✨ AI 生成角色"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setShowAIModal(false)} disabled={isGenerating}>
+              取消
+            </Button>
+            <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || aiCount < 1}>
+              {isGenerating ? '生成中...' : `生成 ${aiCount} 個角色`}
+            </Button>
+          </>
+        }
+      >
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
+          AI 將根據世界觀與主線劇情，自動產生角色設定（姓名、性別、種族、性格、背景、外貌、能力、關係）。
+          {characters.length > 0 && '已存在的角色會作為上下文，避免重複。'}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <label style={{ fontSize: 13 }}>角色數量：</label>
+          <input
+            type="number"
+            className="form-input"
+            min={1}
+            max={10}
+            value={aiCount}
+            onChange={(e) => setAiCount(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+            style={{ width: 80 }}
+            disabled={isGenerating}
+          />
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>（建議 2 - 5 個）</span>
+        </div>
+      </Modal>
     </div>
   );
 }
