@@ -13,9 +13,7 @@ export function OutlinePanel() {
   const [title, setTitle] = useState('');
   const [worldSetting, setWorldSetting] = useState('');
   const [mainPlot, setMainPlot] = useState('');
-  const [chapterOutline, setChapterOutline] = useState('');
   const [genWorldBusy, setGenWorldBusy] = useState(false);
-  const [genOutlineBusy, setGenOutlineBusy] = useState(false);
 
   useEffect(() => {
     if (project) {
@@ -24,7 +22,6 @@ export function OutlinePanel() {
       setStyle(project.style);
       setWorldSetting(project.worldSetting);
       setMainPlot(project.mainPlot);
-      setChapterOutline(project.chapterOutline);
     }
   }, [project?.id]);
 
@@ -37,7 +34,7 @@ export function OutlinePanel() {
   }
 
   const save = async () => {
-    await updateProject(project.id, { title, genre, style, worldSetting, mainPlot, chapterOutline });
+    await updateProject(project.id, { title, genre, style, worldSetting, mainPlot });
   };
 
   const generateWorld = async () => {
@@ -47,54 +44,35 @@ export function OutlinePanel() {
     }
     setGenWorldBusy(true);
     try {
-      const prompt = `請為一部「${genre || '未指定'}」題材、「${style || '未指定'}」風格的中文小說，提供以下內容（用「===」分隔）：
+      const prompt = `請為一部「${genre || '未指定'}」題材、「${style || '未指定'}」風格的中文小說，依照以下格式輸出，標記不可省略：
 
-1. 世界觀設定（地域、規則、勢力格局）
-2. 主線劇情架構（核心衝突、轉折、結局走向）
+##WORLD_START##
+（在此撰寫世界觀設定：地域架構、世界規則、主要勢力格局，300字以內）
+##WORLD_END##
 
-格式：
-[世界觀]
-...
+##PLOT_START##
+（在此撰寫主線劇情架構：核心衝突、主角目標、三幕轉折、結局走向，300字以內）
+##PLOT_END##`;
 
-===
-
-[主線劇情]
-...`;
       const result = await complete(prompt);
-      const parts = result.split('===').map((p) => p.trim());
-      const worldPart = parts[0]?.replace(/^\[世界觀\]\s*/, '') ?? '';
-      const plotPart = parts[1]?.replace(/^\[主線劇情\]\s*/, '') ?? '';
+
+      const worldMatch = result.match(/##WORLD_START##([\s\S]*?)##WORLD_END##/);
+      const plotMatch  = result.match(/##PLOT_START##([\s\S]*?)##PLOT_END##/);
+
+      const worldPart = worldMatch?.[1]?.trim() ?? '';
+      const plotPart  = plotMatch?.[1]?.trim() ?? '';
+
       if (worldPart) setWorldSetting(worldPart);
-      if (plotPart) setMainPlot(plotPart);
-      await updateProject(project.id, { worldSetting: worldPart || worldSetting, mainPlot: plotPart || mainPlot });
+      if (plotPart)  setMainPlot(plotPart);
+
+      await updateProject(project.id, {
+        worldSetting: worldPart || worldSetting,
+        mainPlot:     plotPart  || mainPlot,
+      });
     } catch (err) {
       alert((err as Error).message);
     } finally {
       setGenWorldBusy(false);
-    }
-  };
-
-  const generateChapterOutline = async () => {
-    if (!worldSetting && !mainPlot) {
-      alert('請先填寫世界觀與主線劇情');
-      return;
-    }
-    setGenOutlineBusy(true);
-    try {
-      const prompt = `根據以下世界觀與主線劇情，生成 10–20 章的章節大綱（每章一行：「第 N 章 標題 — 核心事件」）。
-
-世界觀：
-${worldSetting}
-
-主線劇情：
-${mainPlot}`;
-      const result = await complete(prompt);
-      setChapterOutline(result);
-      await updateProject(project.id, { chapterOutline: result });
-    } catch (err) {
-      alert((err as Error).message);
-    } finally {
-      setGenOutlineBusy(false);
     }
   };
 
@@ -167,25 +145,6 @@ ${mainPlot}`;
           placeholder="概述故事主線走向與核心衝突..."
           style={{ minHeight: 100 }}
         />
-      </div>
-
-      <div className="section">
-        <div className="section-title">章節大綱</div>
-        <textarea
-          className="form-textarea"
-          value={chapterOutline}
-          onChange={(e) => setChapterOutline(e.target.value)}
-          placeholder="列出章節標題與核心內容..."
-          style={{ minHeight: 140 }}
-        />
-        <Button
-          variant="secondary"
-          style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
-          onClick={generateChapterOutline}
-          disabled={genOutlineBusy}
-        >
-          {genOutlineBusy ? '生成中...' : '✨ AI 生成章節大綱'}
-        </Button>
       </div>
 
       <div className="section" style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
