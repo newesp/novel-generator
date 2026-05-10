@@ -14,6 +14,7 @@ export function OutlinePanel() {
   const [worldSetting, setWorldSetting] = useState('');
   const [mainPlot, setMainPlot] = useState('');
   const [genWorldBusy, setGenWorldBusy] = useState(false);
+  const [saveLabel, setSaveLabel] = useState('💾 儲存大綱');
 
   useEffect(() => {
     if (project) {
@@ -34,7 +35,13 @@ export function OutlinePanel() {
   }
 
   const save = async () => {
-    await updateProject(project.id, { title, genre, style, worldSetting, mainPlot });
+    try {
+      await updateProject(project.id, { title, genre, style, worldSetting, mainPlot });
+      setSaveLabel('✅ 已儲存');
+      setTimeout(() => setSaveLabel('💾 儲存大綱'), 1500);
+    } catch (err) {
+      alert(`儲存失敗：${(err as Error).message}`);
+    }
   };
 
   const generateWorld = async () => {
@@ -149,7 +156,7 @@ export function OutlinePanel() {
 
       <div className="section" style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
         <Button variant="secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={save}>
-          💾 儲存大綱
+          {saveLabel}
         </Button>
       </div>
     </div>
