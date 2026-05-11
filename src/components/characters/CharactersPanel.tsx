@@ -6,6 +6,7 @@ import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Textarea } from '../common/Textarea';
 import { generateCharacterDrafts } from '../../lib/ai-tasks';
+import { isLLMReady } from '../../lib/llm';
 import type { Character } from '../../types';
 
 const EMPTY_CHARACTER = (projectId: string): Character => ({
@@ -20,6 +21,7 @@ const EMPTY_CHARACTER = (projectId: string): Character => ({
   appearance: '',
   abilities: '',
   relations: '',
+  arc: '',
   createdAt: 0,
 });
 
@@ -60,7 +62,7 @@ export function CharactersPanel() {
     setEditing(null);
   };
 
-  const apiReady = !!(llmConfig.apiKey && llmConfig.baseUrl);
+  const apiReady = isLLMReady(llmConfig);
   const outlineReady = !!(project.worldSetting || project.mainPlot);
 
   const handleAIGenerate = async () => {
@@ -162,11 +164,18 @@ export function CharactersPanel() {
         }
       >
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          AI 將根據世界觀與主線劇情，自動產生角色設定（姓名、性別、種族、性格、背景、外貌、能力、關係）。
-          {characters.length > 0 && '已存在的角色會作為上下文，避免重複。'}
+          AI 將根據世界觀與主線劇情，自動產生角色設定（含姓名、性格、背景、能力、關係、<strong>成長弧線</strong>等）。
+          <br />
+          <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>
+            ⓘ 主線劇情中出現的所有角色名字皆會被建立；主角的成長弧線會與主線劇情相呼應。
+            最終生成數量可能超過下方設定（為了不遺漏主線中提到的人物）。
+          </span>
+          {characters.length > 0 && (
+            <><br /><span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>已存在的角色會作為上下文，避免重複。</span></>
+          )}
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <label style={{ fontSize: 13 }}>角色數量：</label>
+          <label style={{ fontSize: 13 }}>角色數量（最少）：</label>
           <input
             type="number"
             className="form-input"
@@ -202,6 +211,7 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete }: ModalPro
     appearance: character.appearance,
     abilities: character.abilities,
     relations: character.relations,
+    arc: character.arc ?? '',
   });
 
   const update = <K extends keyof typeof form>(key: K, val: string) =>
@@ -237,6 +247,12 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete }: ModalPro
         <Textarea label="外貌" value={form.appearance} onChange={(e) => update('appearance', e.target.value)} />
         <Textarea label="能力" value={form.abilities} onChange={(e) => update('abilities', e.target.value)} />
         <Textarea label="關係" value={form.relations} onChange={(e) => update('relations', e.target.value)} />
+        <Textarea
+          label="成長弧線"
+          value={form.arc}
+          onChange={(e) => update('arc', e.target.value)}
+          placeholder="從故事開頭到結局，此角色的內在轉變（與主線劇情相呼應）..."
+        />
       </div>
     </Modal>
   );

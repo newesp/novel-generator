@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Button } from '../common/Button';
-import { complete } from '../../lib/llm';
+import { complete, isLLMReady } from '../../lib/llm';
 
 const GENRES = ['玄幻', '都市', '仙俠', '科幻', '言情', '懸疑', '自定義'];
 const STYLES = ['輕鬆', '沉重', '黑暗', '熱血', '幽默', '爽文', '自定義'];
@@ -36,7 +36,7 @@ export function OutlinePanel() {
     );
   }
 
-  const apiReady = !!(llmConfig.apiKey && llmConfig.baseUrl);
+  const apiReady = isLLMReady(llmConfig);
 
   // 是否有未儲存的變更（任一欄位與 DB 中的值不同）
   const isDirty =

@@ -7,8 +7,12 @@ import { AdjustContentModal } from './AdjustContentModal';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { ContextMenu } from '../common/ContextMenu';
-import { complete } from '../../lib/llm';
+import { complete, isLLMReady } from '../../lib/llm';
 import { allocateBudget, buildGenerationPrompt, formatCharacters } from '../../lib/context-budget';
+import { logPromptToTemp } from '../../lib/prompt-log';
+import { regenerateChapterPoints } from '../../lib/ai-tasks';
+import { EditPreviewTabs, type EditPreviewMode } from '../common/EditPreviewTabs';
+import { MarkdownView } from '../common/MarkdownView';
 
 const BEATS = [
   '引入 (Inciting Incident)',
@@ -40,6 +44,8 @@ export function ChapterEditor() {
   const [referenceChapterId, setReferenceChapterId] = useState('');
   const [showPointsModal, setShowPointsModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRegeneratingPoints, setIsRegeneratingPoints] = useState(false);
+  const [contentViewMode, setContentViewMode] = useState<EditPreviewMode>('edit');
   const [saveLabel, setSaveLabel] = useState('💾 儲存');
 
   // Inline-edit (右鍵 → 調整內容) 相關狀態
@@ -54,7 +60,7 @@ export function ChapterEditor() {
       setBeat(chapter.beat);
       setTargetWords(chapter.targetWords?.toString() ?? '');
       setPoints(chapter.points);
-      setReferenceChapterId('');
+      setReferenceChapterId(chapter.referenceChapterId ?? '');
       loadVersions(chapter.id);
     }
   }, [chapter?.id]);
@@ -70,7 +76,7 @@ export function ChapterEditor() {
     );
   }
 
-  const apiReady = !!(llmConfig.apiKey && llmConfig.baseUrl);
+  const apiReady = isLLMReady(llmConfig);
   const worldReady = !!(project?.worldSetting);
 
   const handleSave = async () => {
@@ -78,6 +84,7 @@ export function ChapterEditor() {
       await updateChapter(chapter.id, {
         title, content, beat, points,
         targetWords: targetWords ? parseInt(targetWords) : null,
+        referenceChapterId: referenceChapterId || null,
       });
       setSaveLabel('✅ 已儲存');
       setTimeout(() => setSaveLabel('💾 儲存'), 1500);
@@ -135,6 +142,16 @@ export function ChapterEditor() {
         await saveVersion(chapter.id, content, '', 'full');
       }
       const prompt = buildPrompt();
+      // 記錄這次傳給 AI 的完整提示詞到 temp/，方便除錯與優化延續性
+      void logPromptToTemp('chapter-gen', prompt, {
+        chapterId: chapter.id,
+        chapterTitle: title,
+        beat,
+        targetWords: targetWords || '(未指定)',
+        referenceChapterId: referenceChapterId || '(無)',
+        provider: llmConfig.provider,
+        model: llmConfig.model,
+      });
       const result = await complete(prompt);
       setContent(result);
       await updateChapter(chapter.id, { content: result });
@@ -142,6 +159,35 @@ export function ChapterEditor() {
       alert((err as Error).message);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleRegeneratePoints = async () => {
+    if (!apiReady) {
+      alert('請先在「⚙️ 偏好設定」中設定 LLM endpoint 與 API Key');
+      return;
+    }
+    const refChapter = referenceChapterId
+      ? chapters.find((c) => c.id === referenceChapterId)
+      : undefined;
+    setIsRegeneratingPoints(true);
+    try {
+      const newPoints = await regenerateChapterPoints({
+        worldSetting: project?.worldSetting ?? '',
+        mainPlot: project?.mainPlot ?? '',
+        charactersList: formatCharacters(characters),
+        chapterTitle: title,
+        beat,
+        referenceChapter: refChapter
+          ? { title: refChapter.title, content: refChapter.content }
+          : undefined,
+        currentPoints: points,
+      });
+      if (newPoints) setPoints(newPoints);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setIsRegeneratingPoints(false);
     }
   };
 
@@ -198,7 +244,12 @@ export function ChapterEditor() {
         <select
           className="toolbar-select"
           value={referenceChapterId}
-          onChange={(e) => setReferenceChapterId(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            setReferenceChapterId(v);
+            // 下拉選單沒有 onBlur 概念，即時持久化
+            updateChapter(chapter.id, { referenceChapterId: v || null });
+          }}
         >
           <option value="">無</option>
           {otherChapters.map((c) => (
@@ -250,15 +301,26 @@ export function ChapterEditor() {
 
       <div className="editor-body">
         <div className="editor-content">
-          <textarea
-            ref={textareaRef}
-            className="editor-textarea"
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onBlur={handleSave}
-            onContextMenu={handleTextareaContextMenu}
-            placeholder="在此輸入章節正文，或點擊「生成」讓 AI 為您創作（選取段落 → 右鍵可局部調整）..."
+          <EditPreviewTabs
+            mode={contentViewMode}
+            onChange={setContentViewMode}
+            extra={<span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{content.length} 字</span>}
           />
+          {contentViewMode === 'edit' ? (
+            <textarea
+              ref={textareaRef}
+              className="editor-textarea"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onBlur={handleSave}
+              onContextMenu={handleTextareaContextMenu}
+              placeholder="在此輸入章節正文，或點擊「生成」讓 AI 為您創作（選取段落 → 右鍵可局部調整）..."
+            />
+          ) : (
+            <div className="editor-preview" onDoubleClick={() => setContentViewMode('edit')} title="雙擊回到編輯模式">
+              <MarkdownView source={content} />
+            </div>
+          )}
         </div>
 
         <VersionPanel onApplyVersion={(c) => { setContent(c); updateChapter(chapter.id, { content: c }); }} />
@@ -295,20 +357,40 @@ export function ChapterEditor() {
       {/* 章節要點 Modal */}
       <Modal
         open={showPointsModal}
-        onClose={() => setShowPointsModal(false)}
+        onClose={() => !isRegeneratingPoints && setShowPointsModal(false)}
         title="章節要點"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowPointsModal(false)}>取消</Button>
-            <Button variant="primary" onClick={async () => {
+            <Button
+              variant="secondary"
+              onClick={handleRegeneratePoints}
+              disabled={isRegeneratingPoints || !apiReady}
+              title={
+                !apiReady ? '請先設定 API'
+                : !beat ? '建議先設定故事節拍以獲得更精準的要點'
+                : ''
+              }
+            >
+              {isRegeneratingPoints ? '✨ 生成中...' : '✨ 重新生成'}
+            </Button>
+            <div style={{ flex: 1 }} />
+            <Button variant="secondary" onClick={() => setShowPointsModal(false)} disabled={isRegeneratingPoints}>取消</Button>
+            <Button variant="primary" disabled={isRegeneratingPoints} onClick={async () => {
               await updateChapter(chapter.id, { points });
               setShowPointsModal(false);
             }}>儲存</Button>
           </>
         }
       >
-        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>
+        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px', lineHeight: 1.6 }}>
           整章生成時的指引。需要對「整章」做風格/方向調整，請寫在這裡。
+          <br />
+          點擊「✨ 重新生成」會依本章的<strong>故事節拍</strong>
+          {referenceChapterId
+            ? <> 與<strong>參考章節</strong>（{chapters.find((c) => c.id === referenceChapterId)?.title || '未知'}）</>
+            : <>（未設定參考章節）</>
+          }
+          ，由 AI 重寫要點。
         </p>
         <textarea
           className="form-textarea"
@@ -316,6 +398,7 @@ export function ChapterEditor() {
           onChange={(e) => setPoints(e.target.value)}
           placeholder="輸入給 AI 的額外提示詞，引導本章節的生成方向..."
           style={{ minHeight: 140 }}
+          disabled={isRegeneratingPoints}
         />
       </Modal>
 

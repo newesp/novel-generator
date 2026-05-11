@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import https from 'node:https'
 import http from 'node:http'
+import fs from 'node:fs'
+import path from 'node:path'
 
 /**
  * llmProxyPlugin
@@ -34,16 +36,23 @@ function llmProxyPlugin(): Plugin {
           const isHttps = url.protocol === 'https:'
           const lib = isHttps ? https : http
 
+          // 只在 client 明確提供 Authorization 時才轉發；
+          // Google Gemini 用 URL query string 的 ?key=... 認證，多送 Authorization 會被誤判為 OAuth token。
+          const forwardHeaders: Record<string, string | number> = {
+            'Content-Type': 'application/json',
+            'Content-Length': body.length,
+          }
+          const incomingAuth = req.headers['authorization']
+          if (typeof incomingAuth === 'string' && incomingAuth.length > 0) {
+            forwardHeaders.Authorization = incomingAuth
+          }
+
           const options = {
             hostname: url.hostname,
             port: url.port || (isHttps ? 443 : 80),
             path: url.pathname + url.search,
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Content-Length': body.length,
-              Authorization: req.headers['authorization'] ?? '',
-            },
+            headers: forwardHeaders,
           }
 
           const proxyReq = lib.request(options, (proxyRes) => {
@@ -67,6 +76,48 @@ function llmProxyPlugin(): Plugin {
   }
 }
 
+/**
+ * promptLogPlugin
+ * 攔截 POST /log-prompt，把瀏覽器送來的 prompt 寫入 temp/ 資料夾。
+ * 僅供 dev 階段除錯/優化使用。
+ *
+ * Body: { filename: string, content: string }
+ *  - filename 會被 sanitize，禁止 path traversal
+ */
+function promptLogPlugin(): Plugin {
+  return {
+    name: 'prompt-log',
+    configureServer(server) {
+      server.middlewares.use('/log-prompt', (req, res) => {
+        if (req.method !== 'POST') {
+          res.writeHead(405); res.end(); return
+        }
+        const chunks: Buffer[] = []
+        req.on('data', (c: Buffer) => chunks.push(c))
+        req.on('end', () => {
+          try {
+            const { filename, content } = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+            if (typeof filename !== 'string' || typeof content !== 'string') {
+              res.writeHead(400); res.end('bad body'); return
+            }
+            // sanitize：只保留檔名本體，禁止子目錄
+            const safe = path.basename(filename).replace(/[^\w.\-]/g, '_')
+            const dir = path.resolve(process.cwd(), 'temp')
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+            const full = path.join(dir, safe)
+            fs.writeFileSync(full, content, 'utf8')
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ ok: true, path: `temp/${safe}` }))
+          } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ error: (err as Error).message }))
+          }
+        })
+      })
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), llmProxyPlugin()],
+  plugins: [react(), llmProxyPlugin(), promptLogPlugin()],
 })

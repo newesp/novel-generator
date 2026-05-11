@@ -3,6 +3,7 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { useSettingsStore, type InlineEditContextMode } from '../../stores/settingsStore';
 import { rewriteSelection } from '../../lib/inline-edit';
+import { isLLMReady } from '../../lib/llm';
 import type { Chapter } from '../../types';
 
 interface Props {
@@ -41,7 +42,7 @@ export function AdjustContentModal({
   if (!open) return null;
 
   const selectedText = fullContent.substring(selectionStart, selectionEnd);
-  const apiReady = !!(llmConfig.apiKey && llmConfig.baseUrl);
+  const apiReady = isLLMReady(llmConfig);
 
   const handleGenerate = async () => {
     if (!apiReady) {

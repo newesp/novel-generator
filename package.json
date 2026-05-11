@@ -13,6 +13,7 @@
     "dexie": "^4.4.2",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
+    "react-markdown": "^10.1.0",
     "uuid": "^14.0.0",
     "zustand": "^5.0.13"
   },

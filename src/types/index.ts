@@ -19,6 +19,8 @@ export interface Chapter {
   beat: string;
   points: string;
   content: string;
+  /** 生成本章時要參考的另一章節 ID（null = 不參考） */
+  referenceChapterId: string | null;
   wikiSyncedAt: number | null;
   createdAt: number;
   updatedAt: number;
@@ -52,13 +54,19 @@ export interface Character {
   appearance: string;
   abilities: string;
   relations: string;
+  /** 成長弧線：角色從開頭到結局的內在轉變（與主線劇情相呼應） */
+  arc: string;
   createdAt: number;
 }
 
+export type LLMProvider = 'custom' | 'google' | 'grok';
+
 export interface LLMConfig {
   id: string;
-  provider: 'custom';
+  /** 'custom' = OpenAI-compatible (任意 baseUrl)；'google' = Google Gemini */
+  provider: LLMProvider;
   name: string;
+  /** 對 'google' 而言可留空，會使用 Gemini 預設端點 */
   baseUrl: string;
   apiKey: string;
   model: string;

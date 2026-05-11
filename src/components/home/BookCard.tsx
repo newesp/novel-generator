@@ -1,0 +1,95 @@
+import { useState, useRef, useEffect } from 'react';
+import type { Project } from '../../types';
+
+// genre → hue for colour placeholder
+const GENRE_COLORS: Record<string, string> = {
+  玄幻: '#7c3aed',
+  仙俠: '#4f86c6',
+  都市: '#059669',
+  科幻: '#0284c7',
+  言情: '#db2777',
+  懸疑: '#b45309',
+};
+
+function genreBg(genre: string): string {
+  return GENRE_COLORS[genre] ?? '#4b5563';
+}
+
+function formatDate(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+interface Props {
+  book: Project;
+  wordCount: number;
+  onOpen: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}
+
+export function BookCard({ book, wordCount, onOpen, onRename, onDelete }: Props) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
+  return (
+    <div className="book-card" onClick={onOpen}>
+      {/* Cover placeholder */}
+      <div
+        className="book-cover"
+        style={{ background: genreBg(book.genre) }}
+      >
+        {book.genre && (
+          <span className="book-cover-genre">{book.genre}</span>
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="book-info">
+        <div className="book-title">{book.title || '（無書名）'}</div>
+        <div className="book-meta">
+          {book.genre && <span>{book.genre}</span>}
+          {book.genre && <span>·</span>}
+          <span>{wordCount.toLocaleString()} 字</span>
+        </div>
+        <div className="book-date">更新 {formatDate(book.updatedAt)}</div>
+      </div>
+
+      {/* ⋯ menu button */}
+      <div
+        className="book-menu-btn"
+        ref={menuRef}
+        onClick={(e) => { e.stopPropagation(); setMenuOpen((v) => !v); }}
+      >
+        ⋯
+        {menuOpen && (
+          <div className="book-menu-popup">
+            <div
+              className="book-menu-item"
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onRename(); }}
+            >
+              ✏️ 重命名
+            </div>
+            <div
+              className="book-menu-item danger"
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}
+            >
+              🗑 刪除
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

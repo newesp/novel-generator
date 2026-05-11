@@ -5,6 +5,9 @@ node_modules/
 dist/
 build/
 
+# Dev prompt logs
+temp/
+
 # Logs
 *.log
 npm-debug.log*

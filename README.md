@@ -1,6 +1,6 @@
 # 小說產生器（Novel Generator）— 主文件
 
-> 版本：1.3（Phase 1 完成）　建立日期：2026-05-08　更新：2026-05-10
+> 版本：1.4（Phase 2 進行中）　建立日期：2026-05-08　更新：2026-05-11
 
 ---
 
@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-然後在瀏覽器打開 `http://localhost:5173`。首次使用需點擊「🔑 API 設定」填入您的 LLM API endpoint 和 key（支援 OpenAI-compatible API）。
+然後在瀏覽器打開 `http://localhost:5173`。首頁選擇或新建書本後進入編輯器。首次使用需點擊「⚙️ 偏好設定」填入 LLM provider 和 API Key（支援 OpenAI-compatible 自定義 API 與 Google Gemini）。
 
 ---
 

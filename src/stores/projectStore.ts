@@ -4,19 +4,24 @@ import { db } from '../lib/db';
 import type { Project, Chapter, ChapterVersion, Character } from '../types';
 
 interface ProjectState {
+  books: Project[];
   project: Project | null;
   chapters: Chapter[];
   characters: Character[];
   currentChapterVersions: ChapterVersion[];
 
+  loadAllBooks: () => Promise<void>;
   loadProject: (id: string) => Promise<void>;
   createProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
 
   loadChapters: (projectId: string) => Promise<void>;
   createChapter: (projectId: string, title: string) => Promise<string>;
   updateChapter: (id: string, data: Partial<Chapter>) => Promise<void>;
   deleteChapter: (id: string) => Promise<void>;
+  /** 依照給定的 id 順序，批次更新所有章節的 order 欄位 */
+  reorderChapters: (orderedIds: string[]) => Promise<void>;
   setCurrentChapter: (chapterId: string) => Promise<void>;
   saveVersion: (chapterId: string, content: string, prompt: string, kind?: 'full' | 'inline') => Promise<void>;
   loadVersions: (chapterId: string) => Promise<void>;
@@ -30,10 +35,16 @@ interface ProjectState {
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
+  books: [],
   project: null,
   chapters: [],
   characters: [],
   currentChapterVersions: [],
+
+  loadAllBooks: async () => {
+    const books = await db.projects.orderBy('updatedAt').reverse().toArray();
+    set({ books });
+  },
 
   loadProject: async (id) => {
     const project = await db.projects.get(id);
@@ -45,7 +56,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const now = Date.now();
     const project: Project = { id, ...data, createdAt: now, updatedAt: now };
     await db.projects.add(project);
-    set({ project });
+    set({ project, chapters: [], characters: [], currentChapterVersions: [] });
+    // refresh books list
+    const books = await db.projects.orderBy('updatedAt').reverse().toArray();
+    set({ books });
     return id;
   },
 
@@ -53,6 +67,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await db.projects.update(id, { ...data, updatedAt: Date.now() });
     const project = await db.projects.get(id);
     set({ project: project || null });
+    // refresh books list
+    const books = await db.projects.orderBy('updatedAt').reverse().toArray();
+    set({ books });
+  },
+
+  deleteProject: async (id) => {
+    // Delete all related data
+    const chapterIds = (await db.chapters.where('projectId').equals(id).toArray()).map((c) => c.id);
+    for (const cid of chapterIds) {
+      await db.versions.where('chapterId').equals(cid).delete();
+    }
+    await db.chapters.where('projectId').equals(id).delete();
+    await db.characters.where('projectId').equals(id).delete();
+    await db.projects.delete(id);
+
+    // Update state
+    const books = get().books.filter((b) => b.id !== id);
+    set({ books });
+    if (get().project?.id === id) {
+      set({ project: null, chapters: [], characters: [], currentChapterVersions: [] });
+    }
   },
 
   loadChapters: async (projectId) => {
@@ -68,7 +103,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const chapter: Chapter = {
       id, projectId, order, title,
       targetWords: null, beat: '', points: '',
-      content: '', wikiSyncedAt: null,
+      content: '', referenceChapterId: null, wikiSyncedAt: null,
       createdAt: now, updatedAt: now,
     };
     await db.chapters.add(chapter);
@@ -88,6 +123,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await db.chapters.delete(id);
     await db.versions.where('chapterId').equals(id).delete();
     set({ chapters: get().chapters.filter((c) => c.id !== id) });
+  },
+
+  reorderChapters: async (orderedIds) => {
+    const now = Date.now();
+    const byId = new Map(get().chapters.map((c) => [c.id, c]));
+    // 寫入 DB（批次但仍逐筆，Dexie tx 開銷小）
+    await Promise.all(
+      orderedIds.map((id, idx) => db.chapters.update(id, { order: idx, updatedAt: now })),
+    );
+    // 更新 state（保留每章的其他欄位）
+    const next: Chapter[] = orderedIds
+      .map((id, idx) => {
+        const c = byId.get(id);
+        return c ? { ...c, order: idx, updatedAt: now } : null;
+      })
+      .filter((c): c is Chapter => !!c);
+    set({ chapters: next });
   },
 
   setCurrentChapter: async (chapterId) => {

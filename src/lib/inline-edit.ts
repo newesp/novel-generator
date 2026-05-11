@@ -1,4 +1,6 @@
 import { complete } from './llm';
+import { renderTemplate } from './prompt-template';
+import { useSettingsStore } from '../stores/settingsStore';
 import type { Chapter } from '../types';
 import type { InlineEditContextMode } from '../stores/settingsStore';
 
@@ -78,32 +80,15 @@ function buildPrompt(args: {
   adjustInstruction: string;
 }): string {
   const { chapter, selectedText, beforeContext, afterContext, adjustInstruction } = args;
+  const { aiPrompts } = useSettingsStore.getState();
 
-  return `你是中文小說作者，需要重寫一段被選取的文字。
-
-## 章節背景
-- 標題：${chapter.title || '(未命名)'}
-- 節拍：${chapter.beat || '自定義'}
-- 要點：${chapter.points || '無'}
-
-## 上文（請保持銜接，不可改寫）
-${beforeContext || '(無)'}
-
-## 待重寫的段落（必須完全替換）
-"""
-${selectedText}
-"""
-
-## 下文（請保持銜接，不可改寫）
-${afterContext || '(無)'}
-
-## ⚠️ 用戶調整指令（最高優先級，必須遵守）
-${adjustInstruction}
-
-## 輸出要求
-1. 僅輸出重寫後的內容，不加任何說明、引號、標題或前綴
-2. 字數應與原段落相近（±30%）
-3. 風格、人稱、時態必須與上下文一致
-4. 結果與上文末句、下文首句必須能順暢銜接
-5. 嚴格遵守「用戶調整指令」`;
+  return renderTemplate(aiPrompts.inlineAdjustTemplate, {
+    chapterTitle: chapter.title || '(未命名)',
+    beat: chapter.beat || '自定義',
+    points: chapter.points || '無',
+    beforeContext: beforeContext || '(無)',
+    selectedText,
+    afterContext: afterContext || '(無)',
+    adjustInstruction,
+  });
 }

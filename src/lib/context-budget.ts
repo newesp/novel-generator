@@ -1,4 +1,6 @@
 import type { Character } from '../types';
+import { renderTemplate } from './prompt-template';
+import { useSettingsStore } from '../stores/settingsStore';
 
 export interface BudgetInputs {
   worldSetting: string;
@@ -76,6 +78,7 @@ export function formatCharacters(characters: Character[]): string {
         c.appearance && `外貌：${c.appearance}`,
         c.abilities && `能力：${c.abilities}`,
         c.relations && `關係：${c.relations}`,
+        c.arc && `成長弧線：${c.arc}`,
       ]
         .filter(Boolean)
         .join('；');
@@ -85,8 +88,10 @@ export function formatCharacters(characters: Character[]): string {
 }
 
 /**
- * 依 modules/03-chapters.md 的「預設提示詞模板」組裝 prompt。
- * 調整指令以「最高優先級」標示並置於最後段，確保 LLM 注意力。
+ * 依 chapterContentTemplate（可在偏好設定編輯）組裝章節正文 prompt。
+ *
+ * 模板使用 `{{var}}` 語法。conditional 區塊由本函式預先組成完整字串再注入，
+ * 例如沒有主線劇情時，`mainPlotSection` 就是空字串。
  */
 export function buildGenerationPrompt(
   budget: BudgetAllocation,
@@ -94,56 +99,41 @@ export function buildGenerationPrompt(
   targetWords: number | null,
   adjustInstruction = ''
 ): string {
-  const sections: string[] = [];
+  const { aiPrompts } = useSettingsStore.getState();
 
-  sections.push('## 背景資訊');
-  sections.push('');
-  sections.push('### 世界觀');
-  sections.push(budget.worldSetting || '(未設定)');
-  if (budget.mainPlot) {
-    sections.push('');
-    sections.push('### 主線劇情');
-    sections.push(budget.mainPlot);
-  }
-  if (budget.characters) {
-    sections.push('');
-    sections.push('### 主要角色');
-    sections.push(budget.characters);
-  }
+  const mainPlotSection = budget.mainPlot
+    ? `\n\n### 主線劇情\n${budget.mainPlot}`
+    : '';
 
-  sections.push('');
-  sections.push('## 本章要求');
-  sections.push(`- 章節標題：${chapterTitle || '(未命名)'}`);
-  sections.push(`- 故事節拍：${budget.beat || '自定義'}`);
-  sections.push(`- 章節要點：${budget.chapterPoints || '無'}`);
-  sections.push(`- 目標字數：${targetWords ?? '由你自行決定'}`);
+  const charactersSection = budget.characters
+    ? `\n\n### 主要角色\n${budget.characters}`
+    : '';
 
-  if (budget.referenceChapterContent) {
-    sections.push('');
-    sections.push(`## 前文（參考章節：${budget.referenceChapterTitle || '前一章'}）`);
-    sections.push(budget.referenceChapterContent);
-  }
+  const referenceSection = budget.referenceChapterContent
+    ? `\n\n## 前文（參考章節：${budget.referenceChapterTitle || '前一章'}）\n${budget.referenceChapterContent}`
+    : '';
 
-  if (budget.olderChapterSummary) {
-    sections.push('');
-    sections.push('## 更早章節摘要');
-    sections.push(budget.olderChapterSummary);
-  }
+  const olderSummarySection = budget.olderChapterSummary
+    ? `\n\n## 更早章節摘要\n${budget.olderChapterSummary}`
+    : '';
 
-  if (adjustInstruction) {
-    sections.push('');
-    sections.push('## ⚠️ 用戶調整指令（最高優先級，必須遵守）');
-    sections.push(adjustInstruction);
-  }
+  const adjustInstructionSection = adjustInstruction
+    ? `\n\n## ⚠️ 用戶調整指令（最高優先級，必須遵守）\n${adjustInstruction}`
+    : '';
 
-  sections.push('');
-  sections.push('---');
-  sections.push('請開始撰寫本章正文。要求：');
-  sections.push('1. 嚴格遵守上述「本章要求」'
-    + (adjustInstruction ? '與「用戶調整指令」' : ''));
-  sections.push('2. 保持文風一致，與前文順暢銜接，不要複述前文');
-  sections.push('3. 直接從前文結尾處繼續創作');
-  sections.push('4. 直接輸出小說正文，不要加任何說明、標題或註解');
+  const adjustInstructionRule = adjustInstruction ? '與「用戶調整指令」' : '';
 
-  return sections.join('\n');
+  return renderTemplate(aiPrompts.chapterContentTemplate, {
+    worldSetting: budget.worldSetting || '(未設定)',
+    mainPlotSection,
+    charactersSection,
+    chapterTitle: chapterTitle || '(未命名)',
+    beat: budget.beat || '自定義',
+    points: budget.chapterPoints || '無',
+    targetWords: targetWords ?? '由你自行決定',
+    referenceSection,
+    olderSummarySection,
+    adjustInstructionSection,
+    adjustInstructionRule,
+  });
 }

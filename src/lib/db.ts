@@ -35,6 +35,22 @@ export class NovelDB extends Dexie {
           if (v.kind === undefined) v.kind = 'full';
         });
       });
+
+    // v3 — projects 加入 updatedAt 索引，供書庫首頁按更新時間排序使用
+    this.version(3)
+      .stores({
+        projects: 'id, createdAt, updatedAt',
+        chapters: 'id, projectId, order',
+        versions: 'id, chapterId, createdAt',
+        characters: 'id, projectId, name',
+        settings: 'id',
+      })
+      .upgrade(async (tx) => {
+        // 既有 projects 若缺 updatedAt 欄位，補成 createdAt
+        await tx.table('projects').toCollection().modify((p: Project) => {
+          if (p.updatedAt === undefined) p.updatedAt = p.createdAt;
+        });
+      });
   }
 }
 

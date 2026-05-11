@@ -27,14 +27,14 @@
 
 ---
 
-## 核心功能
+## 核心功能（✅ = 已實作）
 
-- 建立新書
-- 開啟書本
-- 重命名書本
-- 刪除書本（含確認提示，避免誤刪）
-- 匯出整本書（觸發 specs/output-formats）
-- 書本層級設定（預設 LLM provider、語言風格等）
+- ✅ 建立新書
+- ✅ 開啟書本
+- ✅ 重命名書本
+- ✅ 刪除書本（含確認提示，避免誤刪；同時刪除所有章節/版本/角色）
+- 匯出整本書（觸發 specs/output-formats）[Phase 3]
+- 書本層級設定（預設 LLM provider、語言風格等）[Phase 2]
 
 ---
 
@@ -86,6 +86,15 @@
 **刪除確認彈窗：**
 - 顯示書名，說明操作不可復原
 - [確認刪除]（危險色）/ [取消]
+
+---
+
+## 實作備註
+
+- `AppView = 'home' | 'editor'`（uiStore）控制首頁/編輯器切換
+- 書本字數由 `chapters` 陣列的 `content.length` 加總，在首頁載入時計算（非即時）
+- `updatedAt` 欄位需在 Dexie schema 中索引才可 `orderBy`（v3 migration 補足）
+- `NewBookModal` 按鈕 always enabled，click 時才做 inline validation（書名必填）
 
 ---
 
