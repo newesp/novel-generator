@@ -120,4 +120,10 @@ function promptLogPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), llmProxyPlugin(), promptLogPlugin()],
+  server: {
+    // 固定 port：避免 5173 被占用時自動跳 port，
+    // 導致 IndexedDB origin 改變、舊資料看似「消失」。
+    port: 5173,
+    strictPort: true,
+  },
 })

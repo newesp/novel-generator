@@ -1,5 +1,46 @@
 # 開發日誌
 
+## 2026-05-12 Bug 修正 + 備份/同步
+
+### Bug 修正
+
+| 問題 | 原因 | 修正 |
+|------|------|------|
+| 關閉瀏覽器再開，剛建的書不見了 | Vite dev server 未固定 port，5173 被占用時會自動跳 5174/5175…；IndexedDB 綁定 origin（host:port），port 一變舊 DB 就「看似消失」（實際還在另一個 origin） | `vite.config.ts` 加 `server.port: 5173` + `strictPort: true`，被占用直接報錯不悄悄換 port |
+
+### 新功能：備份與同步（💾 備份）
+
+Toolbar 新增「💾 備份」按鈕，開啟備份/同步 Modal，提供兩種方案：
+
+| 方案 | 操作 | 適用情境 |
+|------|------|---------|
+| **A. 手動匯出/匯入 JSON** | 📤 匯出全部 → 下載單一 JSON；📥 匯入 JSON → 取代本機資料 | 所有瀏覽器、無痕模式、換機備援 |
+| **E. 連結同步資料夾**（File System Access API） | 一次性選資料夾，之後每次資料變動 2s 後自動寫入 `novel-generator-backup.json`；App 啟動且本機 DB 為空時自動還原 | Chrome/Edge；資料夾選在 OneDrive / Google Drive / iCloud 同步資料夾即可跨機 |
+
+**架構：**
+
+```
+src/
+├── lib/
+│   ├── backup.ts        # exportSnapshot / importSnapshot / downloadSnapshotAsJson
+│   ├── fs-sync.ts       # File System Access：pickAndLinkFolder / push / pull / 持久化 handle
+│   └── auto-sync.ts     # 啟動掛載：訂閱 projectStore → debounced push（2s）；DB 空時自動 pull
+└── components/
+    └── BackupModal.tsx  # 整合 UI（手動 + 同步資料夾）
+```
+
+**DB 變更：**
+- `db.ts` v4：新增 `appMeta` table（key-value），用來持久化 `FileSystemDirectoryHandle`（structured-cloneable）
+
+**備份內容範圍：**
+- ✅ projects / chapters / versions / characters
+- ❌ settings（LLM API key，避免明文洩漏）
+- ❌ Zustand persist（偏好設定、prompts），各自走 localStorage
+
+**無痕模式說明：**
+- IndexedDB 在無痕模式關閉時會被清除，連同已連結的資料夾 handle 一起消失，這是瀏覽器規範
+- Modal 內已加提醒，建議無痕模式關閉前先「📤 匯出全部」
+
 ## 2026-05-11 Phase 2.x — AI 提示詞系統重構
 
 承續同日 Phase 2 功能強化，下午針對 AI 生成品質與可定制性做了一輪深度重構。

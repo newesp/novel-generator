@@ -1,12 +1,19 @@
 import Dexie, { type Table } from 'dexie';
 import type { Project, Chapter, ChapterVersion, Character, LLMConfig } from '../types';
 
+/** appMeta：存放跨 app 共用的小型 key-value（同步資料夾 handle 等） */
+export interface AppMetaRow {
+  key: string;
+  value: unknown;
+}
+
 export class NovelDB extends Dexie {
   projects!: Table<Project>;
   chapters!: Table<Chapter>;
   versions!: Table<ChapterVersion>;
   characters!: Table<Character>;
   settings!: Table<LLMConfig>;
+  appMeta!: Table<AppMetaRow, string>;
 
   constructor() {
     super('NovelGenerator');
@@ -51,6 +58,16 @@ export class NovelDB extends Dexie {
           if (p.updatedAt === undefined) p.updatedAt = p.createdAt;
         });
       });
+
+    // v4 — 加入 appMeta（存放 File System Access directory handle 等跨 session 小資料）
+    this.version(4).stores({
+      projects: 'id, createdAt, updatedAt',
+      chapters: 'id, projectId, order',
+      versions: 'id, chapterId, createdAt',
+      characters: 'id, projectId, name',
+      settings: 'id',
+      appMeta: 'key',
+    });
   }
 }
 

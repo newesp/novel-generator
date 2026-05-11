@@ -18,6 +18,7 @@ import { Modal } from './common/Modal';
 import { Input } from './common/Input';
 import { EditPreviewTabs, type EditPreviewMode } from './common/EditPreviewTabs';
 import { MarkdownView } from './common/MarkdownView';
+import { BackupModal } from './BackupModal';
 import type { LLMProvider } from '../types';
 
 /** 各 provider 的預設值，切換 provider 時自動套用（若使用者未填） */
@@ -54,6 +55,7 @@ export function Toolbar() {
   const { view, setView } = useUIStore();
   const { llmConfig, inlineEdit, aiPrompts, setLlmConfig, setInlineEdit, setAiPrompts } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
+  const [showBackupModal, setShowBackupModal] = useState(false);
   const [activePrefsTab, setActivePrefsTab] = useState<PrefsTab>('llm');
   const [draftLlm, setDraftLlm] = useState(llmConfig);
   const [draftInline, setDraftInline] = useState(inlineEdit);
@@ -108,9 +110,11 @@ export function Toolbar() {
         )}
 
         <div className="toolbar-spacer" />
-        <Button variant="secondary" disabled>導出</Button>
+        <Button variant="secondary" onClick={() => setShowBackupModal(true)}>💾 備份</Button>
         <Button variant="secondary" onClick={openPrefs}>⚙️ 偏好設定</Button>
       </div>
+
+      <BackupModal open={showBackupModal} onClose={() => setShowBackupModal(false)} />
 
       <Modal
         open={showPrefsModal}
