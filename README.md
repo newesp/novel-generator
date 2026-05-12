@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-瀏覽器開 `http://localhost:5173`；首次使用點「⚙️ 偏好設定」填 LLM provider 與 API Key（支援 OpenAI-compatible 與 Google Gemini）。
+瀏覽器開 `http://localhost:5173`；首次使用點「⚙️ 偏好設定」填 LLM provider 與 API Key（支援 OpenAI-compatible、Google Gemini、Grok）。
 
 ---
 
