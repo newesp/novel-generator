@@ -17,6 +17,14 @@ export function OutlinePanel() {
   const [mainPlot, setMainPlot] = useState('');
   const [genWorldBusy, setGenWorldBusy] = useState(false);
   const [saveLabel, setSaveLabel] = useState('💾 儲存大綱');
+  const [fullscreen, setFullscreen] = useState<null | 'world' | 'plot'>(null);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFullscreen(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullscreen]);
 
   useEffect(() => {
     if (project) {
@@ -155,7 +163,15 @@ export function OutlinePanel() {
       </div>
 
       <div className="section">
-        <div className="section-title">世界觀設定</div>
+        <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>世界觀設定</span>
+          <button
+            type="button"
+            onClick={() => setFullscreen('world')}
+            title="展開全螢幕編輯"
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, padding: 2 }}
+          >⛶</button>
+        </div>
         <textarea
           className="form-textarea"
           value={worldSetting}
@@ -166,7 +182,15 @@ export function OutlinePanel() {
       </div>
 
       <div className="section">
-        <div className="section-title">主線劇情架構</div>
+        <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>主線劇情架構</span>
+          <button
+            type="button"
+            onClick={() => setFullscreen('plot')}
+            title="展開全螢幕編輯"
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, padding: 2 }}
+          >⛶</button>
+        </div>
         <textarea
           className="form-textarea"
           value={mainPlot}
@@ -175,6 +199,31 @@ export function OutlinePanel() {
           style={{ minHeight: 100 }}
         />
       </div>
+
+      {fullscreen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'var(--bg-primary)',
+            display: 'flex', flexDirection: 'column', padding: 24, gap: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 17, fontWeight: 600 }}>
+              {fullscreen === 'world' ? '世界觀設定' : '主線劇情架構'}
+            </div>
+            <Button variant="secondary" onClick={() => setFullscreen(null)}>✕ 收起 (Esc)</Button>
+          </div>
+          <textarea
+            autoFocus
+            className="form-textarea"
+            value={fullscreen === 'world' ? worldSetting : mainPlot}
+            onChange={(e) => (fullscreen === 'world' ? setWorldSetting(e.target.value) : setMainPlot(e.target.value))}
+            placeholder={fullscreen === 'world' ? '描述故事發生的世界、規則、勢力格局...' : '概述故事主線走向與核心衝突...'}
+            style={{ flex: 1, width: '100%', resize: 'none', fontSize: 15, lineHeight: 1.7 }}
+          />
+        </div>
+      )}
 
       <div className="section" style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
         <Button
