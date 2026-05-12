@@ -24,7 +24,7 @@
 | 技術選型 / 版本 | `specs/tech-stack.md`（版本以 `package.json` 為準） |
 | Phase 規劃 | `specs/roadmap.md` |
 
-3. 補充資料：`docs/CHANGELOG.md`（若存在）優於最近 3 個 git commit；忽略未合併 branch。
+3. 用戶詢問歷史/最近改動時才查：優先 `docs/CHANGELOG.md`，否則 `git log` main 分支（忽略未合併 branch）。
 
 ## 開發鐵則
 
