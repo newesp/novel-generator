@@ -13,7 +13,7 @@ export function ChaptersPanel() {
   const { selectedChapterId, setSelectedChapterId } = useUIStore();
   const { llmConfig } = useSettingsStore();
   const [showAIModal, setShowAIModal] = useState(false);
-  const [aiCount, setAiCount] = useState(5);
+  const [aiCount, setAiCount] = useState<number | ''>(5);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // —— 多選刪除 ——
@@ -70,7 +70,7 @@ export function ChaptersPanel() {
         points: c.points,
       }));
       const drafts = await generateChapterDrafts({
-        count: aiCount,
+        count: typeof aiCount === 'number' ? aiCount : 1,
         worldSetting: project.worldSetting,
         mainPlot: project.mainPlot,
         existingChapters,
@@ -315,7 +315,7 @@ export function ChaptersPanel() {
             <Button variant="secondary" onClick={() => setShowAIModal(false)} disabled={isGenerating}>
               取消
             </Button>
-            <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || aiCount < 1}>
+            <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || typeof aiCount !== 'number' || aiCount < 1}>
               {isGenerating ? '生成中...' : `生成 ${aiCount} 章`}
             </Button>
           </>
@@ -337,7 +337,16 @@ export function ChaptersPanel() {
             min={1}
             max={20}
             value={aiCount}
-            onChange={(e) => setAiCount(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === '') { setAiCount(''); return; }
+              const n = parseInt(v, 10);
+              if (!isNaN(n)) setAiCount(Math.min(20, n));
+            }}
+            onBlur={() => {
+              const n = typeof aiCount === 'number' ? aiCount : parseInt(String(aiCount), 10);
+              setAiCount(isNaN(n) ? 1 : Math.max(1, Math.min(20, n)));
+            }}
             style={{ width: 80 }}
             disabled={isGenerating}
           />

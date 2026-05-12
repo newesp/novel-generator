@@ -259,3 +259,76 @@ ARC: <成長弧線。主角必須詳細描述從開頭→中段→高潮→結�
   }
   return drafts;
 }
+
+/**
+ * 根據已填欄位，補完單一角色的其餘空白欄位。
+ * 只回傳「原本為空」的欄位內容；已填欄位不會被覆蓋。
+ */
+export async function completeCharacterFields(args: {
+  current: AICharacterDraft;
+  worldSetting: string;
+  mainPlot: string;
+  otherCharacters?: { name: string; personality?: string; background?: string }[];
+}): Promise<Partial<AICharacterDraft>> {
+  const { current, worldSetting, mainPlot, otherCharacters } = args;
+
+  const FIELD_LABELS: Record<keyof AICharacterDraft, string> = {
+    name: '姓名',
+    gender: '性別',
+    age: '年齡',
+    race: '種族',
+    personality: '性格',
+    background: '背景',
+    appearance: '外貌',
+    abilities: '能力',
+    relations: '關係',
+    arc: '成長弧線',
+  };
+  const KEYS: (keyof AICharacterDraft)[] = ['name','gender','age','race','personality','background','appearance','abilities','relations','arc'];
+
+  const filled = KEYS.filter((k) => (current[k] ?? '').trim().length > 0);
+  const empty = KEYS.filter((k) => (current[k] ?? '').trim().length === 0);
+  if (empty.length === 0) return {};
+
+  const filledPart = filled.map((k) => `- ${FIELD_LABELS[k]}：${current[k]}`).join('\n');
+  const emptyKeys = empty.map((k) => `${k.toUpperCase()}（${FIELD_LABELS[k]}）`).join('、');
+
+  const othersPart = otherCharacters && otherCharacters.length
+    ? `\n\n## 故事中其他角色（可作為「關係」欄位參考）\n${otherCharacters.map((c) => `- ${c.name}${c.personality ? `：${c.personality}` : ''}`).join('\n')}`
+    : '';
+
+  const outputLines = empty.map((k) => `${k.toUpperCase()}: <對應內容>`).join('\n');
+
+  const prompt = `你是中文小說角色設定師。下方是「一個角色」已填寫的欄位，請依此推斷並補完「未填欄位」，要與已填內容、世界觀、主線劇情邏輯一致。
+
+## 世界觀
+${worldSetting || '(未指定)'}
+
+## 主線劇情
+${mainPlot || '(未指定)'}${othersPart}
+
+## 此角色已填寫的欄位
+${filledPart || '(目前所有欄位都空白，請自由發想一個能融入此世界觀的角色)'}
+
+# 規則
+1. 只輸出「未填欄位」：${emptyKeys}。已填欄位請勿輸出。
+2. 內容必須與已填欄位一致（不可與已填內容衝突）。
+3. 性格 1-2 句；背景 2-3 句；外貌、能力、關係各 1-2 句；成長弧線可較長，主角應對應主線劇情各階段轉變。
+4. 「關係」欄位若有其他角色，請優先引用其名字。
+
+# 輸出格式（嚴格遵守，不可有前言或結尾）
+##FIELDS_START##
+${outputLines}
+##FIELDS_END##`;
+
+  const result = await complete(prompt, { maxTokens: 2048 });
+  const block = result.match(/##FIELDS_START##([\s\S]*?)##FIELDS_END##/)?.[1] ?? result;
+
+  const out: Partial<AICharacterDraft> = {};
+  for (const k of empty) {
+    const re = new RegExp(`${k.toUpperCase()}:\\s*([\\s\\S]+?)(?=\\n[A-Z]+:|##FIELDS_END##|$)`);
+    const v = block.match(re)?.[1]?.trim();
+    if (v) out[k] = v;
+  }
+  return out;
+}

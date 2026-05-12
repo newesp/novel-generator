@@ -5,7 +5,7 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Textarea } from '../common/Textarea';
-import { generateCharacterDrafts } from '../../lib/ai-tasks';
+import { generateCharacterDrafts, completeCharacterFields } from '../../lib/ai-tasks';
 import { isLLMReady } from '../../lib/llm';
 import type { Character } from '../../types';
 
@@ -30,7 +30,7 @@ export function CharactersPanel() {
   const { llmConfig } = useSettingsStore();
   const [editing, setEditing] = useState<Character | null>(null);
   const [showAIModal, setShowAIModal] = useState(false);
-  const [aiCount, setAiCount] = useState(3);
+  const [aiCount, setAiCount] = useState<number | ''>(3);
   const [isGenerating, setIsGenerating] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -103,7 +103,7 @@ export function CharactersPanel() {
     setIsGenerating(true);
     try {
       const drafts = await generateCharacterDrafts({
-        count: aiCount,
+        count: typeof aiCount === 'number' ? aiCount : 1,
         worldSetting: project.worldSetting,
         mainPlot: project.mainPlot,
         existingNames: characters.map((c) => c.name).filter(Boolean),
@@ -215,6 +215,10 @@ export function CharactersPanel() {
           onClose={() => setEditing(null)}
           onSave={handleSave}
           onDelete={editing.id ? handleDelete : undefined}
+          worldSetting={project.worldSetting || ''}
+          mainPlot={project.mainPlot || ''}
+          otherCharacters={characters.filter((c) => c.id !== editing.id).map((c) => ({ name: c.name, personality: c.personality, background: c.background }))}
+          llmReady={isLLMReady(llmConfig)}
         />
       )}
 
@@ -227,7 +231,7 @@ export function CharactersPanel() {
             <Button variant="secondary" onClick={() => setShowAIModal(false)} disabled={isGenerating}>
               取消
             </Button>
-            <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || aiCount < 1}>
+            <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || typeof aiCount !== 'number' || aiCount < 1}>
               {isGenerating ? '生成中...' : `生成 ${aiCount} 個角色`}
             </Button>
           </>
@@ -252,7 +256,16 @@ export function CharactersPanel() {
             min={1}
             max={10}
             value={aiCount}
-            onChange={(e) => setAiCount(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === '') { setAiCount(''); return; }
+              const n = parseInt(v, 10);
+              if (!isNaN(n)) setAiCount(Math.min(10, n));
+            }}
+            onBlur={() => {
+              const n = typeof aiCount === 'number' ? aiCount : parseInt(String(aiCount), 10);
+              setAiCount(isNaN(n) ? 1 : Math.max(1, Math.min(10, n)));
+            }}
             style={{ width: 80 }}
             disabled={isGenerating}
           />
@@ -268,9 +281,15 @@ interface ModalProps {
   onClose: () => void;
   onSave: (data: Omit<Character, 'id' | 'projectId' | 'createdAt'>) => void;
   onDelete?: () => void;
+  worldSetting: string;
+  mainPlot: string;
+  otherCharacters: { name: string; personality?: string; background?: string }[];
+  llmReady: boolean;
 }
 
-function CharacterEditorModal({ character, onClose, onSave, onDelete }: ModalProps) {
+function CharacterEditorModal({ character, onClose, onSave, onDelete, worldSetting, mainPlot, otherCharacters, llmReady }: ModalProps) {
+  const [aiFilling, setAiFilling] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: character.name,
     gender: character.gender,
@@ -287,6 +306,36 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete }: ModalPro
   const update = <K extends keyof typeof form>(key: K, val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
 
+  const handleAIFill = async () => {
+    setAiError(null);
+    setAiFilling(true);
+    try {
+      const filled = await completeCharacterFields({
+        current: form,
+        worldSetting,
+        mainPlot,
+        otherCharacters,
+      });
+      if (Object.keys(filled).length === 0) {
+        setAiError('AI 沒有回傳任何欄位內容，請檢查 LLM 設定或回應格式');
+        return;
+      }
+      setForm((f) => {
+        const next = { ...f };
+        for (const [k, v] of Object.entries(filled)) {
+          if (v && !(next as Record<string, string>)[k]?.trim()) {
+            (next as Record<string, string>)[k] = v;
+          }
+        }
+        return next;
+      });
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAiFilling(false);
+    }
+  };
+
   return (
     <Modal
       open
@@ -299,13 +348,26 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete }: ModalPro
               刪除
             </Button>
           )}
+          <Button
+            variant="ghost"
+            onClick={handleAIFill}
+            disabled={aiFilling || !llmReady}
+            title={!llmReady ? '請先到偏好設定填寫 LLM provider 與 API Key' : '根據已填寫的欄位，AI 補完其餘空白欄位'}
+          >
+            {aiFilling ? '生成中...' : '✨ AI 填寫內容'}
+          </Button>
           <div style={{ flex: 1 }} />
-          <Button variant="secondary" onClick={onClose}>取消</Button>
-          <Button variant="primary" onClick={() => onSave(form)}>儲存</Button>
+          <Button variant="secondary" onClick={onClose} disabled={aiFilling}>取消</Button>
+          <Button variant="primary" onClick={() => onSave(form)} disabled={aiFilling}>儲存</Button>
         </>
       }
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {aiError && (
+          <div style={{ padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--accent)', borderRadius: 6, color: 'var(--accent)', fontSize: 12 }}>
+            {aiError}
+          </div>
+        )}
         <Input label="姓名" value={form.name} onChange={(e) => update('name', e.target.value)} />
         <div style={{ display: 'flex', gap: 8 }}>
           <Input label="性別" value={form.gender} onChange={(e) => update('gender', e.target.value)} />
