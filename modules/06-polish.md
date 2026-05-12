@@ -1,8 +1,6 @@
 # 模組 06｜內容潤色器
 
-**Phase**：3　**依賴**：00-book、08-llm-adapter
-
----
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)
 
 ## 功能項目
 

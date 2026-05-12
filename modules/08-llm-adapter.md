@@ -1,9 +1,6 @@
 # 模組 08｜LLM 適配層
 
-**Phase**：單一 provider → 1；多 provider → 2（Google Gemini、Grok 已實作）
-**依賴**：specs/tech-stack
-
----
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)（單一 provider Phase 1，多 provider Phase 2；Google Gemini、Grok 已實作）
 
 ## 支援的模型
 

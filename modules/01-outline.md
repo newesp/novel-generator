@@ -1,8 +1,6 @@
 # 模組 01｜大綱生成系統
 
-**Phase**：1　**依賴**：00-book、02-characters、08-llm-adapter、07-context-budget
-
----
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)
 
 ## 生成流程
 

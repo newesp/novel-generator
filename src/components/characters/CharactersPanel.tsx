@@ -32,10 +32,44 @@ export function CharactersPanel() {
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiCount, setAiCount] = useState(3);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (project) loadCharacters(project.id);
   }, [project?.id]);
+
+  useEffect(() => {
+    setSelected((prev) => {
+      const ids = new Set(characters.map((c) => c.id));
+      const next = new Set<string>();
+      prev.forEach((id) => { if (ids.has(id)) next.add(id); });
+      return next;
+    });
+  }, [characters]);
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const allChecked = characters.length > 0 && selected.size === characters.length;
+  const someChecked = selected.size > 0 && !allChecked;
+
+  const toggleAll = () => {
+    setSelected(allChecked ? new Set() : new Set(characters.map((c) => c.id)));
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selected.size === 0) return;
+    if (!confirm(`刪除已勾選的 ${selected.size} 個角色？此操作無法復原。`)) return;
+    for (const id of selected) {
+      await deleteCharacter(id);
+    }
+    setSelected(new Set());
+  };
 
   if (!project) {
     return (
@@ -118,17 +152,53 @@ export function CharactersPanel() {
 
       <div className="section">
         <div className="section-title">角色列表（{characters.length}）</div>
+        {characters.length > 0 && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '6px 0 8px', fontSize: 12, color: 'var(--text-secondary)',
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={allChecked}
+                ref={(el) => { if (el) el.indeterminate = someChecked; }}
+                onChange={toggleAll}
+              />
+              全選
+            </label>
+            <span style={{ flex: 1 }} />
+            <span>已勾選 {selected.size}</span>
+            <Button
+              variant="ghost"
+              onClick={handleDeleteSelected}
+              disabled={selected.size === 0}
+              style={{ color: selected.size > 0 ? 'var(--accent)' : undefined }}
+            >
+              🗑 刪除勾選
+            </Button>
+          </div>
+        )}
         {characters.map((char) => (
           <div
             key={char.id}
             className="char-item"
             onClick={() => setEditing(char)}
+            style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}
           >
-            <div className="char-item-name">{char.name || '(未命名)'}</div>
-            <div className="char-item-meta">
-              {[char.gender, char.age && `${char.age}歲`, char.race && `種族：${char.race}`]
-                .filter(Boolean)
-                .join(' · ')}
+            <input
+              type="checkbox"
+              checked={selected.has(char.id)}
+              onClick={(e) => e.stopPropagation()}
+              onChange={() => toggleOne(char.id)}
+              style={{ marginTop: 3, cursor: 'pointer' }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="char-item-name">{char.name || '(未命名)'}</div>
+              <div className="char-item-meta">
+                {[char.gender, char.age && `${char.age}歲`, char.race && `種族：${char.race}`]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </div>
             </div>
           </div>
         ))}

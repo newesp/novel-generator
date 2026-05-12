@@ -1,9 +1,6 @@
 # 模組 07｜Context Budget Manager（上下文預算管理器）
 
-**Phase**：基礎版 → 1；動態版（摘要壓縮 + RAG）→ 2.5
-**依賴**：04-knowledge（Wiki 條目 + RAG 檢索結果）
-
----
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)（基礎版 Phase 1，動態版 Phase 2.5）
 
 ## 核心概念
 

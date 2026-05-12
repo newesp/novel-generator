@@ -1,9 +1,6 @@
 # 模組 04｜知識管理系統（LLM Wiki + Vector RAG + Graph 關係層）
 
-**Phase**：Wiki → 2；Vector RAG → 2；Graph → 2.5
-**依賴**：00-book、07-context-budget（載入 Wiki/RAG 結果時）
-
----
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)（子系統 Phase：Wiki→2、RAG→2、Graph→2.5）
 
 ## 混合記憶架構
 

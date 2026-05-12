@@ -1,8 +1,6 @@
 # 模組 09｜Multi-Agent 協作引擎
 
-**Phase**：4（選做）　**依賴**：07-context-budget、04-knowledge（Graph 層）
-
----
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)
 
 ## 核心概念
 

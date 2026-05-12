@@ -1,8 +1,6 @@
 # 模組 03｜章節管理器
 
-**Phase**：1　**依賴**：00-book、07-context-budget、04-knowledge、05-versions
-
----
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)
 
 ## 運作流程
 

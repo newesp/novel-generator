@@ -1,9 +1,7 @@
 # 模組 02｜角色系統
 
-**Phase**：1
-**Phase**：2　**依賴**：00-book、04-knowledge（Graph 關係層視覺化）
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)
 
----
 ## 生成流程
 
 ```

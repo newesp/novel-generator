@@ -1,8 +1,6 @@
 # 模組 10｜多媒體生成模組
 
-**Phase**：4（選做）　**依賴**：00-book、specs/tech-stack
-
----
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)
 
 ## 功能列表
 

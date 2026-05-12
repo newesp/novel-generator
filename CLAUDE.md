@@ -1,67 +1,34 @@
-# 小說產生器（Novel Generator）
+# 小說產生器 — AI 載入指南
 
-## 專案背景
+本機瀏覽器 Web App，自動生成高品質中文小說，從大綱到正文完整流程。
 
-啟動時讀取 `README.md` 獲取專案背景。若存在 `docs/CHANGELOG.md`，優先讀取最近版本摘要；若不存在，fallback 到最近三個 git commit 訊息。
+## 載入策略
 
-專案目標：本機瀏覽器 Web App，自動生成高品質中文小說，從大綱到正文完整流程。
+1. 第一次進入專案：讀 `README.md`（系統概觀 + 模組總表）。
+2. 依任務只載對應模組，不要全載：
 
-## 文件結構
+| 任務 | 載入 |
+|------|------|
+| UI 視覺/佈局 | `specs/UI.md` + `specs/UI-layout.md` |
+| 書本 CRUD / 首頁 | `modules/00-book.md` |
+| 大綱生成 | `modules/00` + `01` |
+| 章節生成核心 | `modules/00` + `03` + `07` |
+| Wiki / RAG / 知識層 | `modules/04` + `07` |
+| 角色系統 / 關係圖 | `modules/02` + `04` |
+| 版本管理 | `modules/05` |
+| 潤色 | `modules/06` |
+| LLM 串接 / provider | `modules/08` |
+| Multi-Agent（Phase 4） | `modules/09` + `07` |
+| 多媒體生成（Phase 4） | `modules/10` |
+| 導出格式 | `specs/output-formats.md` |
+| 技術選型 / 版本 | `specs/tech-stack.md`（版本以 `package.json` 為準） |
+| Phase 規劃 | `specs/roadmap.md` |
 
-```
-README.md               # 主文件：系統架構、模組索引、跨模組依賴
-docs/
-  plan.md               # 完整規劃文件（含所有模組詳細規格）
-  log.md                # 開發日誌
-specs/
-  roadmap.md            # 開發階段規劃（Phase 1–4）
-  tech-stack.md         # 技術選型
-  UI.md                 # 視覺規範
-  UI-layout.md          # 主編輯介面佈局
-  output-formats.md     # 輸出格式規格
-  deployment.md         # 部署方式
-modules/
-  00-book.md            # 書本管理（Phase 1）
-  01-outline.md         # 大綱生成系統（Phase 1）
-  02-characters.md      # 角色系統（Phase 2）
-  03-chapters.md        # 章節管理器（Phase 1）
-  04-knowledge.md       # 知識管理系統（Phase 2/2.5）
-  05-versions.md        # 章節版本管理（Phase 1）
-  06-polish.md          # 內容潤色器（Phase 3）
-  07-context-budget.md  # Context Budget Manager（Phase 1/2.5）
-  08-llm-adapter.md     # LLM 適配層（Phase 1/2）
-  09-multi-agent.md     # Multi-Agent 協作引擎（Phase 4，選做）
-  10-multimedia.md      # 多媒體生成模組（Phase 4，選做）
-```
+3. 補充資料：`docs/CHANGELOG.md`（若存在）優於最近 3 個 git commit；忽略未合併 branch。
 
-## 實作任務對應文件
+## 開發鐵則
 
-| 任務 | 建議載入 |
-|------|---------|
-| UI 實作 | README + specs/UI.md + specs/UI-layout.md |
-| 書本列表與 CRUD | README + modules/00-book.md |
-| 大綱生成流程 | README + modules/00 + 01 + specs/tech-stack.md |
-| 章節生成核心 | README + modules/00 + 03 + 07 |
-| Wiki 存入與提醒 | README + modules/04 + 07 + specs/tech-stack.md |
-| 角色系統與關係圖 | README + modules/02 + 04 |
-| 版本管理 | README + modules/05 |
-| LLM 串接 | README + modules/08 + specs/tech-stack.md |
-| 導出功能 | README + specs/output-formats.md + specs/tech-stack.md |
-| Phase 規劃確認 | README + specs/roadmap.md |
-
-## 技術棧
-
-- **建構工具**: Vite 5
-- **框架**: React 18 + TypeScript (strict)
-- **狀態管理**: Zustand + persist
-- **本地存儲**: Dexie.js 4 (IndexedDB)
-- **UI 元件**: shadcn/ui + Radix UI
-- **LLM**: 自定義 API adapter（OpenAI-compatible，Phase 1）
-- **樣式**: Tailwind CSS
-
-## 開發規則
-
-- AI 僅讀取 main 分支的 commit，忽略尚未合併的 feature branch
-- 當版本更新完成並合併至 main 後，將版本摘要存入 `docs/CHANGELOG.md`
-- 所有資料以 `bookId` 為根鍵，存於 IndexedDB
-- Phase 1 優先：能跑的最小版本，哪怕品質普通
+- 所有資料以 `bookId` 為根鍵，存於 IndexedDB（Dexie）。
+- 僅讀 main 分支；版本合併後將摘要存入 `docs/CHANGELOG.md`。
+- Phase 1 優先「能跑的最小版本」，品質可日後迭代。
+- 技術棧現況（權威來源是 `package.json`）：React 19 / TypeScript strict / Vite 8 / Zustand 5 / Dexie 4 / 自製 UI 元件（無 shadcn、無 Tailwind，使用 CSS variables）。
