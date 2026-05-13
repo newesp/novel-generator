@@ -14,6 +14,7 @@ export function ChaptersPanel() {
   const { llmConfig } = useSettingsStore();
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiCount, setAiCount] = useState<number | ''>(5);
+  const [aiProgress, setAiProgress] = useState<number>(50);
   const [isGenerating, setIsGenerating] = useState(false);
 
   // —— 多選刪除 ——
@@ -75,6 +76,7 @@ export function ChaptersPanel() {
         mainPlot: project.mainPlot,
         existingChapters,
         charactersList: formatCharacters(characters),
+        targetProgress: aiProgress,
       });
 
       if (drafts.length === 0) {
@@ -351,6 +353,31 @@ export function ChaptersPanel() {
             disabled={isGenerating}
           />
           <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>（建議 3 - 10 章）</span>
+        </div>
+
+        <div style={{ marginTop: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <label style={{ fontSize: 13 }}>
+              故事進度 <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>（本批章節寫完時，整個故事的劇情進度）</span>
+            </label>
+            <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, minWidth: 44, textAlign: 'right' }}>{aiProgress}%</span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={5}
+            value={aiProgress}
+            onChange={(e) => setAiProgress(parseInt(e.target.value, 10))}
+            disabled={isGenerating}
+            style={{ width: '100%', accentColor: 'var(--accent)' }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
+            <span>初期（引入）</span>
+            <span>中段（衝突升級）</span>
+            <span>後期（高潮）</span>
+            <span>結局</span>
+          </div>
         </div>
       </Modal>
     </div>

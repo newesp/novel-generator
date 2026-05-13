@@ -32,6 +32,28 @@ export interface AICharacterDraft {
 const BEAT_LIST = '引入 (Inciting Incident) / 衝突升級 (Rising Action) / 中點轉折 (Midpoint Twist) / 高潮 (Climax) / 結局 (Resolution) / 鋪墊/過渡';
 
 /**
+ * 把 0-100 的故事進度數值，轉成給 AI 看的進度指示。
+ * 0 = 故事剛開始；100 = 結局。
+ */
+function buildProgressInstruction(progress: number): string {
+  const p = Math.max(0, Math.min(100, Math.round(progress)));
+  let phase: string;
+  if (p <= 15)      phase = '故事的「引入期」：主角剛被捲入主要衝突，世界觀與關鍵角色正開始展開';
+  else if (p <= 35) phase = '故事的「鋪陳期」：衝突開始升級，角色關係與伏筆逐步建立';
+  else if (p <= 55) phase = '故事的「中段」：抵達或接近中點轉折，故事方向出現重大變化';
+  else if (p <= 75) phase = '故事的「衝突高張期」：各條線索匯流，衝突急劇升級，邁向高潮';
+  else if (p <= 90) phase = '故事的「高潮期」：主要衝突進入決定性對決階段';
+  else              phase = '故事的「結局期」：主要衝突已落幕或正在收束，伏筆要逐一回收';
+
+  return `## 本批章節的劇情進度目標
+
+本批章節「寫完之後」，整個故事的劇情進度應該達到約 **${p}%**（0% = 故事剛開始，100% = 全書結局）。
+也就是說，這批章節的最後一章寫完時，故事應處於：**${phase}**。
+
+請依此安排本批各章節的節拍、衝突強度與情節展開速度，讓劇情自然推進到此進度（不要過快或過慢）。`;
+}
+
+/**
  * 為單一章節重新生成「章節要點」。
  * AI 會綜合：世界觀、主線劇情、角色清單、參考章節（內容摘要）、本章故事節拍 → 寫出 2-4 句要點。
  */
@@ -108,8 +130,10 @@ export async function generateChapterDrafts(args: {
   existingChapters: ExistingChapterSummary[];
   /** 已建立的角色（formatCharacters 輸出），用於避免 AI 自編人名 */
   charactersList?: string;
+  /** 本批章節寫完時，整個故事的劇情進度（0-100）。0=故事剛開始，100=結局 */
+  targetProgress?: number;
 }): Promise<AIChapterDraft[]> {
-  const { count, worldSetting, mainPlot, existingChapters, charactersList } = args;
+  const { count, worldSetting, mainPlot, existingChapters, charactersList, targetProgress } = args;
   const { aiPrompts } = useSettingsStore.getState();
 
   const isContinuation = existingChapters.length > 0;
@@ -135,9 +159,11 @@ export async function generateChapterDrafts(args: {
     ? '衝突升級 (Rising Action) / 中點轉折 (Midpoint Twist) / 高潮 (Climax) / 結局 (Resolution) / 鋪墊/過渡'
     : BEAT_LIST;
 
-  const taskIntro = isContinuation
+  const progressText = typeof targetProgress === 'number' ? buildProgressInstruction(targetProgress) : '';
+  const taskIntroBase = isContinuation
     ? `你正在**為一本已開始的小說規劃後續章節**。現在故事已經寫到第 ${existingChapters.length} 章，請接續規劃第 ${existingChapters.length + 1} 章到第 ${existingChapters.length + count} 章（共 ${count} 章新章節）。`
     : `根據以下世界觀與主線劇情，為一本中文小說規劃開頭 ${count} 個章節。`;
+  const taskIntro = progressText ? `${taskIntroBase}\n\n${progressText}` : taskIntroBase;
 
   const rulesText = aiPrompts.chapterContinuationRules?.trim() ?? '';
   const continuationRulesSection = isContinuation && rulesText
