@@ -10,7 +10,11 @@
  *   window.dbDebug.cleanupOrphans()     // 刪除所有孤兒
  *   window.dbDebug.wipeAllExceptBook('小圓舞進行曲')
  *                                       // 只保留指定書名（含子資料），其餘全清
+ *
+ * 注意：此檔案另外 import 原始 `db` 並掛到 window.dbDebug.db，
+ * 方便從 dev console 直接戳 Dexie。其餘檔案禁止 import './db'。
  */
+import { storage } from './storage';
 import { db } from './db';
 
 export interface DBReport {
@@ -21,10 +25,10 @@ export interface DBReport {
 }
 
 export async function inspect(): Promise<DBReport> {
-  const projects = await db.projects.toArray();
-  const chapters = await db.chapters.toArray();
-  const characters = await db.characters.toArray();
-  const versions = await db.versions.toArray();
+  const projects = await storage.projects.list();
+  const chapters = await storage.chapters.list();
+  const characters = await storage.characters.list();
+  const versions = await storage.versions.list();
 
   const bookIds = new Set(projects.map((p) => p.id));
   const chapterIds = new Set(chapters.map((c) => c.id));
@@ -73,15 +77,14 @@ export async function cleanupOrphans(): Promise<{ characters: number; chapters: 
   const chapIds = report.orphanChapters.map((c) => c.id);
   const verIds = report.orphanVersions.map((v) => v.id);
 
-  if (charIds.length) await db.characters.bulkDelete(charIds);
+  if (charIds.length) await storage.characters.bulkDelete(charIds);
   if (chapIds.length) {
     // 同時清掉指向這些章節的版本
-    const versionsOfOrphanChapters = await db.versions
-      .where('chapterId').anyOf(chapIds).primaryKeys();
-    await db.versions.bulkDelete(versionsOfOrphanChapters as string[]);
-    await db.chapters.bulkDelete(chapIds);
+    const versionsOfOrphanChapters = await storage.versions.idsByChapters(chapIds);
+    await storage.versions.bulkDelete(versionsOfOrphanChapters);
+    await storage.chapters.bulkDelete(chapIds);
   }
-  if (verIds.length) await db.versions.bulkDelete(verIds);
+  if (verIds.length) await storage.versions.bulkDelete(verIds);
 
   console.log(`🧹 已清除：${charIds.length} 個孤兒角色 / ${chapIds.length} 個孤兒章節 / ${verIds.length + (chapIds.length ? '+'  : '')} 個孤兒版本`);
   return { characters: charIds.length, chapters: chapIds.length, versions: verIds.length };
@@ -92,7 +95,7 @@ export async function cleanupOrphans(): Promise<{ characters: number; chapters: 
  * 若 title 對應多本書，全部保留。
  */
 export async function wipeAllExceptBook(title: string): Promise<void> {
-  const projects = await db.projects.toArray();
+  const projects = await storage.projects.list();
   const keep = projects.filter((p) => p.title === title);
   if (keep.length === 0) {
     console.warn(`找不到書名為「${title}」的書本，沒有任何動作`);
@@ -106,14 +109,16 @@ export async function wipeAllExceptBook(title: string): Promise<void> {
   }
 
   // 刪除非保留書的所有子資料
-  const removeChapters = await db.chapters.where('projectId').anyOf(removeProjectIds).toArray();
+  const removeProjectIdSet = new Set(removeProjectIds);
+  const allChapters = await storage.chapters.list();
+  const removeChapters = allChapters.filter((c) => removeProjectIdSet.has(c.projectId));
   const removeChapterIds = removeChapters.map((c) => c.id);
   if (removeChapterIds.length) {
-    await db.versions.where('chapterId').anyOf(removeChapterIds).delete();
-    await db.chapters.bulkDelete(removeChapterIds);
+    await storage.versions.deleteByChapters(removeChapterIds);
+    await storage.chapters.bulkDelete(removeChapterIds);
   }
-  await db.characters.where('projectId').anyOf(removeProjectIds).delete();
-  await db.projects.bulkDelete(removeProjectIds);
+  await storage.characters.deleteByProjects(removeProjectIds);
+  await storage.projects.bulkDelete(removeProjectIds);
 
   // 再做一次孤兒清理（保險）
   await cleanupOrphans();
@@ -128,6 +133,7 @@ if (import.meta.env.DEV) {
     inspect,
     cleanupOrphans,
     wipeAllExceptBook,
-    db,
+    db,        // 仍掛原始 Dexie 實例供 dev console 直接戳
+    storage,   // 也掛 adapter 方便測試
   };
 }
