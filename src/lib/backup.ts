@@ -7,7 +7,7 @@
  * 不包含 settings（LLM API key）— 避免明文洩漏；使用者偏好（含 prompts）走 Zustand persist，
  * 不在書本資料的備份範圍內。
  */
-import { db } from './db';
+import { storage } from './storage';
 import type { Project, Chapter, ChapterVersion, Character } from '../types';
 
 export const BACKUP_SCHEMA_VERSION = 1 as const;
@@ -25,10 +25,10 @@ export interface BackupSnapshot {
 
 export async function exportSnapshot(): Promise<BackupSnapshot> {
   const [projects, chapters, versions, characters] = await Promise.all([
-    db.projects.toArray(),
-    db.chapters.toArray(),
-    db.versions.toArray(),
-    db.characters.toArray(),
+    storage.projects.list(),
+    storage.chapters.list(),
+    storage.versions.list(),
+    storage.characters.list(),
   ]);
   return {
     schema: BACKUP_SCHEMA_VERSION,
@@ -52,15 +52,11 @@ export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' =
   }
 
   if (mode === 'replace') {
-    await db.transaction('rw', [db.projects, db.chapters, db.versions, db.characters], async () => {
-      await db.projects.clear();
-      await db.chapters.clear();
-      await db.versions.clear();
-      await db.characters.clear();
-      await db.projects.bulkAdd(snapshot.projects ?? []);
-      await db.chapters.bulkAdd(snapshot.chapters ?? []);
-      await db.versions.bulkAdd(snapshot.versions ?? []);
-      await db.characters.bulkAdd(snapshot.characters ?? []);
+    await storage.replaceAll({
+      projects: snapshot.projects ?? [],
+      chapters: snapshot.chapters ?? [],
+      versions: snapshot.versions ?? [],
+      characters: snapshot.characters ?? [],
     });
   }
 }
