@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
-import { db } from '../../lib/db';
+import { storage } from '../../lib/storage';
 import { BookCard } from './BookCard';
 import { NewBookModal } from './NewBookModal';
 import { Button } from '../common/Button';
@@ -27,7 +27,7 @@ export function HomePage() {
     (async () => {
       const counts: Record<string, number> = {};
       for (const book of books) {
-        const chapters = await db.chapters.where('projectId').equals(book.id).toArray();
+        const chapters = await storage.chapters.listByProject(book.id, { sorted: false });
         counts[book.id] = chapters.reduce((sum, c) => sum + (c.content?.length ?? 0), 0);
       }
       setWordCounts(counts);
