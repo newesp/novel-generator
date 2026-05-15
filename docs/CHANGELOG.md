@@ -1,5 +1,29 @@
 # 開發日誌
 
+## 2026-05-15 Phase 5a — StorageAdapter 抽象層
+
+把 Dexie 包進 `StorageAdapter` interface，UI / stores / lib 都改走 `src/lib/storage`
+singleton，不再直接 import `db`。功能完全不變，但為 Phase 5b（Tauri + SQLite）
+鋪好換實作的路；同時保留未來 Web 回部署（Phase 7，wa-sqlite + OPFS）的彈性。
+
+**新增：**
+- `src/lib/storage/types.ts`：`StorageAdapter` interface 與子 store 介面
+- `src/lib/storage/dexie-adapter.ts`：Dexie 實作（唯一 import `./db` 的業務檔）
+- `src/lib/storage/index.ts`：平台偵測（Phase 5b 接 `window.__TAURI__`）+ `storage` singleton
+
+**遷移：**
+- `src/stores/projectStore.ts`、`src/lib/backup.ts`、`src/lib/fs-sync.ts`、
+  `src/components/home/HomePage.tsx`：全部改走 `storage.*`
+- `src/lib/db-maintenance.ts`：業務邏輯改走 adapter；仍保留 `import db` 以將 Dexie 實例
+  掛到 `window.dbDebug.db` 供 dev console 直接戳
+
+**規劃文件：**
+- `docs/superpowers/specs/2026-05-15-tauri-sqlite-migration-design.md`：Phase 5 完整設計
+- `docs/superpowers/plans/2026-05-15-phase-5a-storage-adapter.md`：本次 implementation plan
+- `specs/roadmap.md`：新增 Phase 5/6/7 規劃
+
+---
+
 ## 2026-05-12 Bug 修正 + 備份/同步
 
 ### Bug 修正
