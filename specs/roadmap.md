@@ -42,5 +42,93 @@
 
 ## Phase 4 — 選做功能
 
-16. Multi-Agent 協作引擎（Planner / Writer / Critic / Editor）→ 09-multi-agent
-17. 多媒體生成（封面圖、語音朗讀、漫畫分鏡）→ 10-multimedia
+1. Multi-Agent 協作引擎（Planner / Writer / Critic / Editor）→ 09-multi-agent
+2. 多媒體生成（封面圖、語音朗讀、漫畫分鏡）→ 10-multimedia
+
+---
+
+## Phase 5 — 桌面化與儲存重構（規劃中）
+
+> 目標：解決瀏覽器儲存的天生限制（無痕模式清資料、配額上限、無法存大量 binary），同時為 Phase 6 影片功能鋪路。
+> **核心原則：先做抽象、後做平台實作。確保未來仍可回頭部署 Web 版。**
+
+### 背景
+
+純瀏覽器環境下，IndexedDB / OPFS / localStorage 在無痕模式關閉後**全部會被清空**，「換 SQLite (WASM)」也救不了，因為 WASM SQLite 仍然要靠 IndexedDB 或 OPFS 持久化。真正能徹底解決的方向只有：
+- **包成桌面 App（Tauri）** — 跳出瀏覽器沙盒，用真正的 SQLite + 本機檔案
+- 或加雲端後端（違反「本機優先」定位，暫不採用）
+
+### 架構：Adapter 抽象層
+
+```
+React UI（不動）
+      ↓ 只依賴抽象介面
+StorageAdapter / MediaAdapter (interface)
+      ↓
+┌─ TauriSqliteAdapter（桌面）─┐    ┌─ WebAdapter（瀏覽器備援）─┐
+│ - SQLite (native)           │    │ - wa-sqlite + OPFS         │
+│ - 本機檔案系統               │    │ - IndexedDB Blob / OPFS    │
+│ - ffmpeg sidecar            │    │ - ffmpeg.wasm（功能降級）   │
+└─────────────────────────────┘    └────────────────────────────┘
+```
+
+**UI / business logic 不知道自己跑在哪個平台。**
+
+### 任務
+
+1. **設計 `StorageAdapter` interface**（包含 projects / chapters / characters / versions / wiki 等 CRUD）→ 把現有 Dexie code 包進去當第一個實作
+2. **加 Tauri shell**（React + Vite 直接套用，UI 不變）
+3. **`TauriSqliteAdapter`**（`tauri-plugin-sql` + SQLite 檔）
+4. **資料遷移**：偵測舊 IndexedDB 資料 → 一次性匯入 SQLite
+5. **媒體儲存規則**（為 Phase 6 準備）：
+   - metadata 進 SQLite（章節 ↔ 圖片/音檔 關聯）
+   - binary 進本機檔案系統，例如 `<project_folder>/media/ch01/panel-01.png`
+   - adapter 對外回傳「不透明 handle / 本地 URL」，UI 不關心底層路徑
+6. **CI / 發布**：Tauri build 三平台（Windows / macOS / Linux）
+
+### SQLite schema 原則
+
+- Schema 與 Dexie tables 對齊：`projects`、`chapters`、`versions`、`characters`、`settings`、`appMeta`、（Phase 6 增加）`media_assets`
+- **大型 binary 不進 SQLite**（避免 DB 膨脹）— 改放檔案系統
+- Schema 設計時考量「Web 版用 wa-sqlite 也能執行相同 SQL」
+
+---
+
+## Phase 6 — 漫畫 + AI 念稿 + 影片生成（規劃中）
+
+> 目標：選擇章節 → 生成連續漫畫圖片 → 配 AI TTS → 合成影片（mp4）
+
+### 任務
+
+1. **`MediaAdapter` interface**（saveImage / saveAudio / renderVideo）
+2. **漫畫分鏡 pipeline**：章節文本 → LLM 拆鏡 → 各鏡呼叫圖像生成 API → 存檔
+3. **TTS pipeline**：章節旁白 / 對話拆段 → TTS API → 存檔（多角色不同音色可選）
+4. **影片合成**（Tauri 桌面端優先）：
+   - 桌面：呼叫 ffmpeg sidecar，組合圖片 + 音檔 + 轉場 → mp4
+   - Web：可選用 ffmpeg.wasm（慢但可用）或顯示「請使用桌面版」
+5. **UI 整合**：章節工具列「轉漫畫」「轉影片」按鈕；預覽 + 重新生成單一面板
+
+### 為何強烈傾向桌面
+
+- 一章可能十幾~幾十張 PNG（每張 1-3 MB），全本累積會到 GB 級 — 瀏覽器配額卡死
+- ffmpeg.wasm 跑影片合成慢且耗記憶體；Tauri 用 native ffmpeg 快 10x+
+- 大檔案（>2GB mp4）走瀏覽器下載流程不可靠，本機檔案系統直接寫出最穩
+
+---
+
+## Phase 7 — Web 版回部署（可選 / 未來）
+
+> Phase 5 抽象做對的話，這個 phase 就是「加實作」而不是「砍掉重寫」。
+
+### 任務
+
+1. **`WaSqliteAdapter`**（wa-sqlite + OPFS）— 與桌面共用 SQL schema
+2. **`WebMediaAdapter`**（OPFS 存圖片 / ffmpeg.wasm 合影片，或介接後端 API）
+3. **PWA 部署**（離線可用、安裝到桌面）
+4. **降級提示**：影片功能在 Web 版若以 ffmpeg.wasm 實作則明確標示效能限制；或將「匯出影片」設為桌面專屬
+
+### 預期限制（不是 bug，是平台天生差異）
+
+- 無痕模式：OPFS 仍會被清（無解）— 提示使用者
+- 大檔案下載：瀏覽器有限制 — 大型影片建議使用桌面版
+- 多裝置同步：需要後端，不在此 phase 範圍
