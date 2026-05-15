@@ -10,7 +10,7 @@
  * Handle 透過 IndexedDB（Dexie appMeta table）持久化，重開瀏覽器仍有效。
  * 無痕模式關閉後 IndexedDB 被清，handle 一起消失 — 此情境下每次需重新連結。
  */
-import { db } from './db';
+import { storage } from './storage';
 import {
   BACKUP_FILENAME,
   exportSnapshot,
@@ -27,16 +27,16 @@ export function isFsAccessSupported(): boolean {
 }
 
 async function saveHandle(handle: FileSystemDirectoryHandle): Promise<void> {
-  await db.appMeta.put({ key: HANDLE_META_KEY, value: handle });
+  await storage.appMeta.put(HANDLE_META_KEY, handle);
 }
 
 async function loadHandle(): Promise<FileSystemDirectoryHandle | null> {
-  const row = await db.appMeta.get(HANDLE_META_KEY);
-  return (row?.value as FileSystemDirectoryHandle | undefined) ?? null;
+  const value = await storage.appMeta.get<FileSystemDirectoryHandle>(HANDLE_META_KEY);
+  return value ?? null;
 }
 
 async function clearHandle(): Promise<void> {
-  await db.appMeta.delete(HANDLE_META_KEY);
+  await storage.appMeta.delete(HANDLE_META_KEY);
 }
 
 /** 檢查 / 請求 read+write 權限。回傳是否取得權限。 */
