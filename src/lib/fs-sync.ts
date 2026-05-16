@@ -11,6 +11,7 @@
  * 無痕模式關閉後 IndexedDB 被清，handle 一起消失 — 此情境下每次需重新連結。
  */
 import { storage } from './storage';
+import { isTauri } from './platform';
 import {
   BACKUP_FILENAME,
   exportSnapshot,
@@ -21,8 +22,9 @@ import {
 
 const HANDLE_META_KEY = 'fs-sync-folder-handle';
 
-/** Vendor-prefixed API 不存在的瀏覽器（Firefox / Safari）會回 false。 */
+/** Vendor-prefixed API 不存在的瀏覽器（Firefox / Safari）會回 false。Tauri 桌面版亦回 false（改走後續手動 export/import）。 */
 export function isFsAccessSupported(): boolean {
+  if (isTauri()) return false;
   return typeof (globalThis as any).showDirectoryPicker === 'function';
 }
 
