@@ -33,3 +33,6 @@ Thumbs.db
 
 # Obsidian (editor-specific)
 .obsidian/
+
+# Tauri build artifacts
+src-tauri/target/
