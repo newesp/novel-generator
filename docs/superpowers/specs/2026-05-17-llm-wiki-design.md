@@ -31,7 +31,7 @@ LLM Wiki 是這個問題的「**LLM 自管知識層**」：用戶寫完一章 �
 | D1 | Ingest 觸發 | 純手動「📚 存入 Wiki」按鈕 |
 | D2 | Ingest 來源範圍 | 本章正文 + 本書當前 wiki index（含 aliases）+ characters 名稱清單 |
 | D3 | 與 characters 表的關係 | 並存：characters 為 structured 主表、Wiki entity 為 prose 補充；ingest 不自動寫 characters，只提示 |
-| D4 | Query 策略 | 全載 + 黃/紅警報截斷 fallback；pick-pages 留待 Phase 2.5 |
+| D4 | Query 策略 | 小 Wiki 全載；中/大 Wiki 走 cheap relevance filter + 優先級排序 + 黃/紅警報截斷；pick-pages 留待 Phase 2.5 |
 | D5 | UI 位置 | 左側主分頁「📚 Wiki」（specs/UI-layout.md 既已預留） |
 | D6 | 人為關卡 | 自動 apply + 結果 toast + 一鍵還原（wiki_log 存 before/after） |
 | D7 | Lint | 不做（Phase 2.5） |
@@ -87,16 +87,42 @@ CREATE INDEX idx_wiki_log_batch ON wiki_log (batch_id);
 ### 3.2 既有表新增欄位
 
 ```sql
-ALTER TABLE chapters ADD COLUMN wikiSyncedAt   TEXT;  -- ISO8601 或 NULL
-ALTER TABLE chapters ADD COLUMN wikiSyncedHash TEXT;  -- ingest 時 chapter content 的 sha1，nullable
+ALTER TABLE chapters ADD COLUMN wikiSyncedAt    TEXT;  -- ISO8601 或 NULL
+ALTER TABLE chapters ADD COLUMN wikiSyncedHash  TEXT;  -- ingest 時 chapter content 的 sha1，nullable
+ALTER TABLE chapters ADD COLUMN wikiSyncStatus  TEXT
+  CHECK (wikiSyncStatus IN ('unsynced','synced','stale','partial')) DEFAULT 'unsynced';
 ```
 
-判斷邏輯（依序）：
-- `wikiSyncedAt = NULL` → 未存（橘色 `⚠️ 未存 Wiki`）
-- `sha1(chapters.content) ≠ wikiSyncedHash` → 已過時（橘色 `⚠️ Wiki 已過時`）
-- 否則 → 已同步（灰色「✓ 已存入」+ tooltip 顯示時間）
+`wikiSyncStatus` 四種狀態（明示語意，不靠 hash 推導）：
 
-> hash 比 `updatedAt` 比對可靠：避免標題微調、tag 改動等「非內容」變化誤觸過時旗標；也避免 wiki 手動還原後章節狀態失真。
+| 狀態 | 意義 | UI 徽章 |
+|---|---|---|
+| `unsynced` | 從未 ingest 過 | 橘色 `⚠️ 未存 Wiki` |
+| `synced` | 最近一次 ingest 全部成功且章節內容未變 | 灰色「✓ 已存入」+ tooltip 顯示時間 |
+| `stale` | 之前同步成功，但章節內容後續修改了（`sha1(content) ≠ wikiSyncedHash`） | 橘色 `⚠️ Wiki 已過時` |
+| `partial` | 最近一次 ingest 有 op_status='failed'；wiki 處於部分套用狀態 | 紅色 `⚠️ Wiki 部分失敗` + tooltip 顯示失敗數 |
+
+**狀態轉換規則**（寫入時機）：
+
+```
+ingest 開始       → status 不變（保留歷史，避免 in-flight 狀態抖動）
+ingest 結束時：
+  全部 ok       → status='synced',  wikiSyncedAt=now, wikiSyncedHash=sha1(content)
+  有 failed     → status='partial', wikiSyncedAt=now, wikiSyncedHash=sha1(content)
+  Plan/校驗失敗 → status 不變（沒寫入任何 wiki_pages，章節狀態不該變）
+
+undo（§4.6）   → status='unsynced', wikiSyncedAt=NULL, wikiSyncedHash=NULL
+
+章節內容變更（任何 chapter.content 寫入時 hook）：
+  if status in ('synced','partial') and sha1(new_content) ≠ wikiSyncedHash:
+    status='stale'
+  （unsynced 不變；stale 也不再退回更早狀態）
+
+「重試剩餘」（§4.5）全部成功 → status='synced'
+「重試剩餘」仍有 failed       → status='partial'（時間戳更新）
+```
+
+> 改用 explicit status 欄位的理由：codex review 指出，原本「即使 failed 也寫 wikiSyncedAt」會讓「已同步」失準。partial 是真實的中間態，UI 必須能讓使用者一眼看見「這章 wiki 沒乾淨完成」。hash 仍保留，用來偵測 stale（章節內容後續被改）。
 
 ### 3.3 StorageAdapter 介面擴充
 
@@ -231,11 +257,9 @@ export interface StorageBundle {
      e. 若 (d) 失敗：updateStatus(log.id, 'failed', errorMessage)
                     （log 已記錄完整 before/after，可以重試或還原）
 
-   全部完成後：
-     UPDATE chapters SET wikiSyncedAt = now(),
-                          wikiSyncedHash = chapterContentHash
-                    WHERE id = currentChapterId
-     （若有任何 op_status='failed'，仍寫 wikiSyncedAt 但記 batchHasFailures 旗標供 UI）
+   全部完成後依結果寫入 chapter 同步狀態（見 §3.2 狀態轉換表）：
+     全部 ok：   status='synced',  wikiSyncedAt=now, wikiSyncedHash=chapterContentHash
+     有 failed： status='partial', wikiSyncedAt=now, wikiSyncedHash=chapterContentHash
    │
    ▼
 [6] UI 反饋
@@ -347,7 +371,7 @@ create / update 都輸出**完整 markdown 頁**，遵循 `skills/llm-wiki/refer
    - kind='delete' → 用 pageSnapshotBefore INSERT 回 wiki_pages
 3. 將原 entries 的 op_status 更新為 'undone'
 4. 為整個還原動作新增**一條** kind='undo' 紀錄（source='undo:<batchId>'，summary 描述「還原 N 個操作」）
-5. UPDATE chapters SET wikiSyncedAt = NULL, wikiSyncedHash = NULL WHERE id = currentChapterId
+5. UPDATE chapters SET wikiSyncStatus='unsynced', wikiSyncedAt=NULL, wikiSyncedHash=NULL WHERE id = currentChapterId
 
 「批次存入」場景下每章自己一個 batchId；undo 是針對單一 batch，不會誤傷其他章節的 ingest。
 
@@ -549,12 +573,13 @@ else:
 [💾 存入版本] [📚 存入 Wiki]   ←空白→   [💾 儲存]  [↩️ 重新生成]  [✨ 生成本章]
 ```
 
-「📚 存入 Wiki」四種狀態：
-| 狀態 | 顯示 | 點擊行為 |
+「📚 存入 Wiki」按鈕狀態（對應 chapters.wikiSyncStatus）：
+| status | 顯示 | 點擊行為 |
 |---|---|---|
-| 未存 | `📚 存入 Wiki`（主按鈕） | 跑 ingest |
-| 已同步 | `✓ 已存入`（灰色禁用，hover tooltip 顯示時間） | 無 |
-| 已過時 | `⚠️ Wiki 已過時，重新存入`（橘色主按鈕） | 跑 ingest |
+| `unsynced` | `📚 存入 Wiki`（主按鈕） | 跑 ingest |
+| `synced` | `✓ 已存入`（灰色禁用，hover tooltip 顯示時間） | 無 |
+| `stale` | `⚠️ Wiki 已過時，重新存入`（橘色主按鈕） | 跑 ingest |
+| `partial` | `⚠️ Wiki 部分失敗`（紅色，hover tooltip 顯示失敗數） | 開啟 modal：[重試剩餘] [還原] [完整重跑] |
 | ingest 中 | spinner + `存入中...`（禁用） | 無 |
 
 ### 6.3 Toast
@@ -573,10 +598,14 @@ else:
 
 ### 6.4 「未存入 Wiki」提醒（modules/04 既規）
 
-- 章節列表項目右側徽章：未存 → `⚠️ 未存 Wiki` 橘色；過時 → `⚠️ Wiki 已過時` 橘色；已同步 → 無徽章
-- 章節列表頂部：未存 / 過時章節 ≥ 1 → banner「您有 N 個章節 Wiki 未同步 [批次存入]」
-- 「批次存入」對每章串行跑 ingest，顯示進度條與當前章名，可隨時取消（取消後已完成的章節保留）
-- 點擊「導出」前若有未存章節 → confirm modal「N 章節 Wiki 未同步，仍要導出？[取消] [先批次存入] [略過]」
+- 章節列表項目右側徽章（依 `wikiSyncStatus`）：
+  - `unsynced` → 橘色 `⚠️ 未存 Wiki`
+  - `stale` → 橘色 `⚠️ Wiki 已過時`
+  - `partial` → 紅色 `⚠️ Wiki 部分失敗`
+  - `synced` → 無徽章
+- 章節列表頂部：未存 + 過時 + 部分失敗章節 ≥ 1 → banner「您有 N 個章節 Wiki 未同步 [批次存入]」（partial 章節走「重試剩餘」而非從頭 ingest）
+- 「批次存入」對每章串行處理（依 status：unsynced/stale 跑 ingest；partial 跑重試剩餘），顯示進度條與當前章名，可隨時取消（取消後已完成的章節保留）
+- 點擊「導出」前若有非 `synced` 章節 → confirm modal「N 章節 Wiki 未完整同步，仍要導出？[取消] [先批次處理] [略過]」
 
 ### 6.5 偏好設定新增區塊
 
@@ -693,6 +722,13 @@ else:
 ---
 
 ## 11. Review 修訂紀錄
+
+### Round 2（2026-05-17，codex 第二輪 review）
+
+12. D4 決策總覽改寫為「小 Wiki 全載；中/大走 cheap filter + 截斷」與 §5.3 一致（§2）
+13. chapters 加 `wikiSyncStatus` 欄位（`unsynced`/`synced`/`stale`/`partial`），明示語意取代從 hash 推導；UI 徽章與按鈕狀態同步分四種；批次處理區分 ingest vs 重試（§3.2、§4.1、§4.6、§6.2、§6.4）
+
+### Round 1（2026-05-17，codex 第一輪 review）
 
 2026-05-17 接受 codex review（`docs/review-0517.md`）11 項建議：
 
