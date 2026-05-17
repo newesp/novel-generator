@@ -1,34 +1,28 @@
-新版 spec 已經比上一版成熟很多，可以進入「接近可實作」狀態。上次 review 的核心問題大多已吸收：`batch_id`、`op_status`、page snapshot、`wikiSyncedHash`、嚴格 JSON、cheap relevance filter、保守 token 估算、匯入順序都補上了。
+剩下我會標成「實作前建議修」的點：
 
-我會給結論：**可採納，但實作前還要修幾個點。**
+**1. Snapshot 不夠完整，會影響 undo delete / round-trip**  
+spec (line 121) 的 WikiPageSnapshot 只有 title/aliases/relatedSlugs/description/contentMd，但 §4.6 說 delete undo 要用 snapshot INSERT 回 wiki_pages。  
+建議：WikiPageSnapshot 直接等同完整 WikiPage，至少補 id/bookId/type/slug/createdAt/updatedAt。不然還原刪除頁時會靠 log 欄位拼裝，時間戳也會失真。
 
-**仍需修正**
+**2. partial 被章節修改轉成 stale 後，失敗狀態會被蓋掉**  
+狀態轉換 (line 111) 寫 status in ('synced','partial') 且內容變更就變 stale。這會讓「上次 ingest 有 failed ops」的紅色狀態消失。  
+建議：要嘛新增 partial_stale，要嘛 UI 顯示時以「仍有 failed log」優先於 stale 判斷。
 
-1. **D4 摘要仍寫「全載 + 截斷」但正文已改成 cheap relevance**  
-   第 34 行的決策總覽還是舊說法，但第 413-466 行已改成「cheap filter → priority → truncation」。  
-   建議：第 34 行改成「小 Wiki 全載；中大型 Wiki 使用 cheap relevance filter + 截斷」。
+**3. llm-wiki prompt 仍是 filesystem path 介面，spec 要求 type+slug，但尚未明確列出改寫規格**  
+prompt 移植 (line 603) 寫「filesystem path 改成 type+slug」。我檢查現有 ingest-plan.md 仍輸出 path: "concept/attention.md"。  
+建議：spec 加一小節「Prompt adaptation rules」，明確 update op 的輸出從 path 改成 { type, slug }，或應用層負責 path -> type/slug 正規化。
 
-2. **`wikiSyncedHash` 的狀態語意還有一點灰區**  
-   第 234-238、334 行說即使有 failed ops，仍寫 `wikiSyncedAt/wikiSyncedHash`。這會讓章節看起來「內容已同步」，但 Wiki 其實部分失敗。  
-   建議：章節同步狀態至少分成：
-   - `synced`
-   - `stale`
-   - `partial`
-   - `unsynced`
+**4. 驗收標準尚未覆蓋 partial 與 retry**  
+新版加入 wikiSyncStatus='partial' 是對的，但 驗收標準 (line 657) 還停在成功/還原/提醒。  
+建議補兩條：
 
-   或在 chapter 加 `wikiSyncStatus`，不要只靠 `wikiSyncedAt + hash` 推導。
+- 模擬一個 apply/page 寫入失敗，章節應顯示 partial，可看到失敗數。
+- 點「重試剩餘」後，成功則轉 synced，失敗則維持 partial。
 
-**我覺得新版做得好的地方**
-- `batch_id` 取代「同一秒」判斷，undo/重試穩很多。
-- `page_snapshot_before/after` 比單純存 markdown 更適合還原。
-- 承認 Tauri SQL 無 transaction，改用補償模式，這比假裝有 atomicity 誠實。
-- cheap relevance filter 是很好的 Phase 2 折衷，不用等完整 pick-pages。
-- `estimateTokens()` 抽象做得對，未來換 tokenizer 不會擴散修改。
+**5. Cheap relevance filter 的中文切詞需要最小定義**  
+Step 1 (line 417) 提到「章節要點中的 N-gram」「高頻名詞 top 20」，但中文名詞抽取如果沒有工具，容易每個人實作不同。  
+建議 Phase 2 先定義簡單版：用角色名、aliases、slug/title、章節標題、章節要點中的連續 2-4 字片段；高頻名詞 top 20 可以延後或只做簡單正則。
 
-**建議結論**
-這份 spec 現在可以作為 LLM Wiki Phase 2 主規格，但我會先補：
-
-1. 更新 D4 決策總覽。
-2. 明確定義 partial sync 狀態。
-
-補完後，就可以交給實作了。
+**總結**  
+這版已經很接近可交付實作。 
+我會在動工前只再補：完整 snapshot、partial/stale 優先序、prompt adaptation 規則、partial retry 驗收。補完後就可以開切了。

@@ -90,10 +90,10 @@ CREATE INDEX idx_wiki_log_batch ON wiki_log (batch_id);
 ALTER TABLE chapters ADD COLUMN wikiSyncedAt    TEXT;  -- ISO8601 或 NULL
 ALTER TABLE chapters ADD COLUMN wikiSyncedHash  TEXT;  -- ingest 時 chapter content 的 sha1，nullable
 ALTER TABLE chapters ADD COLUMN wikiSyncStatus  TEXT
-  CHECK (wikiSyncStatus IN ('unsynced','synced','stale','partial')) DEFAULT 'unsynced';
+  CHECK (wikiSyncStatus IN ('unsynced','synced','stale','partial','partial_stale')) DEFAULT 'unsynced';
 ```
 
-`wikiSyncStatus` 四種狀態（明示語意，不靠 hash 推導）：
+`wikiSyncStatus` 五種狀態（明示語意，不靠 hash 推導）：
 
 | 狀態 | 意義 | UI 徽章 |
 |---|---|---|
@@ -101,6 +101,7 @@ ALTER TABLE chapters ADD COLUMN wikiSyncStatus  TEXT
 | `synced` | 最近一次 ingest 全部成功且章節內容未變 | 灰色「✓ 已存入」+ tooltip 顯示時間 |
 | `stale` | 之前同步成功，但章節內容後續修改了（`sha1(content) ≠ wikiSyncedHash`） | 橘色 `⚠️ Wiki 已過時` |
 | `partial` | 最近一次 ingest 有 op_status='failed'；wiki 處於部分套用狀態 | 紅色 `⚠️ Wiki 部分失敗` + tooltip 顯示失敗數 |
+| `partial_stale` | 同上但章節內容後續又被修改；失敗未處理且現在又過時了 | 紅色 `⚠️ 部分失敗 + 已過時` + tooltip 同時顯示失敗數與過時 |
 
 **狀態轉換規則**（寫入時機）：
 
@@ -114,9 +115,10 @@ ingest 結束時：
 undo（§4.6）   → status='unsynced', wikiSyncedAt=NULL, wikiSyncedHash=NULL
 
 章節內容變更（任何 chapter.content 寫入時 hook）：
-  if status in ('synced','partial') and sha1(new_content) ≠ wikiSyncedHash:
-    status='stale'
-  （unsynced 不變；stale 也不再退回更早狀態）
+  if sha1(new_content) ≠ wikiSyncedHash:
+    synced  → stale
+    partial → partial_stale       （不可蓋掉失敗狀態）
+    其他狀態（unsynced/stale/partial_stale）不變
 
 「重試剩餘」（§4.5）全部成功 → status='synced'
 「重試剩餘」仍有 failed       → status='partial'（時間戳更新）
@@ -144,13 +146,8 @@ export interface WikiPage {
   updatedAt: string;
 }
 
-export interface WikiPageSnapshot {
-  title: string;
-  aliases: string[];
-  relatedSlugs: { type: WikiPageType; slug: string }[];
-  description: string;
-  contentMd: string;
-}
+/** 還原所需的完整頁面快照 — 等同 WikiPage 全欄位（含 id、bookId、type、slug、時間戳） */
+export type WikiPageSnapshot = WikiPage;
 
 export interface WikiLogEntry {
   id: string;
@@ -375,6 +372,21 @@ create / update 都輸出**完整 markdown 頁**，遵循 `skills/llm-wiki/refer
 
 「批次存入」場景下每章自己一個 batchId；undo 是針對單一 batch，不會誤傷其他章節的 ingest。
 
+### 4.7 Prompt 移植規則（從 filesystem 版改寫到 type+slug 版）
+
+`skills/llm-wiki/prompts/` 的原版 prompt 以 filesystem path（`entity/transformer.md`）作為頁面標識。我們的 SQLite 版改用 `{ type, slug }` 二元組。改寫規則：
+
+| 原 prompt 欄位 | 改寫後 | 備註 |
+|---|---|---|
+| `path: "entity/transformer.md"` | `type: "entity", slug: "transformer"` | Plan 的 update op 都這樣改 |
+| Pass 1 input：「current index.md」 | Pass 1 input：「current index (JSON array of {type, slug, title, description, aliases})」 | 由應用層 SQL 即時組裝 |
+| Pass 2 input：「previous file content of <path>」 | Pass 2 input：「previous page snapshot (JSON of WikiPage)」 | 應用層用 page_id 從 wiki_pages 撈 |
+| Apply 輸出開頭 `> **Related:** [X](../entity/x.md)` | 同樣輸出 markdown link 形式（display 用） | DB 另存 `related_slugs[]` JSON，由應用層解析 markdown 後同步寫入；display markdown 中的 link 不檢查破連結（lint 是 Phase 2.5） |
+| log.md 操作 | INSERT INTO wiki_log | 對應規則：filesystem 那邊「append a line」我們改成 SQL INSERT |
+| 「regenerate index.md after apply」 | 不需要 | SQL 即時查 index，無快取需重整 |
+
+**容錯**：若 LLM 不慎輸出 filesystem path 形式（例如 `path: "entity/transformer.md"`），應用層 normalize：split('/') → 第一段為 type、第二段去 `.md` 為 slug；非法則走 §4.4 校驗失敗。
+
 ---
 
 ## 5. Query 整合到 Context Budget
@@ -405,6 +417,7 @@ export interface WikiLoaderInput {
     beat?: string;
     referenceChapterContent?: string;
     characterNames?: string[];       // 出場角色（caller 從 characters 表或 chapter metadata 取）
+    characterAliases?: string[];     // 角色的全部 alias 已 flatten
   };
 }
 
@@ -436,26 +449,46 @@ Phase 2 採用**保守值 `1.5 char/token`**（也就是 1 token ≈ 1.5 字）�
 
 ### 5.3 演算法（三段式：cheap filter → 優先級排序 → 預算截斷）
 
-#### Step 1: Cheap relevance filter
+#### Step 1: Cheap relevance filter（Phase 2 簡單版，純字串、零依賴）
 
-從 `chapterContext` 構造一個「needle 集合」（slug、alias、character names、章節要點中的 N-gram 等）：
+**Needle 集合構造規則**（明確定義，避免實作分歧）：
 
 ```
-needles = lowercase(
-  [chapterContext.title]
-  ∪ [chapterContext.points 切分後的詞]
-  ∪ [chapterContext.characterNames]
-  ∪ [從 referenceChapterContent 取的高頻名詞 top 20]
-)
+needles: Set<string> = {
+  // (1) 來自 characters 表：每位角色的 name 與全部 aliases
+  ...chapterContext.characterNames,
+  ...chapterContext.characterAliases,    // caller 預先 flatten
+
+  // (2) 章節標題：整串 + 標題切詞（中文以「連續 2-4 字」滑動窗，英文以空白切詞）
+  chapterContext.title,
+  ...sliding2to4(chapterContext.title),
+
+  // (3) 章節要點：同樣的 2-4 字滑動窗
+  ...sliding2to4(chapterContext.points ?? ''),
+
+  // (4) 故事節拍：去掉括號注解，整串放入
+  chapterContext.beat?.replace(/\(.+?\)/g, '').trim(),
+
+  // (5) 參考章節：取尾段 1500 字，再做 2-4 字滑動窗，最多 top 50 個出現頻次最高的
+  //     片段。不做詞性分析，純粹字頻
+  ...topNByFrequency(sliding2to4(tail(chapterContext.referenceChapterContent ?? '', 1500)), 50),
+}
+// 去重、過濾長度 <2 與全標點、lowercase（英文）
 ```
 
-對每頁計算 `relevanceScore`：
-- 若 page.slug 命中 needles → +10
-- 若 page.title 命中 needles → +8
-- 若 page.aliases 任一命中 → +8
-- 若 page.contentMd 含 needle（純字串包含，非正規語意）→ +1（最多 5 個 needle 計）
+> 不做中文分詞，只用 2-4 字滑動窗 + 字頻 — 沒有 jieba/zhconv 等依賴，純 JS 一個 reduce 即可。誤判率高但成本零；命中只是「加分」不是「排除」，所以誤判不會把對的頁排除掉。
 
-`relevantPages = pages.filter(p => p.relevanceScore > 0)`
+**對每頁計算 `relevanceScore`**：
+
+```
+score(page) =
+    (page.slug 命中 needles)         ? 10 : 0
+  + (page.title 命中 needles)        ?  8 : 0
+  + (page.aliases ∩ needles 數量)    ×  6     // 多別名命中累加
+  + (page.contentMd 含 needle 個數，cap 5) × 1
+```
+
+`relevantPages = pages.filter(p => score(p) > 0)`
 
 #### Step 2: 結合優先級
 
@@ -580,6 +613,7 @@ else:
 | `synced` | `✓ 已存入`（灰色禁用，hover tooltip 顯示時間） | 無 |
 | `stale` | `⚠️ Wiki 已過時，重新存入`（橘色主按鈕） | 跑 ingest |
 | `partial` | `⚠️ Wiki 部分失敗`（紅色，hover tooltip 顯示失敗數） | 開啟 modal：[重試剩餘] [還原] [完整重跑] |
+| `partial_stale` | `⚠️ 部分失敗 + 已過時`（紅色） | 開啟 modal：[還原後重新 ingest] [僅還原] [完整重跑] —— 不提供「重試剩餘」因為章節內容已變，舊 failed brief 不再對應 |
 | ingest 中 | spinner + `存入中...`（禁用） | 無 |
 
 ### 6.3 Toast
@@ -602,6 +636,7 @@ else:
   - `unsynced` → 橘色 `⚠️ 未存 Wiki`
   - `stale` → 橘色 `⚠️ Wiki 已過時`
   - `partial` → 紅色 `⚠️ Wiki 部分失敗`
+  - `partial_stale` → 紅色 `⚠️ 部分失敗 + 已過時`
   - `synced` → 無徽章
 - 章節列表頂部：未存 + 過時 + 部分失敗章節 ≥ 1 → banner「您有 N 個章節 Wiki 未同步 [批次存入]」（partial 章節走「重試剩餘」而非從頭 ingest）
 - 「批次存入」對每章串行處理（依 status：unsynced/stale 跑 ingest；partial 跑重試剩餘），顯示進度條與當前章名，可隨時取消（取消後已完成的章節保留）
@@ -695,6 +730,10 @@ else:
 8. **匯入向後相容**：載入 Phase 5b 時代的舊 backup JSON（無 wikiPages / wikiLog 欄位），不報錯
 9. **跨平台 round-trip**：瀏覽器版建立 wiki → 匯出 → 桌面版匯入 → 桌面版查 → 一致
 10. **刪書級聯**：刪除書後查 wiki_pages、wiki_log 應為 0 條（該 bookId）
+11. **Partial 狀態**：mock 一個 apply LLM 失敗（或 page 寫入失敗），章節 status 應變 `partial`，徽章紅色「Wiki 部分失敗」，tooltip 顯示失敗數
+12. **Partial → 重試**：對 partial 章節點「重試剩餘」→ 全成功則章節變 `synced`；仍有失敗則維持 `partial`、失敗數可能變少
+13. **Partial → 內容變更**：partial 章節編輯內容後 status 應變 `partial_stale`（不可被 stale 蓋掉失敗事實）
+14. **Delete undo round-trip**：手動建頁 → 刪除（產生 delete log）→ undo → 頁面 id/bookId/createdAt 完整還原
 
 ---
 
@@ -722,6 +761,14 @@ else:
 ---
 
 ## 11. Review 修訂紀錄
+
+### Round 3（2026-05-17，codex 第三輪 review）
+
+14. WikiPageSnapshot 改為等同完整 WikiPage（含 id/bookId/type/slug/時間戳），保證 delete undo 可 bit-perfect 還原（§3.3）
+15. 新增 `partial_stale` 狀態，避免 partial 被章節修改誤蓋為 stale（§3.2、§4.1、§6.2、§6.4）
+16. 新增 §4.7「Prompt 移植規則」，明確 filesystem path → type+slug 的改寫對照表 + 容錯
+17. Cheap relevance filter 定義具體版（2-4 字滑動窗、字頻 top 50、純 JS 零依賴），避免實作分歧（§5.3 Step 1）
+18. 驗收標準新增 4 條：partial 顯示、重試剩餘、partial → 內容變更、delete undo round-trip（§8）
 
 ### Round 2（2026-05-17，codex 第二輪 review）
 
