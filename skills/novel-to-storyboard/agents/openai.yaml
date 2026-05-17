@@ -1,0 +1,7 @@
+interface:
+  display_name: "Novel to Storyboard"
+  short_description: "Turn novel chapters into storyboard JSON."
+  default_prompt: "Use $novel-to-storyboard to convert the selected novel chapter into storyboard JSON with comic panel prompts, narration, and continuity notes."
+
+policy:
+  allow_implicit_invocation: true
