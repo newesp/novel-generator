@@ -2,48 +2,48 @@
 
 ---
 
-## Phase 1 — 能跑的最小版本
+## Phase 1 — 能跑的最小版本（✅ 已完成，2026-05-10）
 > 目標：可以完整生成一本小說，哪怕品質普通
 
-1. 書本管理（CRUD、首頁書本列表）→ 00-book
-2. 單一 LLM provider（先支援自定義 API）→ 08-llm-adapter
-3. 大綱生成 + 用戶編輯 → 01-outline
-4. 角色系統 CRUD → 02-characters
-5. 章節續寫（單 Agent，Writer 直接生成）→ 03-chapters
-6. Context Budget Manager 基礎版（固定比例分配）→ 07-context-budget
-7. IndexedDB 存儲 + 章節版本管理（3 版 + 釘選）→ 05-versions
+1. ✅ 書本管理（CRUD、首頁書本列表）→ 00-book
+2. ✅ 單一 LLM provider（先支援自定義 API）→ 08-llm-adapter
+3. ✅ 大綱生成 + 用戶編輯 → 01-outline
+4. ✅ 角色系統 CRUD → 02-characters
+5. ✅ 章節續寫（單 Agent，Writer 直接生成）→ 03-chapters
+6. ✅ Context Budget Manager 基礎版（固定比例分配）→ 07-context-budget
+7. ✅ IndexedDB 存儲 + 章節版本管理（3 版 + 釘選）→ 05-versions
 
 ---
 
-## Phase 2 — 記憶與一致性
+## Phase 2 — 記憶與一致性（⚠️ 部分完成）
 
-1. LLM Wiki 完整功能（存入 + 未存入提醒機制）→ 04-knowledge
-2. Vector RAG（Ollama embedding + LanceDB）→ 04-knowledge
-3. 角色關係圖（JSON 圖模式）→ 02-characters
-4. 多 LLM provider 支援（Ollama、Google、Grok 等）→ 08-llm-adapter
-
----
-
-## Phase 2.5 — 結構強化
-
-1. Graph 關係層（JSON 圖完整功能：多跳查詢、事件因果）→ 04-knowledge
-2. Context Budget Manager 動態版（摘要壓縮、RAG 整合）→ 07-context-budget
-3. 一致性 Lint（矛盾偵測、交叉引用檢查）→ 04-knowledge
+1. ❌ LLM Wiki 完整功能（存入 + 未存入提醒機制）→ 04-knowledge
+2. ❌ Vector RAG（Ollama embedding + LanceDB）→ 04-knowledge
+3. ❌ 角色關係圖視覺化（JSON 圖模式）→ 02-characters（角色弧線欄位 ✅ 已加，圖視覺化未做）
+4. ✅ 多 LLM provider 支援（Google Gemini / Grok / 自定義 OpenAI-compatible）→ 08-llm-adapter
 
 ---
 
-## Phase 3 — 輸出與體驗
+## Phase 2.5 — 結構強化（❌ 未開始）
 
-1. 導出功能（.txt / .html / .epub）→ specs/output-formats
-2. 內容潤色器 → 06-polish
-3. UI 美化與使用體驗優化
+1. ❌ Graph 關係層（JSON 圖完整功能：多跳查詢、事件因果）→ 04-knowledge
+2. ❌ Context Budget Manager 動態版（摘要壓縮、RAG 整合）→ 07-context-budget
+3. ❌ 一致性 Lint（矛盾偵測、交叉引用檢查）→ 04-knowledge
 
 ---
 
-## Phase 4 — 選做功能
+## Phase 3 — 輸出與體驗（❌ 未開始）
 
-1. Multi-Agent 協作引擎（Planner / Writer / Critic / Editor）→ 09-multi-agent
-2. 多媒體生成（封面圖、語音朗讀、漫畫分鏡）→ 10-multimedia
+1. ❌ 導出功能（.txt / .html / .epub）→ specs/output-formats
+2. ❌ 內容潤色器 → 06-polish
+3. ⚠️ UI 美化與使用體驗優化（持續進行，基礎樣式已完成）
+
+---
+
+## Phase 4 — 選做功能（❌ 未開始）
+
+1. ❌ Multi-Agent 協作引擎（Planner / Writer / Critic / Editor）→ 09-multi-agent
+2. ❌ 多媒體生成（封面圖、語音朗讀、漫畫分鏡）→ 10-multimedia
 
 ---
 
@@ -91,19 +91,21 @@ StorageAdapter / MediaAdapter (interface)
 
 ---
 
-## Phase 6 — 漫畫 + AI 念稿 + 影片生成（規劃中）
+## Phase 6 — 漫畫 + AI 念稿 + 影片生成（⏳ 規劃中，前置：Phase 5 ✅）
 
 > 目標：選擇章節 → 生成連續漫畫圖片 → 配 AI TTS → 合成影片（mp4）
 
 ### 任務
 
-1. **`MediaAdapter` interface**（saveImage / saveAudio / renderVideo）
-2. **漫畫分鏡 pipeline**：章節文本 → LLM 拆鏡 → 各鏡呼叫圖像生成 API → 存檔
-3. **TTS pipeline**：章節旁白 / 對話拆段 → TTS API → 存檔（多角色不同音色可選）
-4. **影片合成**（Tauri 桌面端優先）：
+1. ❌ **`MediaAdapter` interface**（saveImage / saveAudio / renderVideo）
+2. ❌ **漫畫分鏡 pipeline**：章節文本 → LLM 拆鏡 → 各鏡呼叫圖像生成 API → 存檔
+3. ❌ **TTS pipeline**：章節旁白 / 對話拆段 → TTS API → 存檔（多角色不同音色可選）
+4. ❌ **影片合成**（Tauri 桌面端優先）：
    - 桌面：呼叫 ffmpeg sidecar，組合圖片 + 音檔 + 轉場 → mp4
    - Web：可選用 ffmpeg.wasm（慢但可用）或顯示「請使用桌面版」
-5. **UI 整合**：章節工具列「轉漫畫」「轉影片」按鈕；預覽 + 重新生成單一面板
+5. ❌ **UI 整合**：章節工具列「轉漫畫」「轉影片」按鈕；預覽 + 重新生成單一面板
+
+> 前置工作：`skills/novel-to-storyboard/` 已建立（分鏡 skill 骨架：SKILL.md + openai.yaml + 參考文件），可作為 Phase 6 設計起點。
 
 ### 為何強烈傾向桌面
 
@@ -113,7 +115,7 @@ StorageAdapter / MediaAdapter (interface)
 
 ---
 
-## Phase 7 — Web 版回部署（可選 / 未來）
+## Phase 7 — Web 版回部署（⏳ 可選 / 未來，前置：Phase 5 ✅）
 
 > Phase 5 抽象做對的話，這個 phase 就是「加實作」而不是「砍掉重寫」。
 
