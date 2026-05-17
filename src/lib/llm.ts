@@ -1,5 +1,31 @@
 import { useSettingsStore } from '../stores/settingsStore';
 import type { LLMConfig } from '../types';
+import { isTauri } from './platform';
+
+/**
+ * LLM 呼叫的網路層
+ *
+ * 兩種環境：
+ * - 瀏覽器 dev：走 vite middleware `/llm-proxy`（headers `x-proxy-target`），
+ *   middleware 在後端轉發以避開 CORS。
+ * - Tauri 桌面：webview 不受瀏覽器 CORS 限制（且本 app CSP 設為 null），
+ *   直接 fetch 目標 URL；若仍走 `/llm-proxy`，會被 Tauri SPA fallback 回
+ *   index.html，導致呼叫端拿到 `<!doctype …` 而非 JSON。
+ *
+ * sendAuthorization：Google Gemini 用 URL `?key=` 認證，不能帶 Authorization
+ * （會被誤判為 OAuth token 而 401）。
+ */
+async function postToLLM(targetUrl: string, apiKey: string, body: unknown, sendAuthorization: boolean): Promise<Response> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (sendAuthorization) headers['Authorization'] = `Bearer ${apiKey}`;
+
+  if (isTauri()) {
+    return fetch(targetUrl, { method: 'POST', headers, body: JSON.stringify(body) });
+  }
+  // 瀏覽器：走 vite proxy middleware
+  headers['x-proxy-target'] = targetUrl;
+  return fetch('/llm-proxy', { method: 'POST', headers, body: JSON.stringify(body) });
+}
 
 export interface GenerationOptions {
   maxTokens?: number;
@@ -62,23 +88,15 @@ async function completeOpenAICompat(
   }
   const targetUrl = `${cfg.baseUrl.replace(/\/$/, '')}/chat/completions`;
 
-  const response = await fetch('/llm-proxy', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${cfg.apiKey}`,
-      'x-proxy-target': targetUrl,
-    },
-    body: JSON.stringify({
-      model: cfg.model,
-      messages: [
-        ...(options?.systemPrompt ? [{ role: 'system' as const, content: options.systemPrompt }] : []),
-        { role: 'user' as const, content: prompt },
-      ],
-      max_tokens: options?.maxTokens ?? 4096,
-      temperature: options?.temperature ?? 0.7,
-    }),
-  });
+  const response = await postToLLM(targetUrl, cfg.apiKey, {
+    model: cfg.model,
+    messages: [
+      ...(options?.systemPrompt ? [{ role: 'system' as const, content: options.systemPrompt }] : []),
+      { role: 'user' as const, content: prompt },
+    ],
+    max_tokens: options?.maxTokens ?? 4096,
+    temperature: options?.temperature ?? 0.7,
+  }, true);
 
   if (!response.ok) {
     const err = await response.text();
@@ -115,16 +133,7 @@ async function completeGoogle(
     body.systemInstruction = { parts: [{ text: options.systemPrompt }] };
   }
 
-  const response = await fetch('/llm-proxy', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      // 不送 Authorization：Google 以 URL 中的 ?key= 認證，
-      // 若帶 Authorization Google 會誤判為 OAuth token 而回 401。
-      'x-proxy-target': targetUrl,
-    },
-    body: JSON.stringify(body),
-  });
+  const response = await postToLLM(targetUrl, cfg.apiKey, body, false);
 
   if (!response.ok) {
     const err = await response.text();
