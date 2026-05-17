@@ -47,7 +47,7 @@
 
 ---
 
-## Phase 5 — 桌面化與儲存重構（規劃中）
+## Phase 5 — 桌面化與儲存重構（✅ 已完成，2026-05）
 
 > 目標：解決瀏覽器儲存的天生限制（無痕模式清資料、配額上限、無法存大量 binary），同時為 Phase 6 影片功能鋪路。
 > **核心原則：先做抽象、後做平台實作。確保未來仍可回頭部署 Web 版。**
@@ -76,15 +76,12 @@ StorageAdapter / MediaAdapter (interface)
 
 ### 任務
 
-1. **設計 `StorageAdapter` interface**（包含 projects / chapters / characters / versions / wiki 等 CRUD）→ 把現有 Dexie code 包進去當第一個實作
-2. **加 Tauri shell**（React + Vite 直接套用，UI 不變）
-3. **`TauriSqliteAdapter`**（`tauri-plugin-sql` + SQLite 檔）
-4. **資料遷移**：偵測舊 IndexedDB 資料 → 一次性匯入 SQLite
-5. **媒體儲存規則**（為 Phase 6 準備）：
-   - metadata 進 SQLite（章節 ↔ 圖片/音檔 關聯）
-   - binary 進本機檔案系統，例如 `<project_folder>/media/ch01/panel-01.png`
-   - adapter 對外回傳「不透明 handle / 本地 URL」，UI 不關心底層路徑
-6. **CI / 發布**：Tauri build 三平台（Windows / macOS / Linux）
+1. ✅ **設計 `StorageAdapter` interface** — `src/lib/storage/types.ts`（Phase 5a）
+2. ✅ **加 Tauri shell** — `src-tauri/`，React + Vite UI 不動
+3. ✅ **`TauriSqliteAdapter`** — `src/lib/storage/tauri-sqlite-adapter.ts`；DB 位於 `%AppData%\com.novelgenerator.app\novel-generator.db`
+4. ⚠️ **資料遷移**：採手動方案（瀏覽器版匯出 JSON → 桌面版匯入），未做自動偵測 IndexedDB；跨平台 round-trip 已驗證 bit-perfect
+5. ✅ **媒體儲存規則**：`media_assets` 表已建為 Phase 6 佔位；binary 存本機檔案系統原則已訂（Phase 6 實作）
+6. ✅ **Windows 發布**：`npm run tauri build` → MSI（4.25 MB，`Novel Generator_0.1.0_x64_en-US.msi`）；macOS / Linux 之後再補
 
 ### SQLite schema 原則
 

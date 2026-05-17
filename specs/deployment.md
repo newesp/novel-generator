@@ -18,18 +18,28 @@
 
 ---
 
-## 桌面 App（Phase 5+，規劃中）
+## 桌面 App（Phase 5+，✅ Windows 已落地 2026-05）
 
-- **Tauri 殼層**包裝既有 React + Vite 前端，UI 程式碼 99% 不變
+- **Tauri 2.x 殼層**包裝既有 React + Vite 前端，UI 程式碼 99% 不變
 - 資料層改用 **SQLite（native via `tauri-plugin-sql`）**，無瀏覽器配額限制、無無痕模式問題
-- 媒體檔案存本機檔案系統：`<project_folder>/media/...`
-- 影片合成走 native **ffmpeg sidecar**
-- 三平台發布：Windows / macOS / Linux
+  - DB 路徑：`%AppData%\com.novelgenerator.app\novel-generator.db`
+  - `PRAGMA journal_mode=WAL` + `synchronous=NORMAL`（效能調校，規避 Windows Defender fsync 拖慢）
+- 媒體檔案存本機檔案系統：`<project_folder>/media/...`（Phase 6 實作）
+- 影片合成走 native **ffmpeg sidecar**（Phase 6 實作）
+- Windows MSI：`npm run tauri build` → `Novel Generator_0.1.0_x64_en-US.msi`（4.25 MB）
+- macOS / Linux 打包：之後補
 
-### 遷移策略
+### 遷移策略（已實作）
 
-1. 首次啟動桌面版偵測舊瀏覽器 IndexedDB 資料 → 一次性匯入 SQLite
-2. 提供匯出 / 匯入 `.db` + media 資料夾的工具，方便使用者跨機器搬遷
+**手動 JSON 搬遷**（最簡可靠）：
+1. 瀏覽器版「匯出備份 JSON」→ 下載 `novel-generator-backup-<timestamp>.json`
+2. 桌面版「匯入備份 JSON」→ replaceAll 覆蓋 SQLite（使用者已確認）
+3. 資料完整性已驗證（bit-perfect round-trip）
+
+> 注意：桌面版的 LLM 設定（API Key 等）存於 webview localStorage（不在 SQLite），
+> 需手動在偏好設定重新輸入一次。
+
+未實作：首次啟動自動偵測 IndexedDB 並匯入（YAGNI，手動 JSON 已足夠）。
 
 ---
 

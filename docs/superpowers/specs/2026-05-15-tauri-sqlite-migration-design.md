@@ -2,7 +2,8 @@
 
 > 日期：2026-05-15
 > 對應 Roadmap：Phase 5（5a → 5b）
-> 狀態：設計草案（待 user review）
+> 狀態：✅ 已實作（Phase 5a 2026-05-15 / Phase 5b 2026-05-17）
+> 實作偏差：見文末「as-built 備註」
 
 ---
 
@@ -248,7 +249,53 @@ export interface StorageAdapter {
 
 ## 9. 驗收里程碑
 
-- **M1（5a 完成）：** 所有非 adapter 檔案都不再 import `./db`；瀏覽器版 smoke test 全綠
-- **M2（5b α）：** `npm run tauri dev` 跑得起來，桌面版能建一本空書並重啟後資料還在
-- **M3（5b β）：** IndexedDB → SQLite 遷移可用；舊瀏覽器版資料可一鍵匯入桌面版
-- **M4（5b RC）：** 三平台打包產物可執行；瀏覽器版仍能跑相同 codebase
+- ✅ **M1（5a 完成）：** 所有非 adapter 檔案都不再 import `./db`；瀏覽器版 smoke test 全綠
+- ✅ **M2（5b α）：** `npm run tauri dev` 跑得起來，桌面版能建一本空書並重啟後資料還在
+- ✅ **M3（5b β）：** 瀏覽器版資料可匯出 JSON → 桌面版匯入（bit-perfect 驗證通過）；反向亦然
+- ⚠️ **M4（5b RC）：** Windows MSI ✅；macOS / Linux 打包待補；瀏覽器版仍可跑 ✅
+
+---
+
+## 10. As-Built 備註（與設計草案的偏差）
+
+> 記錄實作時踩到的雷與設計偏差，供未來維護參考。
+
+### 10.1 StorageAdapter interface 微幅調整
+
+草案的 ChapterStore 用 `put()` (upsert)、`list(projectId)`，實作時改用：
+- `add()` / `update()` 分開（配合 Dexie 既有習慣，projectStore.ts 原始呼叫模式）
+- `listByProject(id, opts?)` 帶 `sorted` 選項
+- `listByChapterDesc(id)` 處理版本降序
+
+### 10.2 tauri-plugin-sql 沒有 transaction API
+
+設計草案提到「adapter 層薄 wrapper 統一 transaction API 差異」。實際上 `tauri-plugin-sql` v2.x 每個 `execute()` 用獨立 pool 連線，**無法用 `BEGIN/COMMIT` 包多個 execute**。
+
+因此 `replaceAll` 為非 atomic — 中途失敗可能留部分 commit。對「使用者已明確確認覆蓋」的 import 場景可接受，重 import 即可恢復。
+
+### 10.3 WAL 效能調校（Windows Defender）
+
+SQLite 預設 `synchronous=FULL` + Windows Defender 掃描 `%AppData%` 寫入，導致每個 `execute()` 耗 ~5 秒。getDb() 初始化時設：
+```sql
+PRAGMA journal_mode = WAL;
+PRAGMA synchronous = NORMAL;
+```
+per-op 時間降到 <50ms。
+
+### 10.4 LLM fetch 路由
+
+草案決議「LLM 繼續走前端 fetch」，但實作後發現 `fetch('/llm-proxy')` 是 vite middleware 的相對路徑，在安裝版 MSI 無 vite → 收到 SPA index.html → JSON 解析爆掉。
+
+修法：`postToLLM()` helper 在 `isTauri()` 時直接 fetch 絕對 targetUrl（CSP 設 null，webview 可跨域）；瀏覽器保持走 proxy。
+
+### 10.5 MSI productName 須 ASCII
+
+WiX light.exe 預設 codepage 1252（西歐），「小說產生器」無法編碼 → LGHT0311 錯誤。
+改 `productName: "Novel Generator"`，視窗 title 仍保中文。
+
+### 10.6 IndexedDB → SQLite 自動遷移未實作
+
+設計草案 M3 寫「首次啟動偵測舊 IndexedDB 資料並匯入」。實際採**手動 JSON 搬遷**（使用者自行 export → import），因為：
+- 桌面版 webview 無法 import IndexedDB 模組（Tauri webview ≠ Node.js）
+- 手動路徑用戶已熟悉，且可自選遷移時機
+- 自動遷移風險大（萬一失敗資料兩邊都不完整）
