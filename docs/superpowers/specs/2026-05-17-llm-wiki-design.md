@@ -75,7 +75,9 @@ CREATE TABLE wiki_log (
   page_type            TEXT NOT NULL,
   page_slug            TEXT NOT NULL,
   page_snapshot_before TEXT,                       -- JSON 完整 page 物件；null on create
-  page_snapshot_after  TEXT,                       -- JSON 完整 page 物件；null on delete 或 failed
+  page_snapshot_after  TEXT,                       -- JSON 完整 page 物件
+                                                    -- null when: kind='delete', 或 Apply LLM 失敗 (沒拿到新內容)
+                                                    -- 保留 when: page 寫入失敗 (after 已構造好，留著供重試)
   source               TEXT NOT NULL,              -- 'ingest:<chapterId>' | 'manual' | 'undo:<batchId>'
   summary              TEXT NOT NULL,              -- 1-line 人類可讀
   error_message        TEXT                        -- 只在 op_status='failed' 時填
@@ -360,7 +362,7 @@ create / update 都輸出**完整 markdown 頁**，遵循 `skills/llm-wiki/refer
 
 定義「最近一次 ingest」= 該章節最後一個 `batch_id`（從 `SELECT batch_id FROM wiki_log WHERE source='ingest:<chapterId>' ORDER BY applied_at DESC LIMIT 1`）。
 
-還原 batch 操作：
+還原 batch 操作（只處理 `op_status='ok'`；`failed` entries 留為歷史紀錄，**undo 不反向也不刪除**它們，若要重放走「重試剩餘」）：
 1. SELECT * FROM wiki_log WHERE batch_id = ? AND op_status='ok' ORDER BY applied_at DESC
 2. 逐條反向（用 pageSnapshotBefore / pageSnapshotAfter 而非單純 content）：
    - kind='create' → DELETE wiki_pages WHERE id = page_id
@@ -638,8 +640,13 @@ else:
   - `partial` → 紅色 `⚠️ Wiki 部分失敗`
   - `partial_stale` → 紅色 `⚠️ 部分失敗 + 已過時`
   - `synced` → 無徽章
-- 章節列表頂部：未存 + 過時 + 部分失敗章節 ≥ 1 → banner「您有 N 個章節 Wiki 未同步 [批次存入]」（partial 章節走「重試剩餘」而非從頭 ingest）
-- 「批次存入」對每章串行處理（依 status：unsynced/stale 跑 ingest；partial 跑重試剩餘），顯示進度條與當前章名，可隨時取消（取消後已完成的章節保留）
+- 章節列表頂部：所有非 `synced` 章節 ≥ 1 → banner「您有 N 個章節 Wiki 未完整同步 [批次處理]」
+- 「批次處理」對每章串行，依 status 分派：
+  - `unsynced` / `stale` → 跑 ingest（從頭）
+  - `partial` → 跑「重試剩餘」（同 batch 的 failed ops）
+  - `partial_stale` → 跑「還原後重新 ingest」（章節內容已變，舊 failed brief 已失效；先 undo 該 batch，再從頭 ingest 新內容）
+
+  顯示進度條與當前章名，可隨時取消（取消後已完成的章節保留）
 - 點擊「導出」前若有非 `synced` 章節 → confirm modal「N 章節 Wiki 未完整同步，仍要導出？[取消] [先批次處理] [略過]」
 
 ### 6.5 偏好設定新增區塊
@@ -674,7 +681,7 @@ else:
 
 1. wiki_pages / wiki_log 兩表（兩個 adapter 同步實作）
 2. Bundle 匯出 / 匯入帶 wiki 資料
-3. chapters.wikiSyncedAt 欄位 + Migration
+3. chapters 的 `wikiSyncedAt` / `wikiSyncedHash` / `wikiSyncStatus` 三欄位 + Migration
 4. Ingest pipeline + 4 個 prompt 模板
 5. 自動 apply + toast + 一鍵還原
 6. Wiki Loader（cheap relevance filter + 優先級排序 + 黃/紅警報截斷）整合 Context Budget
@@ -761,6 +768,13 @@ else:
 ---
 
 ## 11. Review 修訂紀錄
+
+### Round 4（2026-05-17，codex 第四輪 review）
+
+19. `page_snapshot_after` 註解釐清三種 null/保留情境：delete 為 null、Apply LLM 失敗為 null、page 寫入失敗仍保留 after（供重試）（§3.1）
+20. §7 scope 清單補齊 chapters 三欄位（wikiSyncedAt / wikiSyncedHash / wikiSyncStatus）
+21. §6.4 批次處理依 status 明確分派：unsynced/stale→ingest、partial→重試剩餘、partial_stale→還原後重新 ingest
+22. §4.6 undo 明確說明只處理 `op_status='ok'`；failed entries 留為歷史，重放走「重試剩餘」
 
 ### Round 3（2026-05-17，codex 第三輪 review）
 
