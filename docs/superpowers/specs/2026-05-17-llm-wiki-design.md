@@ -63,32 +63,40 @@ CREATE TABLE wiki_pages (
 CREATE INDEX idx_wiki_pages_book ON wiki_pages (bookId);
 
 CREATE TABLE wiki_log (
-  id              TEXT PRIMARY KEY,
-  bookId          TEXT NOT NULL,
-  applied_at      TEXT NOT NULL,
-  kind            TEXT NOT NULL CHECK (kind IN
-                    ('create','update','delete','undo')),
-  page_id         TEXT,                            -- nullable 若頁已被刪
-  page_type       TEXT NOT NULL,
-  page_slug       TEXT NOT NULL,
-  before_content  TEXT,                            -- null on create
-  after_content   TEXT,                            -- null on delete
-  source          TEXT NOT NULL,                   -- 'ingest:<chapterId>' | 'manual' | 'undo:<logId>'
-  summary         TEXT NOT NULL                    -- 1-line 人類可讀
+  id                   TEXT PRIMARY KEY,           -- uuid
+  bookId               TEXT NOT NULL,
+  batch_id             TEXT NOT NULL,              -- uuid，同一次 ingest 共用；undo / 重試剩餘以此為錨
+  applied_at           TEXT NOT NULL,
+  kind                 TEXT NOT NULL CHECK (kind IN
+                         ('create','update','delete','undo')),
+  op_status            TEXT NOT NULL CHECK (op_status IN
+                         ('ok','failed','undone')) DEFAULT 'ok',
+  page_id              TEXT,                       -- nullable 若頁已被刪
+  page_type            TEXT NOT NULL,
+  page_slug            TEXT NOT NULL,
+  page_snapshot_before TEXT,                       -- JSON 完整 page 物件；null on create
+  page_snapshot_after  TEXT,                       -- JSON 完整 page 物件；null on delete 或 failed
+  source               TEXT NOT NULL,              -- 'ingest:<chapterId>' | 'manual' | 'undo:<batchId>'
+  summary              TEXT NOT NULL,              -- 1-line 人類可讀
+  error_message        TEXT                        -- 只在 op_status='failed' 時填
 );
 CREATE INDEX idx_wiki_log_book ON wiki_log (bookId, applied_at);
+CREATE INDEX idx_wiki_log_batch ON wiki_log (batch_id);
 ```
 
 ### 3.2 既有表新增欄位
 
 ```sql
-ALTER TABLE chapters ADD COLUMN wikiSyncedAt TEXT;  -- ISO8601 或 NULL
+ALTER TABLE chapters ADD COLUMN wikiSyncedAt   TEXT;  -- ISO8601 或 NULL
+ALTER TABLE chapters ADD COLUMN wikiSyncedHash TEXT;  -- ingest 時 chapter content 的 sha1，nullable
 ```
 
-判斷邏輯：
+判斷邏輯（依序）：
 - `wikiSyncedAt = NULL` → 未存（橘色 `⚠️ 未存 Wiki`）
-- `chapters.updatedAt > wikiSyncedAt` → 已過時（橘色 `⚠️ Wiki 已過時`）
+- `sha1(chapters.content) ≠ wikiSyncedHash` → 已過時（橘色 `⚠️ Wiki 已過時`）
 - 否則 → 已同步（灰色「✓ 已存入」+ tooltip 顯示時間）
+
+> hash 比 `updatedAt` 比對可靠：避免標題微調、tag 改動等「非內容」變化誤觸過時旗標；也避免 wiki 手動還原後章節狀態失真。
 
 ### 3.3 StorageAdapter 介面擴充
 
@@ -110,18 +118,29 @@ export interface WikiPage {
   updatedAt: string;
 }
 
+export interface WikiPageSnapshot {
+  title: string;
+  aliases: string[];
+  relatedSlugs: { type: WikiPageType; slug: string }[];
+  description: string;
+  contentMd: string;
+}
+
 export interface WikiLogEntry {
   id: string;
   bookId: string;
+  batchId: string;                            // 同一次 ingest 共用；undo / 重試剩餘以此為錨
   appliedAt: string;
   kind: 'create' | 'update' | 'delete' | 'undo';
+  opStatus: 'ok' | 'failed' | 'undone';
   pageId: string | null;
   pageType: WikiPageType;
   pageSlug: string;
-  beforeContent: string | null;
-  afterContent: string | null;
+  pageSnapshotBefore: WikiPageSnapshot | null;
+  pageSnapshotAfter: WikiPageSnapshot | null;
   source: string;
   summary: string;
+  errorMessage?: string;
 }
 
 export interface WikiOps {
@@ -136,8 +155,9 @@ export interface WikiOps {
 
 export interface WikiLogOps {
   list(bookId: string, limit?: number): Promise<WikiLogEntry[]>;
-  listByIngestChapter(bookId: string, chapterId: string): Promise<WikiLogEntry[]>;
+  listByBatch(bookId: string, batchId: string): Promise<WikiLogEntry[]>;
   add(entry: WikiLogEntry): Promise<void>;
+  updateStatus(id: string, opStatus: WikiLogEntry['opStatus'], errorMessage?: string): Promise<void>;
 }
 
 export interface StorageAdapter {
@@ -159,7 +179,7 @@ export interface StorageBundle {
 }
 ```
 
-`replaceAll()` 在兩個 adapter 都需擴充：delete wiki 兩表後依序 insert。順序：先 wiki_log（FK-free）再 wiki_pages 不重要，因兩表無 FK 約束，但匯入時遵循「先 pages 後 log」以便 UI 顯示 log 時 page_id 已可解析。
+`replaceAll()` 在兩個 adapter 都需擴充：delete wiki 兩表後依序 insert。**順序固定為 pages → log**（即使目前無 FK；保留 UI 解析便利性與未來加 FK 的空間）。
 
 ### 3.5 Cascade Delete
 
@@ -172,25 +192,26 @@ export interface StorageBundle {
 ### 4.1 流程
 
 ```
-按「📚 存入 Wiki」
+按「📚 存入 Wiki」 → 為本次 ingest 生成新的 batchId（uuid）
    │
    ▼
 [1] Pre-flight（純應用層，無 LLM）
    - 撈本章 content
    - SELECT index (type, slug, title, description, aliases) FROM wiki_pages
    - SELECT names + aliases FROM characters
+   - 計算 chapterContentHash = sha1(chapter.content)
    │
    ▼
 [2] PLAN（1 LLM call）
    prompt: wikiIngestPlanTemplate
    input:  本章正文 + wiki index + characters names
-   output: Plan JSON
+   output: Plan JSON（嚴格 JSON，無註解）
    │
    ▼
 [3] Plan 校驗（純應用層）
    - 所有 slug 為 ASCII kebab-case
    - create 的 (type, slug) 不可衝突 → 衝突則自動降級為 update
-   - update 指定的 path 必須存在 → 否則自動降級為 create
+   - update 指定的 (type, slug) 必須存在 → 否則自動降級為 create
    - 任何不可自動修復的問題 → throw
    │
    ▼
@@ -199,18 +220,35 @@ export interface StorageBundle {
    update → wikiIngestUpdateTemplate
    │
    ▼
-[5] 寫 DB（每 op 一對：先 wiki_log 再 wiki_pages）
-   - INSERT INTO wiki_log（before=既有 content_md or NULL, after=新內容）
-   - 若 wiki_log 寫入成功 → INSERT/UPDATE wiki_pages
-   - 全部完成後：UPDATE chapters SET wikiSyncedAt = now() WHERE id = ?
+[5] 寫 DB（每 op 為一個「補償單元」）
+   針對每個 op：
+     a. 構造 newSnapshot（從 LLM 輸出 markdown 解析得到）
+     b. 構造 beforeSnapshot（update 取既有 page；create 為 null）
+     c. INSERT INTO wiki_log (batch_id, kind, op_status='ok',
+                              page_snapshot_before, page_snapshot_after,
+                              source='ingest:<chapterId>', ...)
+     d. INSERT/UPDATE wiki_pages（用 newSnapshot 的全欄位）
+     e. 若 (d) 失敗：updateStatus(log.id, 'failed', errorMessage)
+                    （log 已記錄完整 before/after，可以重試或還原）
+
+   全部完成後：
+     UPDATE chapters SET wikiSyncedAt = now(),
+                          wikiSyncedHash = chapterContentHash
+                    WHERE id = currentChapterId
+     （若有任何 op_status='failed'，仍寫 wikiSyncedAt 但記 batchHasFailures 旗標供 UI）
    │
    ▼
 [6] UI 反饋
    - Toast：「Wiki 已更新：新增 N 頁、修改 M 頁 [查看變更] [↩ 還原]」
-   - 若 Plan 含「本章新出現的人名 X 不在角色庫」→ 附加「[一鍵加入角色庫]」
+     （若有 failed ops，toast 變橘：「N 個操作失敗 [重試剩餘] [還原]」）
+   - 若 Plan 含 unrecorded_characters → 附加「N 個新登場角色未在角色庫 [檢視]」
 ```
 
+> **無 transaction 的補償模式**：tauri-plugin-sql 沒有跨 execute 的 transaction（Phase 5b 已驗證）。我們以「log 先寫、page 後寫、用 op_status 記實際結果」的模式取代 atomicity。Log 永遠是 source of truth — 若 page 寫入失敗，下次可從 log 重放或還原；UI 從 log 計算「實際狀態」而非從 page 推測。
+
 ### 4.2 Plan JSON 格式
+
+嚴格 JSON（無註解，無尾逗號）。範例：
 
 ```json
 {
@@ -221,6 +259,7 @@ export interface StorageBundle {
       "slug": "li-ming",
       "title": "李明",
       "aliases": ["小李"],
+      "description": "主角的徒弟，16 歲劍術天才，於第 5 章登場",
       "reason": "本章首次登場的主角徒弟",
       "content_brief": "16 歲少年，劍術天才，主角在第 5 章收為徒弟..."
     },
@@ -233,9 +272,18 @@ export interface StorageBundle {
     }
   ],
   "log_entry": "ingest chapter=5 pages_created=1 pages_updated=1",
-  "unrecorded_characters": ["王芳", "張三"]   // 出現在本章但不在 wiki 也不在 characters 表
+  "unrecorded_characters": [
+    { "name": "王芳", "sourceExcerpt": "...走進來一位身著青衫的女子，王芳..." },
+    { "name": "張三", "sourceExcerpt": "...只見張三一拳打在桌上..." }
+  ]
 }
 ```
+
+欄位說明：
+
+- `operations[].description`（create only，可選）：LLM 直接產出的 1-line index description；若缺漏，應用層 fallback 取 apply 輸出 markdown 第一段前 60 字
+- `unrecorded_characters[]`：物件陣列。每個含 `name` + `sourceExcerpt`（原文片段，方便用戶判斷是否真要建為角色，避免誤建）
+- `log_entry`：1-line 人類可讀摘要，寫入每條 wiki_log 的 `summary` 欄位（同 batch 內各 op 寫同一字串）
 
 ### 4.3 Apply 輸出格式
 
@@ -261,7 +309,7 @@ create / update 都輸出**完整 markdown 頁**，遵循 `skills/llm-wiki/refer
 - 第一個 `## <section>` 之前的 `> ` blockquote 是 metadata → 同步寫入 aliases、related_slugs 欄位
 - 第一行 `# <Title>` 寫入 title
 - 全文寫入 content_md
-- description 欄位：取第一段 prose 的前 60 字（純文字，截 ellipsis）
+- description 欄位：**優先採用** Plan JSON 中 `operations[].description`；若缺漏，fallback 取第一段 prose 的前 60 字（純文字，截 ellipsis）
 
 ### 4.4 校驗規則細節
 
@@ -277,25 +325,31 @@ create / update 都輸出**完整 markdown 頁**，遵循 `skills/llm-wiki/refer
 
 | 階段 | 錯誤 | 處理 |
 |---|---|---|
-| Plan | LLM 連線失敗 | toast「網路錯誤，請重試」 |
-| Plan | JSON 解析失敗 | 自動重試 1 次 |
-| 校驗 | 不可修復 | toast 紅色，顯示具體原因 |
-| Apply | 中途某 op LLM 失敗 | 保留已完成 ops（已寫入 DB）；UI 提示「N 個操作未完成，[重試剩餘] [還原已完成]」 |
-| 寫 DB | wiki_log 寫失敗 | 跳過該 op 的 wiki_pages 寫入；繼續下一個 |
-| 寫 DB | wiki_pages 寫失敗 | wiki_log 已存（before/after 都在）；UI 顯示「N 個操作部分完成，[還原]」 |
+| Plan | LLM 連線失敗 | toast「網路錯誤，請重試」（整批未開始，無 log） |
+| Plan | JSON 解析失敗 | 自動重試 1 次；仍失敗 → toast |
+| 校驗 | 不可修復 | toast 紅色，顯示具體原因（無 log） |
+| Apply | 某 op LLM 失敗 | 仍 INSERT wiki_log 該 op (op_status='failed', error_message=...)；不寫 wiki_pages；繼續下一 op |
+| 寫 DB | wiki_log INSERT 失敗 | 該 op 完全跳過（記錄到記憶體錯誤列表）；繼續下一 op |
+| 寫 DB | wiki_pages 寫失敗 | wiki_log 已寫；用 updateStatus(log.id, 'failed') 標記；繼續下一 op |
+| 全部結束 | batch 有任何 failed | toast 橘色「N 個操作失敗 [重試剩餘] [還原]」；wikiSyncedAt 仍寫入（部分成功也算這次處理過了） |
+
+「重試剩餘」= SELECT log WHERE batch_id=? AND op_status='failed' → 重跑 apply（同 brief，但既有 page 取目前 state 作 before）。
 
 ### 4.6 還原（Undo）
 
-定義「最近一次 ingest」= source = `ingest:<currentChapterId>` 的最新一批 wiki_log entries（同一秒內）。
+定義「最近一次 ingest」= 該章節最後一個 `batch_id`（從 `SELECT batch_id FROM wiki_log WHERE source='ingest:<chapterId>' ORDER BY applied_at DESC LIMIT 1`）。
 
-還原操作：
-1. SELECT wiki_log entries WHERE source = ? ORDER BY applied_at DESC
-2. 逐條反向：
+還原 batch 操作：
+1. SELECT * FROM wiki_log WHERE batch_id = ? AND op_status='ok' ORDER BY applied_at DESC
+2. 逐條反向（用 pageSnapshotBefore / pageSnapshotAfter 而非單純 content）：
    - kind='create' → DELETE wiki_pages WHERE id = page_id
-   - kind='update' → UPDATE wiki_pages SET content_md = before_content WHERE id = page_id（同時還原 aliases / related_slugs / description，從 before_content 重新解析）
-   - kind='delete' → INSERT wiki_pages 用 before_content
-3. 為每個反向操作新增一條 kind='undo'、source='undo:<logId>' 的記錄
-4. UPDATE chapters SET wikiSyncedAt = NULL WHERE id = currentChapterId
+   - kind='update' → 用 pageSnapshotBefore 全欄位覆寫 wiki_pages（title/aliases/related_slugs/description/contentMd 都一起還原）
+   - kind='delete' → 用 pageSnapshotBefore INSERT 回 wiki_pages
+3. 將原 entries 的 op_status 更新為 'undone'
+4. 為整個還原動作新增**一條** kind='undo' 紀錄（source='undo:<batchId>'，summary 描述「還原 N 個操作」）
+5. UPDATE chapters SET wikiSyncedAt = NULL, wikiSyncedHash = NULL WHERE id = currentChapterId
+
+「批次存入」場景下每章自己一個 batchId；undo 是針對單一 batch，不會誤傷其他章節的 ingest。
 
 ---
 
@@ -316,43 +370,100 @@ export interface BudgetInputs {
 ```ts
 export type WikiLoadStatus = 'ok' | 'warn-truncated' | 'red-truncated';
 
+export interface WikiLoaderInput {
+  bookId: string;
+  contextWindowTokens: number;
+  budgetRatio?: number;             // 來自偏好設定，預設 0.25
+  // 用於 cheap relevance filter（不傳則跳過 filter，全套用優先級）
+  chapterContext?: {
+    title?: string;
+    points?: string;
+    beat?: string;
+    referenceChapterContent?: string;
+    characterNames?: string[];       // 出場角色（caller 從 characters 表或 chapter metadata 取）
+  };
+}
+
 export interface WikiLoadResult {
-  text: string;                  // 已格式化好的 markdown 區塊（可空字串）
+  text: string;                      // 已格式化好的 markdown 區塊（可空字串）
   loadedPages: number;
   totalPages: number;
   truncatedPages: number;
   status: WikiLoadStatus;
+  relevanceHits: number;             // cheap filter 命中數，0 表示沒篩到（fallback 走優先級）
 }
 
-export async function loadWikiForGeneration(
-  bookId: string,
-  contextWindowTokens: number,
-  budgetRatio: number = 0.25,    // 來自偏好設定
-): Promise<WikiLoadResult>;
+export async function loadWikiForGeneration(input: WikiLoaderInput): Promise<WikiLoadResult>;
 ```
 
-### 5.3 演算法
+### 5.2.5 Token 估算抽象 `src/lib/tokens.ts`
 
-```
-budgetChars = contextWindowTokens * budgetRatio * 4   // 中文 ~4 char/token 粗估
-totalChars  = SUM(length(content_md)) for all pages in bookId
-
-if totalChars <= budgetChars:
-  載入所有頁，status = 'ok'
-elif totalChars <= budgetChars * 1.5:
-  按優先級排序，截斷至 budgetChars，status = 'warn-truncated'
-else:
-  按優先級權重排序，從高到低依序加入，直到下一頁會超出 budgetChars 為止；status = 'red-truncated'
-  （等同於黃色路徑的截斷邏輯，差別僅在 status 標籤與 UI 警告強度）
+```ts
+/** 字 → token 的保守估算。中文偏少（1 漢字 ≈ 1.2 token 起跳），混雜英文時偏多。 */
+export function estimateTokens(text: string): number;
+/** 反向用：給 token 預算回推可容納的字數上限。 */
+export function tokensToChars(tokens: number): number;
+/** 給 wiki-loader 用：每 token 平均字數（中文偏向 1/1.5 ≈ 0.67）。 */
+export function estimateCharsPerToken(): number;
 ```
 
-優先級權重：
+Phase 2 採用**保守值 `1.5 char/token`**（也就是 1 token ≈ 1.5 字）。先前 spec 的 `4 char/token` 過度樂觀，會讓 prompt 真的超 budget。  
+未來（Phase 2.5+）可換成 `tiktoken-wasm` 或 provider-specific tokenizer，呼叫端不必改。
+
+### 5.3 演算法（三段式：cheap filter → 優先級排序 → 預算截斷）
+
+#### Step 1: Cheap relevance filter
+
+從 `chapterContext` 構造一個「needle 集合」（slug、alias、character names、章節要點中的 N-gram 等）：
 
 ```
-priority = TYPE_WEIGHT[type] * 10 + recency_score
+needles = lowercase(
+  [chapterContext.title]
+  ∪ [chapterContext.points 切分後的詞]
+  ∪ [chapterContext.characterNames]
+  ∪ [從 referenceChapterContent 取的高頻名詞 top 20]
+)
+```
+
+對每頁計算 `relevanceScore`：
+- 若 page.slug 命中 needles → +10
+- 若 page.title 命中 needles → +8
+- 若 page.aliases 任一命中 → +8
+- 若 page.contentMd 含 needle（純字串包含，非正規語意）→ +1（最多 5 個 needle 計）
+
+`relevantPages = pages.filter(p => p.relevanceScore > 0)`
+
+#### Step 2: 結合優先級
+
+```
+priority = relevanceScore * 100             // 命中相關性占絕對主導
+         + TYPE_WEIGHT[type] * 10
+         + recency_score
+
 TYPE_WEIGHT = { entity: 5, concept: 4, synthesis: 3, summary: 2, compare: 1 }
 recency_score = 1 / (days_since_updated + 1)
 ```
+
+降序排序。
+
+#### Step 3: 預算截斷
+
+```
+budgetChars = contextWindowTokens * budgetRatio * estimateCharsPerToken()
+totalChars  = SUM(length(content_md)) over all pages
+
+if totalChars <= budgetChars:
+  載入所有頁（不論 relevanceScore），status = 'ok', relevanceHits = relevantPages.length
+elif totalChars <= budgetChars * 1.5:
+  按 priority 由高到低塞，直到下一頁會超出 budgetChars 為止；status = 'warn-truncated'
+else:
+  同樣按 priority 由高到低塞；status = 'red-truncated'
+
+若 relevantPages.length === 0（cheap filter 完全未命中，例如本章是純風景描寫）：
+  fallback：用「TYPE_WEIGHT * 10 + recency_score」作為排序鍵（無 relevance 加成）
+```
+
+> **設計意圖**：小 wiki 直接全載（cheap filter 計算還是會跑，但結果只影響統計）；中/大 wiki 透過 cheap filter 讓「真正相關的角色/概念頁」優先進場，避免被 type weight + recency 隨機踢掉。Filter 只用字串包含，無 LLM 呼叫、零額外成本。
 
 ### 5.4 輸出格式（注入 prompt 的 `{{wikiSection}}`）
 
@@ -502,7 +613,7 @@ recency_score = 1 / (days_since_updated + 1)
 3. chapters.wikiSyncedAt 欄位 + Migration
 4. Ingest pipeline + 4 個 prompt 模板
 5. 自動 apply + toast + 一鍵還原
-6. Wiki Loader（全載 + 黃/紅警報截斷）整合 Context Budget
+6. Wiki Loader（cheap relevance filter + 優先級排序 + 黃/紅警報截斷）整合 Context Budget
 7. Wiki 分頁 UI（index、頁面編輯、操作記錄）
 8. 章節「📚 存入 Wiki」按鈕 + 四種狀態
 9. 「未存入 Wiki」徽章 + 頂部 banner + 批次存入
@@ -565,7 +676,7 @@ recency_score = 1 / (days_since_updated + 1)
 | LLM Plan 品質 | 假設主流模型（Gemini 2.x / Claude / GPT-4o）對中文 ingest 任務可產出可用 Plan JSON；自定義小模型可能踩坑，prompts 可調 |
 | Plan JSON 穩定性 | 假設 LLM 願意輸出嚴格 JSON。實際遇 markdown wrap 等情況需 `tryParseJsonLoose()`（與既有 outline/character ingest 共用） |
 | Apply 串行延遲 | 假設使用者可接受「ingest 一章約 5–15 秒」（取決於 op 數量與模型速度）；UI 有 spinner |
-| 中文 token 估算 | 4 char/token 是粗估；對英文混雜的 wiki 偏低，影響預算計算精度。Phase 2.5 可換 tiktoken-wasm |
+| 中文 token 估算 | Phase 2 保守用 1.5 char/token（`estimateTokens()` 抽象，§5.2.5）；Phase 2.5+ 可換 tiktoken-wasm 不改 caller |
 | 跨章呼應 | 已知限制：只吃本章 ingest 無法保證跨章一致性；Phase 2.5 lint 補 |
 | wiki_log 體積 | 每章 ingest 可能產 2–5 條 log，含 before/after 全文。長期累積會占空間；Phase 2.5 可加「歸檔舊 log」功能 |
 
@@ -577,3 +688,22 @@ recency_score = 1 / (days_since_updated + 1)
 2. **SQLite FTS5 全文搜尋**（Phase 2 第 2 項，替代 RAG）— 獨立 spec
 3. **Phase 2.5：Lint + Pick-pages + 跨章一致性**
 4. **Phase 2.5：「直接問 Wiki」UI**（用到 prompt #8）
+5. **Phase 2.5：wiki_log 歸檔 / 壓縮**（before/after snapshot 長期累積會佔空間）
+
+---
+
+## 11. Review 修訂紀錄
+
+2026-05-17 接受 codex review（`docs/review-0517.md`）11 項建議：
+
+1. wiki_log 加 `batch_id` 取代「同一秒內」啟發式（§3.1、§4.6）
+2. wiki_log 加 `op_status` + 補償模式（tauri-plugin-sql 無 txn 的妥協方案；§4.5）
+3. before/after 改存 `page_snapshot_*` JSON 含 metadata（§3.1、§4.6）
+4. chapters 加 `wikiSyncedHash` 取代純 `updatedAt` 比對（§3.2）
+5. Plan JSON 移除註解；`unrecorded_characters` 物件化加 `sourceExcerpt`（§4.2）
+6. description 由 LLM 輸出優先，fallback 才取 prose 前 60 字（§4.2、§4.3）
+7. Wiki Loader 加 cheap relevance filter（§5.3 Step 1）
+8. Token 估算改保守 1.5 char/token + 抽象 `estimateTokens()`（§5.2.5、§9）
+9. 匯入順序明定 pages → log（§3.4）
+10. wiki_log 歸檔列為 Phase 2.5 後續工作（§10）
+11. 補償模式明確說明取代 transaction（§4.1 流程末段）
