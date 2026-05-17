@@ -12,12 +12,31 @@
 
 ## 快速開始
 
+### 瀏覽器版
+
 ```bash
 npm install
 npm run dev
 ```
 
 瀏覽器開 `http://localhost:5173`；首次使用點「⚙️ 偏好設定」填 LLM provider 與 API Key（支援 OpenAI-compatible、Google Gemini、Grok）。
+
+### 桌面版（Windows，Phase 5b）
+
+桌面版用 Tauri 包成原生 app、儲存走 SQLite（位於 `%AppData%\com.novelgenerator.app\novel-generator.db`），不受瀏覽器無痕模式 / 配額限制。
+
+前置：安裝 [Rust toolchain](https://rustup.rs/) + Visual Studio Build Tools (Desktop C++) + WebView2 Runtime（Win 10/11 通常已內建）。
+
+```bash
+# 開發（會啟 vite + Tauri webview）
+npm run tauri dev
+
+# 打包 MSI 安裝檔
+npm run tauri build
+# 產物：src-tauri/target/release/bundle/msi/*.msi
+```
+
+瀏覽器版資料可透過「匯出 JSON → 桌面版匯入」搬移。
 
 ---
 

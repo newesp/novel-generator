@@ -14,9 +14,9 @@
 | 樣式 | CSS variables（無 Tailwind） |
 | UI 元件 | 自製元件（無 shadcn / Radix） |
 | 本地存儲（Phase 1–4） | IndexedDB (Dexie.js) + File System Access API |
-| 本地存儲（Phase 5+，桌面版） | SQLite（native，透過 `tauri-plugin-sql`）+ 本機檔案系統 |
+| 本地存儲（Phase 5+，桌面版） | SQLite（native，透過 `tauri-plugin-sql`，已落地 2026-05）+ 本機檔案系統 |
 | 本地存儲（Phase 7，Web 版回部署） | wa-sqlite + OPFS（與桌面共用 SQL schema） |
-| 桌面殼層（Phase 5+） | Tauri（Rust + 系統 webview，比 Electron 輕量） |
+| 桌面殼層（Phase 5+） | Tauri 2.x（Rust + 系統 webview，比 Electron 輕量；Windows 已落地 2026-05） |
 | 影片合成（Phase 6，桌面） | ffmpeg sidecar（native） |
 | 影片合成（Phase 7，Web） | ffmpeg.wasm（功能降級，或介接後端 API） |
 | LLM 调用 | 自製 adapter（OpenAI-compatible / Google Gemini，可擴充） |
@@ -38,3 +38,10 @@
 **儲存層 Adapter 抽象（Phase 5 起）：** UI 與 business logic 僅依賴 `StorageAdapter` / `MediaAdapter` interface；底層可換 Dexie / SQLite (Tauri) / wa-sqlite (Web) 三種實作。SQL schema 設計需確保 Tauri native SQLite 與 wa-sqlite 都能執行相同語句，僅在薄 wrapper 層統一 transaction API 差異。
 
 **媒體檔案儲存規則（Phase 5/6）：** metadata（章節 ↔ 圖片/音檔的關聯與 prompt）進 SQLite；binary（PNG / MP3 / MP4）進本機檔案系統，例 `<project_folder>/media/ch01/panel-01.png`。adapter 對外只回不透明 handle 或本地 URL，避免 UI 與底層耦合。
+
+**Phase 5b 已落地細節（2026-05，Windows）：**
+- `src-tauri/` 內含 `migrations/001_initial.sql` 6 個表（含 Phase 6 `media_assets` 佔位）
+- DB 路徑 `%AppData%\com.novelgenerator.app\novel-generator.db`
+- 啟用 `PRAGMA journal_mode=WAL + synchronous=NORMAL` 規避 Windows Defender 對 fsync 的拖慢
+- tauri-plugin-sql v2.x 無 transaction API；`replaceAll` 非 atomic（接受由使用者明確覆蓋）
+- macOS / Linux 打包之後再加

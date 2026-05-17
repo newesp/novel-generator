@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "小說產生器",
+  "productName": "Novel Generator",
   "version": "0.1.0",
   "identifier": "com.novelgenerator.app",
   "build": {

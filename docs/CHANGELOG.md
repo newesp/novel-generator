@@ -1,5 +1,46 @@
 # 開發日誌
 
+## 2026-05-17 Phase 5b — Tauri Windows 桌面版 + SQLite
+
+把 React app 包成 Tauri 桌面殼，桌面版的儲存層改走原生 SQLite
+（`tauri-plugin-sql` + `TauriSqliteAdapter`），徹底解決「無痕視窗 / 瀏覽器配額導致書本消失」的問題。
+瀏覽器版同一份 codebase 不受影響（仍走 DexieAdapter）。
+
+**新增：**
+- `src-tauri/` Rust 殼（透過 `tauri init`）：tauri 2.x + tauri-plugin-sql + tauri-plugin-log
+- `src-tauri/migrations/001_initial.sql`：6 個表（projects/chapters/versions/characters/
+  app_meta + Phase 6 用的 media_assets 佔位），與 Dexie v4 schema 1:1 對齊
+- `src/lib/platform.ts`：`isTauri()` 偵測（`window.__TAURI_INTERNALS__`）
+- `src/lib/storage/sqlite-helpers.ts`：row↔entity 轉換 + JSON 序列化
+- `src/lib/storage/tauri-sqlite-adapter.ts`：完整 `StorageAdapter` 實作
+
+**串接：**
+- `src/lib/storage/index.ts`：`pickAdapter()` → 桌面回 `tauriSqliteAdapter`、瀏覽器回 `dexieAdapter`
+- `src/lib/fs-sync.ts`：`isFsAccessSupported()` 在 Tauri 環境一律回 false
+  （桌面版資料即本機檔案，不需 File System Access 自動同步；改走手動 export/import）
+
+**效能修正（途中踩雷）：**
+- tauri-plugin-sql v2.x **沒有 transaction API**，每次 `execute()` 取獨立連線；
+  搭配 SQLite 預設 `synchronous=FULL` + Windows Defender 掃描 `%AppData%` → 每個 op ~5s、
+  replaceAll 卡 60s+ 報「undefined」。
+- 修法：`getDb()` 啟動時設 `PRAGMA journal_mode=WAL` + `synchronous=NORMAL`，per-op 降到 <50ms；
+  拿掉 replaceAll 內無作用的 BEGIN/COMMIT（接受非 atomic，使用者按下「清空覆蓋」即已確認）。
+
+**跨平台搬遷：** 沿用 5a 的 `backup.ts`：使用者手動 export JSON → 另一平台 import。
+驗證：瀏覽器→桌面→桌面 export → JSON bit-perfect 與原始相同（所有 id/內容/順序逐欄一致）。
+
+**指令：**
+- `npm run tauri dev` — 桌面開發
+- `npm run tauri build` — 產出 Windows MSI 安裝包（`src-tauri/target/release/bundle/msi/`）
+
+**未含：**
+- macOS / Linux 打包（YAGNI，之後再加）
+- Code signing（首次安裝會跳「Windows 已保護您的電腦」，按「其他資訊→仍要執行」即可）
+- 自動 IndexedDB→SQLite 遷移（走手動 export/import）
+- 桌面版自動排程 snapshot
+
+---
+
 ## 2026-05-15 Phase 5a — StorageAdapter 抽象層
 
 把 Dexie 包進 `StorageAdapter` interface，UI / stores / lib 都改走 `src/lib/storage`
