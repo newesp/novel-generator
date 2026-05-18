@@ -58,13 +58,16 @@ export function WikiPageEditor({ page }: { page: WikiPage }) {
           {page.type} / {page.slug}
           {page.aliases.length > 0 && ` · 別名：${page.aliases.join('、')}`}
         </div>
-        <Button
-          variant="secondary" size="sm"
-          onClick={() => setFullscreen((v) => !v)}
-          title={fullscreen ? '退出全屏 (Esc)' : '全屏'}
-        >
-          {fullscreen ? '⤡ 退出全屏' : '⤢ 全屏'}
-        </Button>
+        {fullscreen ? (
+          <Button variant="secondary" onClick={() => setFullscreen(false)}>✕ 收起 (Esc)</Button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setFullscreen(true)}
+            title="展開全螢幕編輯"
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, padding: 2 }}
+          >⛶</button>
+        )}
       </div>
 
       {/* Textarea — fills available space, only scroll source */}

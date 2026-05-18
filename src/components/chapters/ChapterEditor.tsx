@@ -377,12 +377,12 @@ export function ChapterEditor() {
           const s = chapter.wikiSyncStatus;
           const label =
             s === 'unsynced'      ? '📚 存入 Wiki' :
-            s === 'synced'        ? '✓ 已存入' :
+            s === 'synced'        ? '🔄 重新存入 Wiki' :
             s === 'stale'         ? '⚠️ Wiki 已過時，重新存入' :
             s === 'partial'       ? `⚠️ Wiki 部分失敗 (${failedCount})` :
                                     '⚠️ 部分失敗 + 已過時';
           const onWikiClick = async () => {
-            if (wikiBusy || s === 'synced') return;
+            if (wikiBusy) return;
             if (s === 'partial' || s === 'partial_stale') { setShowPartial(true); return; }
             setWikiBusy(true);
             try {
@@ -401,12 +401,17 @@ export function ChapterEditor() {
             }
           };
           const noContent = !content.trim();
+          const tooltip = noContent
+            ? '請先撰寫章節內容'
+            : s === 'synced'
+              ? '點擊以重新讓 AI 整理 Wiki（既有頁會被合併更新）'
+              : undefined;
           return (
             <Button
               variant="secondary"
               onClick={onWikiClick}
-              disabled={wikiBusy || s === 'synced' || noContent}
-              title={noContent ? '請先撰寫章節內容' : undefined}
+              disabled={wikiBusy || noContent}
+              title={tooltip}
             >
               {wikiBusy ? '存入中…' : label}
             </Button>
