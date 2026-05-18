@@ -1,0 +1,326 @@
+/**
+ * Wiki Ingest pipeline
+ *
+ * 規範：spec §4.1 §4.4 §4.5
+ *
+ * 流程：
+ *   1. Pre-flight：撈本章 + index + characters + 計算 chapterContentHash
+ *   2. Plan (1 LLM call) → parseAndValidatePlan
+ *   3. Apply (每 op 1 LLM call，串行) → wiki-parser
+ *   4. 寫 DB（補償模式：log 先寫、page 後寫；失敗用 op_status 標記）
+ *   5. 更新 chapter wikiSyncStatus / wikiSyncedAt / wikiSyncedHash
+ *
+ * 沒有 transaction（tauri-plugin-sql 限制）：用 op_status='failed' 記實際結果。
+ */
+import { v4 as uuid } from 'uuid';
+import type {
+  Chapter, WikiPage,
+  WikiLogEntry, WikiPageSnapshot, WikiSyncStatus,
+} from '../types';
+import { storage } from './storage';
+import { useSettingsStore } from '../stores/settingsStore';
+import { complete } from './llm';
+import { renderTemplate } from './prompt-template';
+import { parseAndValidatePlan, type Plan, type PlanOp } from './wiki-plan';
+import { parseWikiPageMarkdown } from './wiki-parser';
+
+export interface IngestResult {
+  batchId: string;
+  okCount: number;
+  failedCount: number;
+  plan: Plan;
+  logEntries: WikiLogEntry[];
+  status: WikiSyncStatus;     // 'synced' | 'partial'
+}
+
+export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
+  const batchId = uuid();
+  const bookId = chapter.projectId;
+
+  // [1] Pre-flight
+  const [allPages, allChars] = await Promise.all([
+    storage.wikiPages.list(bookId),
+    storage.characters.listByProject(bookId),
+  ]);
+  const chapterContentHash = await sha1Hex(chapter.content);
+
+  const indexJson = JSON.stringify(
+    allPages.map((p) => ({
+      type: p.type, slug: p.slug, title: p.title,
+      description: p.description, aliases: p.aliases,
+    })),
+    null, 2,
+  );
+  const knownCharactersList = allChars.map((c) => c.name).filter(Boolean).join('、') || '(無)';
+
+  // [2] Plan
+  const aiPrompts = useSettingsStore.getState().aiPrompts;
+  const planPrompt = renderTemplate(aiPrompts.wikiIngestPlanTemplate, {
+    indexCount: String(allPages.length),
+    indexJson,
+    knownCharactersList,
+    chapterTitle: chapter.title || '(未命名)',
+    chapterContent: chapter.content,
+  });
+
+  let planRaw = '';
+  try {
+    planRaw = await complete(planPrompt, { maxTokens: 2048 });
+  } catch (e) {
+    throw new Error(`Plan LLM 呼叫失敗：${(e as Error).message}`);
+  }
+
+  const existing = new Map<string, WikiPage>();
+  for (const p of allPages) existing.set(`${p.type}/${p.slug}`, p);
+  let plan: Plan;
+  try {
+    plan = parseAndValidatePlan(planRaw, { existing });
+  } catch (_e) {
+    // 重試 1 次（spec §4.4）
+    planRaw = await complete(planPrompt + '\n\n（重要：請只輸出嚴格 JSON）', { maxTokens: 2048 });
+    plan = parseAndValidatePlan(planRaw, { existing });
+  }
+
+  // [3]+[4] Apply each op
+  const logEntries: WikiLogEntry[] = [];
+  let okCount = 0;
+  let failedCount = 0;
+
+  for (const op of plan.operations) {
+    const opResult = await applyOneOp(bookId, chapter, op, batchId, aiPrompts, existing);
+    logEntries.push(opResult.logEntry);
+    if (opResult.logEntry.opStatus === 'ok') okCount++;
+    else failedCount++;
+  }
+
+  // [5] 更新 chapter
+  const status: WikiSyncStatus = failedCount > 0 ? 'partial' : 'synced';
+  await storage.chapters.update(chapter.id, {
+    wikiSyncedAt: Date.now(),
+    wikiSyncedHash: chapterContentHash,
+    wikiSyncStatus: status,
+  });
+
+  return { batchId, okCount, failedCount, plan, logEntries, status };
+}
+
+/** 重試 batch 中 op_status='failed' 的條目 */
+export async function retryRemaining(chapter: Chapter, batchId: string): Promise<IngestResult> {
+  const bookId = chapter.projectId;
+  const allLogs = await storage.wikiLog.listByBatch(bookId, batchId);
+  const failed = allLogs.filter((l) => l.opStatus === 'failed');
+
+  const aiPrompts = useSettingsStore.getState().aiPrompts;
+  const allPages = await storage.wikiPages.list(bookId);
+  const existing = new Map<string, WikiPage>();
+  for (const p of allPages) existing.set(`${p.type}/${p.slug}`, p);
+
+  const logEntries: WikiLogEntry[] = [];
+  let ok = 0, fail = 0;
+
+  for (const oldLog of failed) {
+    const after = oldLog.pageSnapshotAfter;
+    const op: PlanOp = oldLog.kind === 'create'
+      ? {
+          action: 'create',
+          type: oldLog.pageType,
+          slug: oldLog.pageSlug,
+          title: after?.title ?? oldLog.pageSlug,
+          aliases: after?.aliases ?? [],
+          description: after?.description,
+          reason: '重試 failed op',
+          content_brief: after?.contentMd ?? '',
+        }
+      : {
+          action: 'update',
+          type: oldLog.pageType,
+          slug: oldLog.pageSlug,
+          reason: '重試 failed op',
+          change_brief: oldLog.errorMessage ?? '重試',
+        };
+
+    const r = await applyOneOp(bookId, chapter, op, batchId, aiPrompts, existing);
+    logEntries.push(r.logEntry);
+    if (r.logEntry.opStatus === 'ok') {
+      await storage.wikiLog.updateStatus(oldLog.id, 'undone');
+      ok++;
+    } else {
+      fail++;
+    }
+  }
+
+  const remainingFailed = (await storage.wikiLog.listByBatch(bookId, batchId))
+    .filter((l) => l.opStatus === 'failed').length;
+  const status: WikiSyncStatus = remainingFailed > 0 ? 'partial' : 'synced';
+  await storage.chapters.update(chapter.id, { wikiSyncStatus: status });
+
+  return {
+    batchId, okCount: ok, failedCount: fail,
+    plan: { operations: [], log_entry: 'retry-remaining', unrecorded_characters: [], warnings: [] },
+    logEntries, status,
+  };
+}
+
+interface ApplyResult {
+  logEntry: WikiLogEntry;
+}
+
+async function applyOneOp(
+  bookId: string, chapter: Chapter, op: PlanOp, batchId: string,
+  aiPrompts: ReturnType<typeof useSettingsStore.getState>['aiPrompts'],
+  existing: Map<string, WikiPage>,
+): Promise<ApplyResult> {
+  const now = Date.now();
+  const logId = uuid();
+  const key = `${op.type}/${op.slug}`;
+  const beforePage = existing.get(key) ?? null;
+  const source = `ingest:${chapter.id}`;
+  const summary = op.action === 'create'
+    ? `+${op.type}/${op.slug}`
+    : `~${op.type}/${op.slug}`;
+
+  // chapter excerpt（前 4k 字）
+  const chapterExcerpt = chapter.content.slice(0, 4000);
+
+  let afterContent: string;
+  try {
+    if (op.action === 'create') {
+      const prompt = renderTemplate(aiPrompts.wikiIngestCreateTemplate, {
+        type: op.type, slug: op.slug, title: op.title,
+        aliasesList: op.aliases.join('、') || '(無)',
+        reason: op.reason, contentBrief: op.content_brief,
+        chapterExcerpt,
+      });
+      afterContent = await complete(prompt, { maxTokens: 2048 });
+    } else {
+      if (!beforePage) {
+        throw new Error('update 但既有頁不存在（不該發生，校驗會降級）');
+      }
+      const prompt = renderTemplate(aiPrompts.wikiIngestUpdateTemplate, {
+        type: op.type, slug: op.slug,
+        existingMarkdown: beforePage.contentMd,
+        reason: op.reason, changeBrief: op.change_brief,
+        chapterExcerpt,
+      });
+      afterContent = await complete(prompt, { maxTokens: 2048 });
+    }
+  } catch (e) {
+    // Apply LLM 失敗 — 寫 failed log，page_snapshot_after = null
+    const failedLog: WikiLogEntry = {
+      id: logId, bookId, batchId, appliedAt: now,
+      kind: op.action === 'create' ? 'create' : 'update',
+      opStatus: 'failed',
+      pageId: beforePage?.id ?? null,
+      pageType: op.type, pageSlug: op.slug,
+      pageSnapshotBefore: beforePage,
+      pageSnapshotAfter: null,
+      source, summary,
+      errorMessage: (e as Error).message,
+    };
+    await safeAddLog(failedLog);
+    return { logEntry: failedLog };
+  }
+
+  // 解析 Apply 輸出
+  const parsed = parseWikiPageMarkdown(afterContent, op.action === 'create' ? op.title : beforePage!.title);
+  const description = op.action === 'create' && op.description
+    ? op.description
+    : parsed.fallbackDescription;
+
+  let afterPage: WikiPageSnapshot;
+  if (op.action === 'create') {
+    afterPage = beforePage
+      ? {
+          ...beforePage,
+          title: parsed.title || op.title,
+          aliases: parsed.aliases.length ? parsed.aliases : op.aliases,
+          relatedSlugs: parsed.relatedSlugs,
+          description,
+          contentMd: parsed.contentMd,
+          updatedAt: now,
+        }
+      : {
+          id: uuid(), bookId, type: op.type, slug: op.slug,
+          title: parsed.title || op.title,
+          aliases: parsed.aliases.length ? parsed.aliases : op.aliases,
+          relatedSlugs: parsed.relatedSlugs,
+          description,
+          contentMd: parsed.contentMd,
+          createdAt: now, updatedAt: now,
+        };
+  } else {
+    // update — beforePage 必存在（上方已 throw 過）
+    afterPage = {
+      ...beforePage!,
+      title: parsed.title || beforePage!.title,
+      aliases: parsed.aliases.length ? parsed.aliases : beforePage!.aliases,
+      relatedSlugs: parsed.relatedSlugs,
+      description,
+      contentMd: parsed.contentMd,
+      updatedAt: now,
+    };
+  }
+
+  // [4] 補償寫入：先 log 再 page
+  const okLog: WikiLogEntry = {
+    id: logId, bookId, batchId, appliedAt: now,
+    kind: op.action === 'create' ? 'create' : 'update',
+    opStatus: 'ok',
+    pageId: afterPage.id,
+    pageType: op.type, pageSlug: op.slug,
+    pageSnapshotBefore: beforePage,
+    pageSnapshotAfter: afterPage,
+    source, summary,
+  };
+  try {
+    await storage.wikiLog.add(okLog);
+  } catch (e) {
+    return {
+      logEntry: { ...okLog, opStatus: 'failed', pageSnapshotAfter: null,
+        errorMessage: `wiki_log insert 失敗：${(e as Error).message}` },
+    };
+  }
+  try {
+    if (op.action === 'create') {
+      await storage.wikiPages.add(afterPage);
+    } else {
+      await storage.wikiPages.update(afterPage);
+    }
+    existing.set(key, afterPage);
+    return { logEntry: okLog };
+  } catch (e) {
+    await storage.wikiLog.updateStatus(okLog.id, 'failed', (e as Error).message);
+    return { logEntry: { ...okLog, opStatus: 'failed', errorMessage: (e as Error).message } };
+  }
+}
+
+async function safeAddLog(entry: WikiLogEntry): Promise<void> {
+  try { await storage.wikiLog.add(entry); } catch { /* swallow */ }
+}
+
+async function sha1Hex(text: string): Promise<string> {
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-1', enc);
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 給 UI 用：判斷章節是否該標 stale（spec §3.2）
+export async function recomputeChapterSyncStatus(chapter: Chapter): Promise<WikiSyncStatus> {
+  if (chapter.wikiSyncedHash === null) return 'unsynced';
+  const currentHash = await sha1Hex(chapter.content);
+  const changed = currentHash !== chapter.wikiSyncedHash;
+  if (!changed) return chapter.wikiSyncStatus;
+  if (chapter.wikiSyncStatus === 'synced') return 'stale';
+  if (chapter.wikiSyncStatus === 'partial') return 'partial_stale';
+  return chapter.wikiSyncStatus;
+}
+
+/** 給 ChapterEditor 用：取得 chapter 同 batch 的 failed log count（partial 數字） */
+export async function getFailedCountForChapter(chapter: Chapter): Promise<number> {
+  if (chapter.wikiSyncStatus !== 'partial' && chapter.wikiSyncStatus !== 'partial_stale') return 0;
+  const logs = await storage.wikiLog.list(chapter.projectId, 200);
+  const myIngests = logs.filter((l) => l.source === `ingest:${chapter.id}`);
+  if (myIngests.length === 0) return 0;
+  const lastBatch = myIngests[0].batchId;
+  return myIngests.filter((l) => l.batchId === lastBatch && l.opStatus === 'failed').length;
+}
