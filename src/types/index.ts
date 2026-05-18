@@ -22,6 +22,8 @@ export interface Chapter {
   /** 生成本章時要參考的另一章節 ID（null = 不參考） */
   referenceChapterId: string | null;
   wikiSyncedAt: number | null;
+  wikiSyncedHash: string | null;       // sha1(content) at last successful (or partial) ingest
+  wikiSyncStatus: WikiSyncStatus;      // 顯式狀態，不從 hash 推導
   createdAt: number;
   updatedAt: number;
 }
@@ -58,6 +60,56 @@ export interface Character {
   arc: string;
   createdAt: number;
 }
+
+// ─────────────────────────────────────────────────────────────
+//  Wiki（Phase 2 — 知識層）
+// ─────────────────────────────────────────────────────────────
+
+export type WikiPageType = 'concept' | 'entity' | 'summary' | 'compare' | 'synthesis';
+
+export interface WikiPageRelated {
+  type: WikiPageType;
+  slug: string;
+}
+
+export interface WikiPage {
+  id: string;
+  bookId: string;             // 對應 Project.id
+  type: WikiPageType;
+  slug: string;               // ASCII kebab-case
+  title: string;
+  aliases: string[];
+  relatedSlugs: WikiPageRelated[];
+  description: string;
+  contentMd: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** 還原所需的完整頁面快照 — 等同 WikiPage 全欄位 */
+export type WikiPageSnapshot = WikiPage;
+
+export type WikiLogKind = 'create' | 'update' | 'delete' | 'undo';
+export type WikiLogStatus = 'ok' | 'failed' | 'undone';
+
+export interface WikiLogEntry {
+  id: string;
+  bookId: string;
+  batchId: string;
+  appliedAt: number;
+  kind: WikiLogKind;
+  opStatus: WikiLogStatus;
+  pageId: string | null;
+  pageType: WikiPageType;
+  pageSlug: string;
+  pageSnapshotBefore: WikiPageSnapshot | null;
+  pageSnapshotAfter: WikiPageSnapshot | null;
+  source: string;             // 'ingest:<chapterId>' | 'manual' | 'undo:<batchId>'
+  summary: string;
+  errorMessage?: string;
+}
+
+export type WikiSyncStatus = 'unsynced' | 'synced' | 'stale' | 'partial' | 'partial_stale';
 
 export type LLMProvider = 'custom' | 'google' | 'grok';
 
