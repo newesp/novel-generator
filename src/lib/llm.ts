@@ -27,6 +27,42 @@ async function postToLLM(targetUrl: string, apiKey: string, body: unknown, sendA
   return fetch('/llm-proxy', { method: 'POST', headers, body: JSON.stringify(body) });
 }
 
+/**
+ * 暫時性錯誤（網路瞬斷、上游 5xx、rate-limit）的自動重試 + 退避。
+ *
+ * - 串行的 wiki ingest（一次 4–6 個 LLM call）特別容易被 NVIDIA 等供應商的
+ *   gateway 偶發 502 / ECONNRESET 命中；單一章節生成也偶有發生。
+ * - 只對「真的可重試」的失敗重試：HTTP 408/429/5xx + fetch 本身拋的網路例外
+ * - 不重試 401/403/4xx（auth / 參數問題，重試無解）
+ */
+const TRANSIENT_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
+const RETRY_DELAYS_MS = [800, 2400, 6000]; // total retries = 3
+
+async function postToLLMWithRetry(
+  targetUrl: string, apiKey: string, body: unknown, sendAuthorization: boolean,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const resp = await postToLLM(targetUrl, apiKey, body, sendAuthorization);
+      if (resp.ok || !TRANSIENT_STATUSES.has(resp.status) || attempt === RETRY_DELAYS_MS.length) {
+        return resp;
+      }
+      // 暫時性 HTTP 錯誤 — 讀出 body 後 retry（response 只能消費一次）
+      const errText = await resp.text();
+      console.warn(`[llm] transient ${resp.status} on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}: ${errText.slice(0, 200)}`);
+      lastError = new Error(`LLM API error ${resp.status}: ${errText}`);
+    } catch (e) {
+      // 真正的網路例外（Tauri 直連時的 fetch reject、或 dev proxy 自身錯誤）
+      if (attempt === RETRY_DELAYS_MS.length) throw e;
+      console.warn(`[llm] network error on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}:`, e);
+      lastError = e;
+    }
+    await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
+  }
+  throw lastError ?? new Error('unreachable');
+}
+
 export interface GenerationOptions {
   maxTokens?: number;
   temperature?: number;
@@ -88,7 +124,7 @@ async function completeOpenAICompat(
   }
   const targetUrl = `${cfg.baseUrl.replace(/\/$/, '')}/chat/completions`;
 
-  const response = await postToLLM(targetUrl, cfg.apiKey, {
+  const response = await postToLLMWithRetry(targetUrl, cfg.apiKey, {
     model: cfg.model,
     messages: [
       ...(options?.systemPrompt ? [{ role: 'system' as const, content: options.systemPrompt }] : []),
@@ -133,7 +169,7 @@ async function completeGoogle(
     body.systemInstruction = { parts: [{ text: options.systemPrompt }] };
   }
 
-  const response = await postToLLM(targetUrl, cfg.apiKey, body, false);
+  const response = await postToLLMWithRetry(targetUrl, cfg.apiKey, body, false);
 
   if (!response.ok) {
     const err = await response.text();
