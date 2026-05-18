@@ -7,6 +7,21 @@ import { Modal } from '../common/Modal';
 import { generateChapterDrafts, type ExistingChapterSummary } from '../../lib/ai-tasks';
 import { isLLMReady } from '../../lib/llm';
 import { formatCharacters } from '../../lib/context-budget';
+import type { Chapter } from '../../types';
+import { ingestChapter, retryRemaining } from '../../lib/wiki-ingest';
+import { undoBatch, findLatestIngestBatch } from '../../lib/wiki-undo';
+
+function WikiBadge({ status }: { status: Chapter['wikiSyncStatus'] }) {
+  if (status === 'synced') return null;
+  const map: Record<Exclude<Chapter['wikiSyncStatus'], 'synced'>, { text: string; color: string }> = {
+    unsynced:      { text: '⚠️ 未存 Wiki',         color: 'var(--accent-warning, #d18b00)' },
+    stale:         { text: '⚠️ Wiki 已過時',        color: 'var(--accent-warning, #d18b00)' },
+    partial:       { text: '⚠️ Wiki 部分失敗',      color: 'var(--accent-danger, crimson)'  },
+    partial_stale: { text: '⚠️ 部分失敗 + 已過時',  color: 'var(--accent-danger, crimson)'  },
+  };
+  const m = map[status];
+  return <span style={{ fontSize: 10, color: m.color, marginLeft: 6 }}>{m.text}</span>;
+}
 
 export function ChaptersPanel() {
   const { project, chapters, characters, loadChapters, createChapter, updateChapter, deleteChapter, reorderChapters } = useProjectStore();
@@ -19,6 +34,10 @@ export function ChaptersPanel() {
 
   // —— 多選刪除 ——
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
+
+  // —— Wiki 批次處理 ——
+  const [wikiBusy, setWikiBusy] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number; cur: string } | null>(null);
 
   // —— Drag-and-drop ——
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -187,6 +206,35 @@ export function ChaptersPanel() {
     setDragOverId(null);
   };
 
+  // —— Wiki 批次處理 ——
+  const nonSynced = chapters.filter((c) => c.wikiSyncStatus !== 'synced');
+
+  const batchProcess = async (list: Chapter[]) => {
+    setWikiBusy(true);
+    setBatchProgress({ done: 0, total: list.length, cur: '' });
+    for (let i = 0; i < list.length; i++) {
+      const ch = list[i];
+      setBatchProgress({ done: i, total: list.length, cur: ch.title });
+      try {
+        if (ch.wikiSyncStatus === 'unsynced' || ch.wikiSyncStatus === 'stale') {
+          await ingestChapter(ch);
+        } else if (ch.wikiSyncStatus === 'partial') {
+          const b = await findLatestIngestBatch(ch);
+          if (b) await retryRemaining(ch, b);
+        } else if (ch.wikiSyncStatus === 'partial_stale') {
+          const b = await findLatestIngestBatch(ch);
+          if (b) await undoBatch(ch, b);
+          await ingestChapter(ch);
+        }
+      } catch (e) {
+        console.warn('batch ingest 失敗：', ch.title, e);
+      }
+    }
+    setBatchProgress(null);
+    setWikiBusy(false);
+    if (project) await loadChapters(project.id);
+  };
+
   return (
     <div className="tab-panel">
       <div className="section">
@@ -211,6 +259,23 @@ export function ChaptersPanel() {
           ➕ 新增章節
         </Button>
       </div>
+
+      {nonSynced.length > 0 && (
+        <div style={{
+          background: 'var(--bg-tertiary, #f5f5f5)', padding: 8, fontSize: 12, display: 'flex',
+          justifyContent: 'space-between', alignItems: 'center', borderRadius: 4, marginBottom: 8,
+        }}>
+          <span>您有 {nonSynced.length} 個章節 Wiki 未完整同步</span>
+          <Button variant="secondary" size="sm" onClick={() => void batchProcess(nonSynced)} disabled={wikiBusy}>
+            批次處理
+          </Button>
+        </div>
+      )}
+      {batchProgress && (
+        <div style={{ padding: 8, background: 'var(--bg-tertiary, #f5f5f5)', fontSize: 12, marginBottom: 8, borderRadius: 4 }}>
+          處理中 {batchProgress.done}/{batchProgress.total}：{batchProgress.cur}
+        </div>
+      )}
 
       <div className="section">
         <div className="section-title chapter-list-header">
@@ -293,9 +358,7 @@ export function ChaptersPanel() {
                 <div className="chapter-item-meta">
                   <span>{ch.content ? `約 ${ch.content.length} 字` : '待生成'}</span>
                   {ch.beat && <span className="badge badge-gray">{ch.beat.split(' ')[0]}</span>}
-                  {!ch.wikiSyncedAt && ch.content && (
-                    <span className="badge badge-warn">⚠️ 未存入</span>
-                  )}
+                  <WikiBadge status={ch.wikiSyncStatus} />
                 </div>
               </div>
             </div>

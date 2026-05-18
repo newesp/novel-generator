@@ -13,6 +13,11 @@ import { logPromptToTemp } from '../../lib/prompt-log';
 import { regenerateChapterPoints } from '../../lib/ai-tasks';
 import { EditPreviewTabs, type EditPreviewMode } from '../common/EditPreviewTabs';
 import { MarkdownView } from '../common/MarkdownView';
+import { ingestChapter, retryRemaining, getFailedCountForChapter } from '../../lib/wiki-ingest';
+import { undoBatch, findLatestIngestBatch } from '../../lib/wiki-undo';
+import { IngestToast } from '../wiki/IngestToast';
+import { IngestDiffModal } from '../wiki/IngestDiffModal';
+import { WikiPartialModal } from '../wiki/WikiPartialModal';
 
 const BEATS = [
   '引入 (Inciting Incident)',
@@ -52,6 +57,23 @@ export function ChapterEditor() {
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [inlineEditTarget, setInlineEditTarget] = useState<InlineEditTarget | null>(null);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+
+  // —— Wiki ingest 相關狀態 ——
+  const [wikiBusy, setWikiBusy] = useState(false);
+  const [toast, setToast] = useState<{ msg: string; variant: 'success' | 'warn' | 'danger'; batchId: string } | null>(null);
+  const [showDiff, setShowDiff] = useState<string | null>(null);
+  const [showPartial, setShowPartial] = useState(false);
+  const [failedCount, setFailedCount] = useState(0);
+
+  useEffect(() => {
+    if (!chapter) { setFailedCount(0); return; }
+    const s = chapter.wikiSyncStatus;
+    if (s === 'partial' || s === 'partial_stale') {
+      void getFailedCountForChapter(chapter).then(setFailedCount);
+    } else {
+      setFailedCount(0);
+    }
+  }, [chapter?.id, chapter?.wikiSyncStatus]);
 
   useEffect(() => {
     if (chapter) {
@@ -331,6 +353,37 @@ export function ChapterEditor() {
         <Button variant="secondary" onClick={handleSaveVersion} disabled={!content.trim()}>
           💾 存入版本
         </Button>
+        {(() => {
+          const s = chapter.wikiSyncStatus;
+          const label =
+            s === 'unsynced'      ? '📚 存入 Wiki' :
+            s === 'synced'        ? '✓ 已存入' :
+            s === 'stale'         ? '⚠️ Wiki 已過時，重新存入' :
+            s === 'partial'       ? `⚠️ Wiki 部分失敗 (${failedCount})` :
+                                    '⚠️ 部分失敗 + 已過時';
+          const onWikiClick = async () => {
+            if (wikiBusy || s === 'synced') return;
+            if (s === 'partial' || s === 'partial_stale') { setShowPartial(true); return; }
+            setWikiBusy(true);
+            try {
+              const r = await ingestChapter(chapter);
+              const createN = r.plan.operations.filter((o) => o.action === 'create').length;
+              const updateN = r.plan.operations.filter((o) => o.action === 'update').length;
+              const msg = `Wiki 已更新：新增 ${createN} 頁、修改 ${updateN} 頁` +
+                          (r.failedCount > 0 ? `（${r.failedCount} 個失敗）` : '');
+              setToast({ msg, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+            } catch (e) {
+              setToast({ msg: `Ingest 失敗：${(e as Error).message}`, variant: 'danger', batchId: '' });
+            } finally {
+              setWikiBusy(false);
+            }
+          };
+          return (
+            <Button variant="secondary" onClick={onWikiClick} disabled={wikiBusy || s === 'synced'}>
+              {wikiBusy ? '存入中…' : label}
+            </Button>
+          );
+        })()}
         <div className="toolbar-spacer" />
         <Button variant="secondary" onClick={handleSave}>{saveLabel}</Button>
         <Button
@@ -430,6 +483,88 @@ export function ChapterEditor() {
           selectionStart={inlineEditTarget.start}
           selectionEnd={inlineEditTarget.end}
           onAccept={handleInlineEditAccept}
+        />
+      )}
+
+      {/* Wiki ingest 結果 toast */}
+      {toast && (
+        <IngestToast
+          message={toast.msg}
+          variant={toast.variant}
+          onViewDiff={() => { if (toast.batchId) setShowDiff(toast.batchId); }}
+          onUndo={async () => {
+            if (toast.batchId) await undoBatch(chapter, toast.batchId);
+            setToast(null);
+          }}
+          onClose={() => setToast(null)}
+        />
+      )}
+
+      {/* Diff Modal */}
+      {showDiff && (
+        <IngestDiffModal
+          bookId={chapter.projectId}
+          batchId={showDiff}
+          onClose={() => setShowDiff(null)}
+        />
+      )}
+
+      {/* Partial 處理 Modal */}
+      {showPartial && (
+        <WikiPartialModal
+          chapter={chapter}
+          onClose={() => setShowPartial(false)}
+          actions={
+            chapter.wikiSyncStatus === 'partial' ? [
+              { label: '重試剩餘', onClick: async () => {
+                  setShowPartial(false); setWikiBusy(true);
+                  try {
+                    const b = await findLatestIngestBatch(chapter);
+                    if (!b) { setWikiBusy(false); return; }
+                    const r = await retryRemaining(chapter, b);
+                    setToast({ msg: `重試完成：${r.okCount} 成功、${r.failedCount} 仍失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+                  } finally { setWikiBusy(false); }
+              }},
+              { label: '還原', onClick: async () => {
+                  setShowPartial(false);
+                  const b = await findLatestIngestBatch(chapter);
+                  if (b) await undoBatch(chapter, b);
+              }},
+              { label: '完整重跑', onClick: async () => {
+                  setShowPartial(false); setWikiBusy(true);
+                  try {
+                    const b = await findLatestIngestBatch(chapter);
+                    if (b) await undoBatch(chapter, b);
+                    const r = await ingestChapter(chapter);
+                    setToast({ msg: `完整重跑完成：${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+                  } finally { setWikiBusy(false); }
+              }},
+            ] : [
+              { label: '還原後重新 ingest', onClick: async () => {
+                  setShowPartial(false); setWikiBusy(true);
+                  try {
+                    const b = await findLatestIngestBatch(chapter);
+                    if (b) await undoBatch(chapter, b);
+                    const r = await ingestChapter(chapter);
+                    setToast({ msg: `已重新 ingest:${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+                  } finally { setWikiBusy(false); }
+              }},
+              { label: '僅還原', onClick: async () => {
+                  setShowPartial(false);
+                  const b = await findLatestIngestBatch(chapter);
+                  if (b) await undoBatch(chapter, b);
+              }},
+              { label: '完整重跑', onClick: async () => {
+                  setShowPartial(false); setWikiBusy(true);
+                  try {
+                    const b = await findLatestIngestBatch(chapter);
+                    if (b) await undoBatch(chapter, b);
+                    const r = await ingestChapter(chapter);
+                    setToast({ msg: `完整重跑完成：${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+                  } finally { setWikiBusy(false); }
+              }},
+            ]
+          }
         />
       )}
     </>
