@@ -7,6 +7,8 @@ build/
 
 # Dev prompt logs
 temp/
+# dev-time probes for plans (not committed)
+temp/probe-*.ts
 
 # Logs
 *.log
