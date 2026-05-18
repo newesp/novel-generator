@@ -79,6 +79,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await storage.versions.deleteByChapters(chapterIds);
     await storage.chapters.deleteByProject(id);
     await storage.characters.deleteByProject(id);
+    await storage.wikiPages.deleteByBook(id);
+    await storage.wikiLog.deleteByBook(id);
     await storage.projects.delete(id);
 
     // Update state

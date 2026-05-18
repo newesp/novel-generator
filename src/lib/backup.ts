@@ -8,33 +8,41 @@
  * 不在書本資料的備份範圍內。
  */
 import { storage } from './storage';
-import type { Project, Chapter, ChapterVersion, Character } from '../types';
+import type {
+  Project, Chapter, ChapterVersion, Character,
+  WikiPage, WikiLogEntry,
+} from '../types';
 
-export const BACKUP_SCHEMA_VERSION = 1 as const;
+// v1: 無 wiki；v2: 含 wikiPages / wikiLog
+export const BACKUP_SCHEMA_VERSION = 2 as const;
 export const BACKUP_FILENAME = 'novel-generator-backup.json';
 
 export interface BackupSnapshot {
-  schema: typeof BACKUP_SCHEMA_VERSION;
+  schema: 1 | 2;                   // 接受讀入 v1 與 v2，輸出固定 v2
   exportedAt: number;
   app: 'novel-generator';
   projects: Project[];
   chapters: Chapter[];
   versions: ChapterVersion[];
   characters: Character[];
+  wikiPages?: WikiPage[];          // v1 缺欄位
+  wikiLog?: WikiLogEntry[];        // v1 缺欄位
 }
 
 export async function exportSnapshot(): Promise<BackupSnapshot> {
-  const [projects, chapters, versions, characters] = await Promise.all([
+  const [projects, chapters, versions, characters, wikiPages, wikiLog] = await Promise.all([
     storage.projects.list(),
     storage.chapters.list(),
     storage.versions.list(),
     storage.characters.list(),
+    storage.wikiPages.listAll(),
+    storage.wikiLog.listAll(),
   ]);
   return {
-    schema: BACKUP_SCHEMA_VERSION,
+    schema: 2,
     exportedAt: Date.now(),
     app: 'novel-generator',
-    projects, chapters, versions, characters,
+    projects, chapters, versions, characters, wikiPages, wikiLog,
   };
 }
 
@@ -47,18 +55,29 @@ export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' =
   if (snapshot?.app !== 'novel-generator') {
     throw new Error('檔案格式不是 novel-generator 備份');
   }
-  if (snapshot.schema !== BACKUP_SCHEMA_VERSION) {
-    throw new Error(`不支援的備份版本：${snapshot.schema}（目前支援 v${BACKUP_SCHEMA_VERSION}）`);
+  if (snapshot.schema !== 1 && snapshot.schema !== 2) {
+    throw new Error(`不支援的備份版本：${snapshot.schema}（目前支援 v1, v2）`);
   }
 
   if (mode === 'replace') {
     await storage.replaceAll({
       projects: snapshot.projects ?? [],
-      chapters: snapshot.chapters ?? [],
+      chapters: (snapshot.chapters ?? []).map(upgradeChapterV1ToV2),
       versions: snapshot.versions ?? [],
       characters: snapshot.characters ?? [],
+      wikiPages: snapshot.wikiPages ?? [],
+      wikiLog: snapshot.wikiLog ?? [],
     });
   }
+}
+
+/** v1 backup 的 chapter 沒有 wikiSyncedHash / wikiSyncStatus，補預設值 */
+function upgradeChapterV1ToV2(c: Chapter): Chapter {
+  return {
+    ...c,
+    wikiSyncedHash: c.wikiSyncedHash ?? null,
+    wikiSyncStatus: c.wikiSyncStatus ?? (c.wikiSyncedAt ? 'synced' : 'unsynced'),
+  };
 }
 
 /** 觸發瀏覽器下載 JSON 檔（手動匯出用） */
@@ -87,5 +106,6 @@ export async function readSnapshotFromFile(file: File): Promise<BackupSnapshot> 
 /** 統計 snapshot 內容用於 UI 顯示 */
 export function describeSnapshot(s: BackupSnapshot): string {
   const t = new Date(s.exportedAt).toLocaleString();
-  return `${s.projects?.length ?? 0} 本書 · ${s.chapters?.length ?? 0} 章節 · ${s.characters?.length ?? 0} 角色 · 匯出於 ${t}`;
+  const wiki = s.wikiPages?.length ?? 0;
+  return `${s.projects?.length ?? 0} 本書 · ${s.chapters?.length ?? 0} 章節 · ${s.characters?.length ?? 0} 角色 · ${wiki} Wiki 頁 · 匯出於 ${t}`;
 }
