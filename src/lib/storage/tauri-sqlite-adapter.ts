@@ -16,6 +16,8 @@ import type {
   VersionStore,
   CharacterStore,
   AppMetaStore,
+  WikiPagesStore,
+  WikiLogStore,
   StorageBundle,
 } from './types';
 import {
@@ -28,11 +30,17 @@ import {
   rowToVersion,
   rowToCharacter,
   mergePartial,
+  wikiPageToRow,
+  rowToWikiPage,
+  wikiLogToRow,
+  rowToWikiLog,
   type ProjectRow,
   type ChapterRow,
   type VersionRow,
   type CharacterRow,
   type AppMetaRow,
+  type WikiPageRow,
+  type WikiLogRow,
 } from './sqlite-helpers';
 
 const DB_URL = 'sqlite:novel-generator.db';
@@ -311,6 +319,134 @@ const characters: CharacterStore = {
   },
 };
 
+// ============ wikiPages ============
+
+const WIKI_PAGE_COLS =
+  'id, book_id, type, slug, title, aliases, related_slugs, description, content_md, created_at, updated_at';
+
+const wikiPages: WikiPagesStore = {
+  list: async (bookId) => {
+    const db = await getDb();
+    const rows = await db.select<WikiPageRow[]>(
+      `SELECT ${WIKI_PAGE_COLS} FROM wiki_pages WHERE book_id = $1 ORDER BY type, slug`,
+      [bookId],
+    );
+    return rows.map(rowToWikiPage);
+  },
+  get: async (id) => {
+    const db = await getDb();
+    const rows = await db.select<WikiPageRow[]>(
+      `SELECT ${WIKI_PAGE_COLS} FROM wiki_pages WHERE id = $1`,
+      [id],
+    );
+    return rows[0] ? rowToWikiPage(rows[0]) : undefined;
+  },
+  findBySlug: async (bookId, type, slug) => {
+    const db = await getDb();
+    const rows = await db.select<WikiPageRow[]>(
+      `SELECT ${WIKI_PAGE_COLS} FROM wiki_pages WHERE book_id=$1 AND type=$2 AND slug=$3`,
+      [bookId, type, slug],
+    );
+    return rows[0] ? rowToWikiPage(rows[0]) : undefined;
+  },
+  add: async (p) => {
+    const db = await getDb();
+    const r = wikiPageToRow(p);
+    await db.execute(
+      `INSERT INTO wiki_pages (${WIKI_PAGE_COLS})
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [r.id, r.book_id, r.type, r.slug, r.title, r.aliases, r.related_slugs,
+       r.description, r.content_md, r.created_at, r.updated_at],
+    );
+  },
+  update: async (p) => {
+    const db = await getDb();
+    const r = wikiPageToRow(p);
+    await db.execute(
+      `UPDATE wiki_pages SET type=$1, slug=$2, title=$3, aliases=$4, related_slugs=$5,
+          description=$6, content_md=$7, updated_at=$8
+       WHERE id=$9`,
+      [r.type, r.slug, r.title, r.aliases, r.related_slugs,
+       r.description, r.content_md, r.updated_at, r.id],
+    );
+  },
+  delete: async (id) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM wiki_pages WHERE id = $1', [id]);
+  },
+  totalLength: async (bookId) => {
+    const db = await getDb();
+    const rows = await db.select<{ total: number | null }[]>(
+      'SELECT COALESCE(SUM(LENGTH(content_md)), 0) AS total FROM wiki_pages WHERE book_id=$1',
+      [bookId],
+    );
+    return rows[0]?.total ?? 0;
+  },
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<WikiPageRow[]>(`SELECT ${WIKI_PAGE_COLS} FROM wiki_pages`);
+    return rows.map(rowToWikiPage);
+  },
+  deleteByBook: async (bookId) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM wiki_pages WHERE book_id = $1', [bookId]);
+  },
+};
+
+// ============ wikiLog ============
+
+const WIKI_LOG_COLS =
+  'id, book_id, batch_id, applied_at, kind, op_status, page_id, page_type, page_slug, ' +
+  'page_snapshot_before, page_snapshot_after, source, summary, error_message';
+
+const wikiLog: WikiLogStore = {
+  list: async (bookId, limit) => {
+    const db = await getDb();
+    const lim = limit ? `LIMIT ${Number(limit) | 0}` : '';
+    const rows = await db.select<WikiLogRow[]>(
+      `SELECT ${WIKI_LOG_COLS} FROM wiki_log WHERE book_id=$1 ORDER BY applied_at DESC ${lim}`,
+      [bookId],
+    );
+    return rows.map(rowToWikiLog);
+  },
+  listByBatch: async (bookId, batchId) => {
+    const db = await getDb();
+    const rows = await db.select<WikiLogRow[]>(
+      `SELECT ${WIKI_LOG_COLS} FROM wiki_log WHERE book_id=$1 AND batch_id=$2 ORDER BY applied_at ASC`,
+      [bookId, batchId],
+    );
+    return rows.map(rowToWikiLog);
+  },
+  add: async (e) => {
+    const db = await getDb();
+    const r = wikiLogToRow(e);
+    await db.execute(
+      `INSERT INTO wiki_log (${WIKI_LOG_COLS})
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+      [r.id, r.book_id, r.batch_id, r.applied_at, r.kind, r.op_status,
+       r.page_id, r.page_type, r.page_slug,
+       r.page_snapshot_before, r.page_snapshot_after,
+       r.source, r.summary, r.error_message],
+    );
+  },
+  updateStatus: async (id, opStatus, errorMessage) => {
+    const db = await getDb();
+    await db.execute(
+      'UPDATE wiki_log SET op_status=$1, error_message=$2 WHERE id=$3',
+      [opStatus, errorMessage ?? null, id],
+    );
+  },
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<WikiLogRow[]>(`SELECT ${WIKI_LOG_COLS} FROM wiki_log`);
+    return rows.map(rowToWikiLog);
+  },
+  deleteByBook: async (bookId) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM wiki_log WHERE book_id = $1', [bookId]);
+  },
+};
+
 // ============ appMeta ============
 
 const appMeta: AppMetaStore = {
@@ -347,6 +483,8 @@ const appMeta: AppMetaStore = {
  */
 async function replaceAll(bundle: StorageBundle): Promise<void> {
   const db = await getDb();
+  await db.execute('DELETE FROM wiki_log');
+  await db.execute('DELETE FROM wiki_pages');
   await db.execute('DELETE FROM characters');
   await db.execute('DELETE FROM versions');
   await db.execute('DELETE FROM chapters');
@@ -355,9 +493,12 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
   for (const c of bundle.chapters ?? []) await chapters.add(c);
   for (const v of bundle.versions ?? []) await versions.add(v);
   for (const c of bundle.characters ?? []) await characters.add(c);
+  for (const p of bundle.wikiPages ?? []) await wikiPages.add(p);
+  for (const e of bundle.wikiLog ?? [])   await wikiLog.add(e);
 }
 
 export const tauriSqliteAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
+  wikiPages, wikiLog,
   replaceAll,
 };

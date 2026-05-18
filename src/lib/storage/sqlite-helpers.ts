@@ -6,7 +6,7 @@
  *  - data TEXT 欄位的 JSON.parse / stringify
  *  - 部分更新時的「讀-merge-寫」邏輯
  */
-import type { Project, Chapter, ChapterVersion, Character } from '../../types';
+import type { Project, Chapter, ChapterVersion, Character, WikiPage, WikiLogEntry } from '../../types';
 
 export interface ProjectRow {
   id: string;
@@ -102,4 +102,107 @@ export function rowToCharacter(r: CharacterRow): Character {
  */
 export function mergePartial<T extends object>(current: T, patch: Partial<T>): T {
   return { ...current, ...patch };
+}
+
+// ---------- Wiki rows ----------
+
+export interface WikiPageRow {
+  id: string;
+  book_id: string;
+  type: string;
+  slug: string;
+  title: string;
+  aliases: string;
+  related_slugs: string;
+  description: string;
+  content_md: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface WikiLogRow {
+  id: string;
+  book_id: string;
+  batch_id: string;
+  applied_at: number;
+  kind: string;
+  op_status: string;
+  page_id: string | null;
+  page_type: string;
+  page_slug: string;
+  page_snapshot_before: string | null;
+  page_snapshot_after: string | null;
+  source: string;
+  summary: string;
+  error_message: string | null;
+}
+
+export function wikiPageToRow(p: WikiPage): WikiPageRow {
+  return {
+    id: p.id,
+    book_id: p.bookId,
+    type: p.type,
+    slug: p.slug,
+    title: p.title,
+    aliases: JSON.stringify(p.aliases ?? []),
+    related_slugs: JSON.stringify(p.relatedSlugs ?? []),
+    description: p.description ?? '',
+    content_md: p.contentMd,
+    created_at: p.createdAt,
+    updated_at: p.updatedAt,
+  };
+}
+
+export function rowToWikiPage(r: WikiPageRow): WikiPage {
+  return {
+    id: r.id,
+    bookId: r.book_id,
+    type: r.type as WikiPage['type'],
+    slug: r.slug,
+    title: r.title,
+    aliases: JSON.parse(r.aliases || '[]'),
+    relatedSlugs: JSON.parse(r.related_slugs || '[]'),
+    description: r.description ?? '',
+    contentMd: r.content_md,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export function wikiLogToRow(e: WikiLogEntry): WikiLogRow {
+  return {
+    id: e.id,
+    book_id: e.bookId,
+    batch_id: e.batchId,
+    applied_at: e.appliedAt,
+    kind: e.kind,
+    op_status: e.opStatus,
+    page_id: e.pageId,
+    page_type: e.pageType,
+    page_slug: e.pageSlug,
+    page_snapshot_before: e.pageSnapshotBefore ? JSON.stringify(e.pageSnapshotBefore) : null,
+    page_snapshot_after:  e.pageSnapshotAfter  ? JSON.stringify(e.pageSnapshotAfter)  : null,
+    source: e.source,
+    summary: e.summary,
+    error_message: e.errorMessage ?? null,
+  };
+}
+
+export function rowToWikiLog(r: WikiLogRow): WikiLogEntry {
+  return {
+    id: r.id,
+    bookId: r.book_id,
+    batchId: r.batch_id,
+    appliedAt: r.applied_at,
+    kind: r.kind as WikiLogEntry['kind'],
+    opStatus: r.op_status as WikiLogEntry['opStatus'],
+    pageId: r.page_id,
+    pageType: r.page_type as WikiLogEntry['pageType'],
+    pageSlug: r.page_slug,
+    pageSnapshotBefore: r.page_snapshot_before ? JSON.parse(r.page_snapshot_before) : null,
+    pageSnapshotAfter:  r.page_snapshot_after  ? JSON.parse(r.page_snapshot_after)  : null,
+    source: r.source,
+    summary: r.summary,
+    errorMessage: r.error_message ?? undefined,
+  };
 }

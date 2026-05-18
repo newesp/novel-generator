@@ -12,6 +12,8 @@ import type {
   VersionStore,
   CharacterStore,
   AppMetaStore,
+  WikiPagesStore,
+  WikiLogStore,
   StorageBundle,
 } from './types';
 
@@ -82,6 +84,43 @@ const characters: CharacterStore = {
   bulkDelete: (ids) => db.characters.bulkDelete(ids),
 };
 
+const wikiPages: WikiPagesStore = {
+  list: (bookId) => db.wikiPages.where('bookId').equals(bookId).toArray(),
+  get: (id) => db.wikiPages.get(id),
+  findBySlug: (bookId, type, slug) =>
+    db.wikiPages.where('[bookId+type+slug]').equals([bookId, type, slug]).first(),
+  add: async (p) => { await db.wikiPages.add(p); },
+  update: async (p) => { await db.wikiPages.put(p); },
+  delete: (id) => db.wikiPages.delete(id),
+  totalLength: async (bookId) => {
+    const pages = await db.wikiPages.where('bookId').equals(bookId).toArray();
+    return pages.reduce((sum, p) => sum + (p.contentMd?.length ?? 0), 0);
+  },
+  listAll: () => db.wikiPages.toArray(),
+  deleteByBook: async (bookId) => {
+    await db.wikiPages.where('bookId').equals(bookId).delete();
+  },
+};
+
+const wikiLog: WikiLogStore = {
+  list: async (bookId, limit) => {
+    const arr = await db.wikiLog.where('bookId').equals(bookId).sortBy('appliedAt');
+    arr.reverse();
+    return limit ? arr.slice(0, limit) : arr;
+  },
+  listByBatch: (bookId, batchId) =>
+    db.wikiLog.where('batchId').equals(batchId).toArray()
+      .then((arr) => arr.filter((e) => e.bookId === bookId)),
+  add: async (e) => { await db.wikiLog.add(e); },
+  updateStatus: async (id, opStatus, errorMessage) => {
+    await db.wikiLog.update(id, { opStatus, errorMessage });
+  },
+  listAll: () => db.wikiLog.toArray(),
+  deleteByBook: async (bookId) => {
+    await db.wikiLog.where('bookId').equals(bookId).delete();
+  },
+};
+
 const appMeta: AppMetaStore = {
   get: async <T = unknown>(key: string): Promise<T | undefined> => {
     const row = await db.appMeta.get(key);
@@ -92,19 +131,28 @@ const appMeta: AppMetaStore = {
 };
 
 async function replaceAll(bundle: StorageBundle): Promise<void> {
-  await db.transaction('rw', [db.projects, db.chapters, db.versions, db.characters], async () => {
-    await db.projects.clear();
-    await db.chapters.clear();
-    await db.versions.clear();
-    await db.characters.clear();
-    await db.projects.bulkAdd(bundle.projects ?? []);
-    await db.chapters.bulkAdd(bundle.chapters ?? []);
-    await db.versions.bulkAdd(bundle.versions ?? []);
-    await db.characters.bulkAdd(bundle.characters ?? []);
-  });
+  await db.transaction('rw',
+    [db.projects, db.chapters, db.versions, db.characters, db.wikiPages, db.wikiLog],
+    async () => {
+      await db.projects.clear();
+      await db.chapters.clear();
+      await db.versions.clear();
+      await db.characters.clear();
+      await db.wikiPages.clear();
+      await db.wikiLog.clear();
+      await db.projects.bulkAdd(bundle.projects ?? []);
+      await db.chapters.bulkAdd(bundle.chapters ?? []);
+      await db.versions.bulkAdd(bundle.versions ?? []);
+      await db.characters.bulkAdd(bundle.characters ?? []);
+      // pages → log 順序（spec §3.4）
+      await db.wikiPages.bulkAdd(bundle.wikiPages ?? []);
+      await db.wikiLog.bulkAdd(bundle.wikiLog ?? []);
+    },
+  );
 }
 
 export const dexieAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
+  wikiPages, wikiLog,
   replaceAll,
 };

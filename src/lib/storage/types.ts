@@ -10,7 +10,10 @@
  *  - 各 store 方法名稱描述「用途」而非「Dexie 操作」（例 listByProject 而非 whereProject）
  *  - 大型 binary（圖片/音檔/影片）不走這個 interface，由 Phase 6 MediaAdapter 處理
  */
-import type { Project, Chapter, ChapterVersion, Character } from '../../types';
+import type {
+  Project, Chapter, ChapterVersion, Character,
+  WikiPage, WikiLogEntry, WikiPageType,
+} from '../../types';
 
 export interface ProjectStore {
   /** 依 updatedAt 由新到舊排列（首頁書庫用） */
@@ -67,12 +70,38 @@ export interface AppMetaStore {
   delete(key: string): Promise<void>;
 }
 
+export interface WikiPagesStore {
+  list(bookId: string): Promise<WikiPage[]>;
+  get(id: string): Promise<WikiPage | undefined>;
+  findBySlug(bookId: string, type: WikiPageType, slug: string): Promise<WikiPage | undefined>;
+  add(page: WikiPage): Promise<void>;
+  update(page: WikiPage): Promise<void>;
+  delete(id: string): Promise<void>;
+  /** SUM(length(content_md)) over the book */
+  totalLength(bookId: string): Promise<number>;
+  /** 給匯出 / 級聯用 */
+  listAll(): Promise<WikiPage[]>;
+  deleteByBook(bookId: string): Promise<void>;
+}
+
+export interface WikiLogStore {
+  list(bookId: string, limit?: number): Promise<WikiLogEntry[]>;
+  listByBatch(bookId: string, batchId: string): Promise<WikiLogEntry[]>;
+  add(entry: WikiLogEntry): Promise<void>;
+  updateStatus(id: string, opStatus: WikiLogEntry['opStatus'], errorMessage?: string): Promise<void>;
+  /** 給匯出 / 級聯用 */
+  listAll(): Promise<WikiLogEntry[]>;
+  deleteByBook(bookId: string): Promise<void>;
+}
+
 /** 整體匯出/匯入用的資料束（與 backup.ts BackupSnapshot 對齊但去掉 metadata） */
 export interface StorageBundle {
   projects: Project[];
   chapters: Chapter[];
   versions: ChapterVersion[];
   characters: Character[];
+  wikiPages?: WikiPage[];
+  wikiLog?: WikiLogEntry[];
 }
 
 export interface StorageAdapter {
@@ -81,6 +110,8 @@ export interface StorageAdapter {
   versions: VersionStore;
   characters: CharacterStore;
   appMeta: AppMetaStore;
+  wikiPages: WikiPagesStore;
+  wikiLog: WikiLogStore;
 
   /**
    * 原子性清空再寫入（給 backup importSnapshot 用）
