@@ -117,7 +117,12 @@ export const DEFAULT_WIKI_INGEST_PLAN_TEMPLATE = `你是這本中文小說 Wiki 
 ## 已知角色（角色庫，**不要重複建立**）
 {{knownCharactersList}}
 
-## 本章內容（標題：{{chapterTitle}}）
+## 本章資訊
+- 序號：第 {{chapterOrdinal}} 章
+- 標題：{{chapterTitle}}
+- 章節摘要建議 slug：\`{{chapterSummarySlug}}\`（若要建 summary 頁，**必須**使用此 slug 以避免與其他章節衝突）
+
+## 本章內容
 {{chapterContent}}
 
 ## 輸出格式（嚴格 JSON）
@@ -150,7 +155,7 @@ export const DEFAULT_WIKI_INGEST_PLAN_TEMPLATE = `你是這本中文小說 Wiki 
 ## 規則
 1. **不要對已存在的 slug 做 create**（會自動降級為 update，但會浪費 token）。
 2. **不要為「已知角色」清單中已有的角色，新建 entity 頁**——除非本章首次給出值得單獨成頁的細節（用 update 補充更好）。
-3. **不要把章節摘要做為 entity**；章節摘要請用 type=summary，slug 用「ch-章節 id 或 ch-序號」。
+3. **不要把章節摘要做為 entity**；章節摘要請用 type=summary、slug = 上方「章節摘要建議 slug」（\`{{chapterSummarySlug}}\`）。**絕對不要把每章的 summary 都叫 \`ch-1\`**。
 4. unrecorded_characters 是本章出現、但**不在已知角色清單也不在 wiki 中**的人物（不論 entity 是否要建頁）。
 5. 若本章沒任何值得 ingest 的，operations 可以是空陣列；但 unrecorded_characters 仍可填。
 `;
@@ -338,6 +343,8 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'knownCharactersList', desc: '角色庫的 name / aliases 清單' },
     { var: 'chapterTitle', desc: '本章標題' },
     { var: 'chapterContent', desc: '本章正文' },
+    { var: 'chapterOrdinal', desc: '本章在書內的序號（1-based）' },
+    { var: 'chapterSummarySlug', desc: '建議的章節摘要 slug，如 ch-2' },
   ],
   wikiIngestCreateTemplate: [
     { var: 'type', desc: '頁面類型' },

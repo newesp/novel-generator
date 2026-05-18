@@ -54,6 +54,11 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
   const knownCharactersList = allChars.map((c) => c.name).filter(Boolean).join('、') || '(無)';
 
   // [2] Plan
+  // 章節序號 — 給 summary slug 避免衝突（spec §4.2 規則 3）
+  // chapter.order 是 0-based；對外顯示用 1-based
+  const chapterOrdinal = (chapter.order ?? 0) + 1;
+  const chapterSummarySlug = `ch-${chapterOrdinal}`;
+
   const aiPrompts = useSettingsStore.getState().aiPrompts;
   const planPrompt = renderTemplate(aiPrompts.wikiIngestPlanTemplate, {
     indexCount: String(allPages.length),
@@ -61,6 +66,8 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
     knownCharactersList,
     chapterTitle: chapter.title || '(未命名)',
     chapterContent: chapter.content,
+    chapterOrdinal: String(chapterOrdinal),
+    chapterSummarySlug,
   });
 
   let planRaw = '';

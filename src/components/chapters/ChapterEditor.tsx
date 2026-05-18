@@ -36,7 +36,7 @@ interface InlineEditTarget {
 }
 
 export function ChapterEditor() {
-  const { project, chapters, characters, updateChapter, deleteChapter, saveVersion, loadVersions } = useProjectStore();
+  const { project, chapters, characters, updateChapter, deleteChapter, saveVersion, loadVersions, loadChapters } = useProjectStore();
   const { selectedChapterId, setSelectedChapterId } = useUIStore();
   const { llmConfig, wikiPrefs } = useSettingsStore();
 
@@ -392,14 +392,22 @@ export function ChapterEditor() {
               const msg = `Wiki 已更新：新增 ${createN} 頁、修改 ${updateN} 頁` +
                           (r.failedCount > 0 ? `（${r.failedCount} 個失敗）` : '');
               setToast({ msg, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+              // 重新拉 chapters，讓徽章與按鈕狀態跟 DB 一致
+              if (project) await loadChapters(project.id);
             } catch (e) {
               setToast({ msg: `Ingest 失敗：${(e as Error).message}`, variant: 'danger', batchId: '' });
             } finally {
               setWikiBusy(false);
             }
           };
+          const noContent = !content.trim();
           return (
-            <Button variant="secondary" onClick={onWikiClick} disabled={wikiBusy || s === 'synced'}>
+            <Button
+              variant="secondary"
+              onClick={onWikiClick}
+              disabled={wikiBusy || s === 'synced' || noContent}
+              title={noContent ? '請先撰寫章節內容' : undefined}
+            >
               {wikiBusy ? '存入中…' : label}
             </Button>
           );
@@ -514,6 +522,7 @@ export function ChapterEditor() {
           onViewDiff={() => { if (toast.batchId) setShowDiff(toast.batchId); }}
           onUndo={async () => {
             if (toast.batchId) await undoBatch(chapter, toast.batchId);
+            if (project) await loadChapters(project.id);
             setToast(null);
           }}
           onClose={() => setToast(null)}
@@ -543,12 +552,13 @@ export function ChapterEditor() {
                     if (!b) { setWikiBusy(false); return; }
                     const r = await retryRemaining(chapter, b);
                     setToast({ msg: `重試完成：${r.okCount} 成功、${r.failedCount} 仍失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
-                  } finally { setWikiBusy(false); }
+                  } finally { if (project) await loadChapters(project.id); setWikiBusy(false); }
               }},
               { label: '還原', onClick: async () => {
                   setShowPartial(false);
                   const b = await findLatestIngestBatch(chapter);
                   if (b) await undoBatch(chapter, b);
+                  if (project) await loadChapters(project.id);
               }},
               { label: '完整重跑', onClick: async () => {
                   setShowPartial(false); setWikiBusy(true);
@@ -557,7 +567,7 @@ export function ChapterEditor() {
                     if (b) await undoBatch(chapter, b);
                     const r = await ingestChapter(chapter);
                     setToast({ msg: `完整重跑完成：${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
-                  } finally { setWikiBusy(false); }
+                  } finally { if (project) await loadChapters(project.id); setWikiBusy(false); }
               }},
             ] : [
               { label: '還原後重新 ingest', onClick: async () => {
@@ -567,12 +577,13 @@ export function ChapterEditor() {
                     if (b) await undoBatch(chapter, b);
                     const r = await ingestChapter(chapter);
                     setToast({ msg: `已重新 ingest:${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
-                  } finally { setWikiBusy(false); }
+                  } finally { if (project) await loadChapters(project.id); setWikiBusy(false); }
               }},
               { label: '僅還原', onClick: async () => {
                   setShowPartial(false);
                   const b = await findLatestIngestBatch(chapter);
                   if (b) await undoBatch(chapter, b);
+                  if (project) await loadChapters(project.id);
               }},
               { label: '完整重跑', onClick: async () => {
                   setShowPartial(false); setWikiBusy(true);
@@ -581,7 +592,7 @@ export function ChapterEditor() {
                     if (b) await undoBatch(chapter, b);
                     const r = await ingestChapter(chapter);
                     setToast({ msg: `完整重跑完成：${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
-                  } finally { setWikiBusy(false); }
+                  } finally { if (project) await loadChapters(project.id); setWikiBusy(false); }
               }},
             ]
           }

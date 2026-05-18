@@ -107,7 +107,7 @@ export function WikiPanel() {
         </div>
 
         {/* 右欄：選中頁的編輯區 */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
           {selected ? (
             <WikiPageEditor page={selected} />
           ) : (
