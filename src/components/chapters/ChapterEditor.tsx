@@ -117,6 +117,7 @@ export function ChapterEditor() {
       referenceChapterTitle: refChapter?.title ?? '',
       referenceChapterContent: refChapter?.content ?? '',
       olderChapterSummary: '',
+      wikiSection: '',
     });
 
     return buildGenerationPrompt(

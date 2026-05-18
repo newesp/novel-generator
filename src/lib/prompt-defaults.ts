@@ -39,7 +39,7 @@ export const DEFAULT_CHAPTER_CONTINUATION_RULES = `1. **不可重啟故事**：�
 export const DEFAULT_CHAPTER_CONTENT_TEMPLATE = `## 背景資訊
 
 ### 世界觀
-{{worldSetting}}{{mainPlotSection}}{{charactersSection}}
+{{worldSetting}}{{mainPlotSection}}{{charactersSection}}{{wikiSection}}
 
 ## 本章要求
 - 章節標題：{{chapterTitle}}
@@ -108,6 +108,135 @@ export const DEFAULT_INLINE_ADJUST_TEMPLATE = `你是中文小說作者，需要
 4. 結果與上文末句、下文首句必須能順暢銜接
 5. 嚴格遵守「用戶調整指令」`;
 
+// ─── #5. Wiki Ingest — Plan pass ─────────────────────────────────
+export const DEFAULT_WIKI_INGEST_PLAN_TEMPLATE = `你是這本中文小說 Wiki 的維護者。請根據新加入的章節內容，提出 Wiki 更新計畫（**只輸出嚴格 JSON，不要 markdown fence、不要註解**）。
+
+## 當前 Wiki 索引（{{indexCount}} 頁）
+{{indexJson}}
+
+## 已知角色（角色庫，**不要重複建立**）
+{{knownCharactersList}}
+
+## 本章內容（標題：{{chapterTitle}}）
+{{chapterContent}}
+
+## 輸出格式（嚴格 JSON）
+{
+  "operations": [
+    {
+      "action": "create",
+      "type": "concept|entity|summary|compare|synthesis",
+      "slug": "ascii-kebab-case",
+      "title": "可中文",
+      "aliases": ["別名1"],
+      "description": "1 句 index 用描述（可選，缺則 fallback prose 開頭）",
+      "reason": "為何要建這頁",
+      "content_brief": "頁面內容 brief（給後續 Apply 用）"
+    },
+    {
+      "action": "update",
+      "type": "entity",
+      "slug": "existing-slug",
+      "reason": "為何要更新",
+      "change_brief": "要怎麼改"
+    }
+  ],
+  "log_entry": "ingest chapter=X pages_created=Y pages_updated=Z",
+  "unrecorded_characters": [
+    { "name": "王芳", "sourceExcerpt": "原文片段約 30-60 字" }
+  ]
+}
+
+## 規則
+1. **不要對已存在的 slug 做 create**（會自動降級為 update，但會浪費 token）。
+2. **不要為「已知角色」清單中已有的角色，新建 entity 頁**——除非本章首次給出值得單獨成頁的細節（用 update 補充更好）。
+3. **不要把章節摘要做為 entity**；章節摘要請用 type=summary，slug 用「ch-章節 id 或 ch-序號」。
+4. unrecorded_characters 是本章出現、但**不在已知角色清單也不在 wiki 中**的人物（不論 entity 是否要建頁）。
+5. 若本章沒任何值得 ingest 的，operations 可以是空陣列；但 unrecorded_characters 仍可填。
+`;
+
+// ─── #6. Wiki Ingest — Apply create ─────────────────────────────
+export const DEFAULT_WIKI_INGEST_CREATE_TEMPLATE = `根據以下資訊撰寫一頁完整的 Wiki markdown 頁面。
+
+## 頁面類型 / slug
+{{type}} / {{slug}}
+
+## 顯示標題
+{{title}}
+
+## 別名
+{{aliasesList}}
+
+## 撰寫意圖（reason）
+{{reason}}
+
+## 內容 brief
+{{contentBrief}}
+
+## 本章節相關片段（資料來源）
+{{chapterExcerpt}}
+
+## 輸出格式（嚴格遵守）
+
+第一行 H1 為顯示標題；接著 \`> \` blockquote 含 Type/Aliases/Related（無 related 可省略 Related 整行）；空一行後正文 ## 段落；最後 \`## 出處\` 段標註來源章節。範例：
+
+\`\`\`markdown
+# <顯示標題>
+
+> **Type:** {{type}}
+> **Aliases:** {{aliasesList}}
+> **Related:** [其他頁](../entity/other.md)
+
+## 概述
+
+…正文…
+
+## 出處
+
+- 第 X 章「章節標題」
+\`\`\`
+
+只輸出 markdown 本身，不要任何前言或結尾說明。
+`;
+
+// ─── #7. Wiki Ingest — Apply update ─────────────────────────────
+export const DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE = `根據新章節資訊，把現有 Wiki 頁面更新到「合併新資訊後」的完整版本。
+
+## 頁面類型 / slug
+{{type}} / {{slug}}
+
+## 現有頁面全文
+\`\`\`markdown
+{{existingMarkdown}}
+\`\`\`
+
+## 本次更新理由
+{{reason}}
+
+## 改動 brief
+{{changeBrief}}
+
+## 本章節相關片段（資料來源）
+{{chapterExcerpt}}
+
+## 輸出要求
+- 輸出**完整新版頁面 markdown**（不是 diff）
+- 保留既有 H1 標題與整體結構，僅在必要處新增或修改段落
+- 若 aliases / related 有變動，更新 blockquote 的對應行
+- 保留 \`## 出處\` 區段並追加本章來源
+- 只輸出 markdown 本身，不要任何前言或結尾說明
+`;
+
+// ─── #8. Wiki Query — Answer（Phase 2.5 預留；UI 入口此版未開）─────
+export const DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE = `你是這本小說的 Wiki 助理。請根據以下 Wiki 頁面回答使用者的問題；引用時標註頁面 type/slug。若 Wiki 沒有相關內容，誠實說「Wiki 中無此資訊」。
+
+## 使用者問題
+{{question}}
+
+## 相關 Wiki 頁面
+{{pagesMarkdown}}
+`;
+
 // ─── 預覽用的範例變數值（讓使用者看到代入後的長相）────────────────
 export const PROMPT_TEMPLATE_SAMPLES: Record<string, Record<string, string>> = {
   chapterDraftsTemplate: {
@@ -133,6 +262,7 @@ export const PROMPT_TEMPLATE_SAMPLES: Record<string, Record<string, string>> = {
     olderSummarySection: '',
     adjustInstructionSection: '',
     adjustInstructionRule: '',
+    wikiSection: '',
   },
   chapterPointsTemplate: {
     worldSetting: '在一個咖啡香瀰漫的海濱小鎮「浮光鎮」...',
@@ -174,6 +304,7 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'worldSetting', desc: '世界觀' },
     { var: 'mainPlotSection', desc: '主線劇情區段（無則空）' },
     { var: 'charactersSection', desc: '角色清單區段' },
+    { var: 'wikiSection', desc: 'Wiki 相關條目區段（Phase 2，若無 wiki 為空字串）' },
     { var: 'chapterTitle', desc: '本章標題' },
     { var: 'beat', desc: '故事節拍' },
     { var: 'points', desc: '章節要點' },
@@ -200,5 +331,33 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'selectedText', desc: '被選取要重寫的段落' },
     { var: 'afterContext', desc: '選取段落的下文' },
     { var: 'adjustInstruction', desc: '使用者填寫的調整方向' },
+  ],
+  wikiIngestPlanTemplate: [
+    { var: 'indexCount', desc: '當前 wiki 頁數' },
+    { var: 'indexJson', desc: 'JSON 陣列：{type, slug, title, description, aliases}' },
+    { var: 'knownCharactersList', desc: '角色庫的 name / aliases 清單' },
+    { var: 'chapterTitle', desc: '本章標題' },
+    { var: 'chapterContent', desc: '本章正文' },
+  ],
+  wikiIngestCreateTemplate: [
+    { var: 'type', desc: '頁面類型' },
+    { var: 'slug', desc: 'ASCII kebab-case' },
+    { var: 'title', desc: '顯示標題' },
+    { var: 'aliasesList', desc: '逗號分隔別名（可空）' },
+    { var: 'reason', desc: '建立原因' },
+    { var: 'contentBrief', desc: '內容 brief' },
+    { var: 'chapterExcerpt', desc: '相關章節片段' },
+  ],
+  wikiIngestUpdateTemplate: [
+    { var: 'type', desc: '頁面類型' },
+    { var: 'slug', desc: 'ASCII kebab-case' },
+    { var: 'existingMarkdown', desc: '既有頁面全文' },
+    { var: 'reason', desc: '更新原因' },
+    { var: 'changeBrief', desc: '改動 brief' },
+    { var: 'chapterExcerpt', desc: '相關章節片段' },
+  ],
+  wikiQueryAnswerTemplate: [
+    { var: 'question', desc: '使用者問題（Phase 2.5）' },
+    { var: 'pagesMarkdown', desc: '相關 wiki 頁全文（Phase 2.5）' },
   ],
 };

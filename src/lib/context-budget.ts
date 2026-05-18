@@ -11,6 +11,7 @@ export interface BudgetInputs {
   referenceChapterTitle: string;
   referenceChapterContent: string;
   olderChapterSummary: string;
+  wikiSection: string;
 }
 
 export interface BudgetAllocation extends BudgetInputs {
@@ -127,6 +128,7 @@ export function buildGenerationPrompt(
     worldSetting: budget.worldSetting || '(未設定)',
     mainPlotSection,
     charactersSection,
+    wikiSection: budget.wikiSection || '',
     chapterTitle: chapterTitle || '(未命名)',
     beat: budget.beat || '自定義',
     points: budget.chapterPoints || '無',
