@@ -102,7 +102,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const chapter: Chapter = {
       id, projectId, order, title,
       targetWords: null, beat: '', points: '',
-      content: '', referenceChapterId: null, wikiSyncedAt: null,
+      content: '', referenceChapterId: null,
+      wikiSyncedAt: null, wikiSyncedHash: null, wikiSyncStatus: 'unsynced',
       createdAt: now, updatedAt: now,
     };
     await storage.chapters.add(chapter);

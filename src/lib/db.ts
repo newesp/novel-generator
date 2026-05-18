@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie';
-import type { Project, Chapter, ChapterVersion, Character, LLMConfig } from '../types';
+import type { Project, Chapter, ChapterVersion, Character, LLMConfig, WikiPage, WikiLogEntry } from '../types';
 
 /** appMeta：存放跨 app 共用的小型 key-value（同步資料夾 handle 等） */
 export interface AppMetaRow {
@@ -14,6 +14,8 @@ export class NovelDB extends Dexie {
   characters!: Table<Character>;
   settings!: Table<LLMConfig>;
   appMeta!: Table<AppMetaRow, string>;
+  wikiPages!: Table<WikiPage>;
+  wikiLog!: Table<WikiLogEntry>;
 
   constructor() {
     super('NovelGenerator');
@@ -68,6 +70,27 @@ export class NovelDB extends Dexie {
       settings: 'id',
       appMeta: 'key',
     });
+
+    // v5 — 章節新增 wikiSyncedHash / wikiSyncStatus；wiki_pages / wiki_log 兩新表
+    this.version(5)
+      .stores({
+        projects: 'id, createdAt, updatedAt',
+        chapters: 'id, projectId, order, wikiSyncStatus',
+        versions: 'id, chapterId, createdAt',
+        characters: 'id, projectId, name',
+        settings: 'id',
+        appMeta: 'key',
+        wikiPages: 'id, bookId, [bookId+type+slug]',
+        wikiLog: 'id, bookId, batchId, appliedAt',
+      })
+      .upgrade(async (tx) => {
+        await tx.table('chapters').toCollection().modify((c: Chapter) => {
+          if (c.wikiSyncedHash === undefined) c.wikiSyncedHash = null;
+          if (c.wikiSyncStatus === undefined) {
+            c.wikiSyncStatus = c.wikiSyncedAt ? 'synced' : 'unsynced';
+          }
+        });
+      });
   }
 }
 
