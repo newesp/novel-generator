@@ -4,6 +4,7 @@ import { OutlinePanel } from './components/outline/OutlinePanel';
 import { CharactersPanel } from './components/characters/CharactersPanel';
 import { ChaptersPanel } from './components/chapters/ChaptersPanel';
 import { ChapterEditor } from './components/chapters/ChapterEditor';
+import { WikiPanel } from './components/wiki/WikiPanel';
 import { HomePage } from './components/home/HomePage';
 import { useUIStore } from './stores/uiStore';
 import { useProjectStore } from './stores/projectStore';
@@ -14,7 +15,7 @@ const TABS: { key: TabName; label: string; disabled?: boolean }[] = [
   { key: 'outline', label: '大綱' },
   { key: 'characters', label: '角色' },
   { key: 'chapters', label: '章節' },
-  { key: 'wiki', label: 'Wiki', disabled: true },
+  { key: 'wiki', label: '📚 Wiki' },
 ];
 
 export default function App() {
@@ -45,14 +46,7 @@ export default function App() {
               {activeTab === 'outline' && <OutlinePanel />}
               {activeTab === 'characters' && <CharactersPanel />}
               {activeTab === 'chapters' && <ChaptersPanel />}
-              {activeTab === 'wiki' && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  height: '100%', color: 'var(--text-tertiary)', fontSize: 14,
-                }}>
-                  🔒 Phase 2 開放
-                </div>
-              )}
+              {activeTab === 'wiki' && <WikiPanel />}
             </>
           }
           right={
