@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
 import { storage } from '../lib/storage';
 import type { Project, Chapter, ChapterVersion, Character } from '../types';
+import { recomputeChapterSyncStatus } from '../lib/wiki-ingest';
 
 interface ProjectState {
   books: Project[];
@@ -114,10 +115,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   updateChapter: async (id, data) => {
-    await storage.chapters.update(id, { ...data, updatedAt: Date.now() });
-    const chapters = get().chapters.map((c) =>
-      c.id === id ? { ...c, ...data, updatedAt: Date.now() } : c
-    );
+    const now = Date.now();
+    const before = get().chapters.find((c) => c.id === id);
+    let patch: Partial<Chapter> = { ...data, updatedAt: now };
+
+    if (before && data.content !== undefined && data.content !== before.content) {
+      const candidate: Chapter = { ...before, ...data, updatedAt: now };
+      const newStatus = await recomputeChapterSyncStatus(candidate);
+      if (newStatus !== before.wikiSyncStatus) patch = { ...patch, wikiSyncStatus: newStatus };
+    }
+
+    await storage.chapters.update(id, patch);
+    const chapters = get().chapters.map((c) => c.id === id ? { ...c, ...patch } : c);
     set({ chapters });
   },
 
