@@ -9,6 +9,8 @@ import { Modal } from '../common/Modal';
 import { ContextMenu } from '../common/ContextMenu';
 import { complete, isLLMReady } from '../../lib/llm';
 import { allocateBudget, buildGenerationPrompt, formatCharacters } from '../../lib/context-budget';
+import { loadWikiForGeneration } from '../../lib/wiki-loader';
+import { formatWikiSection } from '../../lib/wiki-section';
 import { logPromptToTemp } from '../../lib/prompt-log';
 import { regenerateChapterPoints } from '../../lib/ai-tasks';
 import { EditPreviewTabs, type EditPreviewMode } from '../common/EditPreviewTabs';
@@ -36,7 +38,7 @@ interface InlineEditTarget {
 export function ChapterEditor() {
   const { project, chapters, characters, updateChapter, deleteChapter, saveVersion, loadVersions } = useProjectStore();
   const { selectedChapterId, setSelectedChapterId } = useUIStore();
-  const { llmConfig } = useSettingsStore();
+  const { llmConfig, wikiPrefs } = useSettingsStore();
 
   const chapter = chapters.find((c) => c.id === selectedChapterId);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -125,10 +127,28 @@ export function ChapterEditor() {
     await saveVersion(chapter.id, content, '', 'full');
   };
 
-  const buildPrompt = () => {
+  const buildPrompt = async () => {
     const refChapter = referenceChapterId
       ? chapters.find((c) => c.id === referenceChapterId)
       : undefined;
+
+    // 載入 Wiki 條目（cheap relevance filter + 預算截斷）
+    // 預設 128k context window，與 context-budget.ts 的 DEFAULT_CONTEXT_WINDOW 對齊
+    const ctxWindow = 128000;
+    const wikiResult = await loadWikiForGeneration({
+      bookId: chapter.projectId,
+      contextWindowTokens: ctxWindow,
+      budgetRatio: wikiPrefs.budgetRatio,
+      chapterContext: {
+        title,
+        points,
+        beat,
+        referenceChapterContent: refChapter?.content ?? '',
+        characterNames: characters.map((c) => c.name),
+        characterAliases: [],
+      },
+    });
+    const wikiSection = formatWikiSection(wikiResult);
 
     const allocation = allocateBudget({
       worldSetting: project?.worldSetting ?? '',
@@ -139,7 +159,7 @@ export function ChapterEditor() {
       referenceChapterTitle: refChapter?.title ?? '',
       referenceChapterContent: refChapter?.content ?? '',
       olderChapterSummary: '',
-      wikiSection: '',
+      wikiSection,
     });
 
     return buildGenerationPrompt(
@@ -164,7 +184,7 @@ export function ChapterEditor() {
       if (content.trim()) {
         await saveVersion(chapter.id, content, '', 'full');
       }
-      const prompt = buildPrompt();
+      const prompt = await buildPrompt();
       // 記錄這次傳給 AI 的完整提示詞到 temp/，方便除錯與優化延續性
       void logPromptToTemp('chapter-gen', prompt, {
         chapterId: chapter.id,

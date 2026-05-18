@@ -8,6 +8,10 @@ import {
   DEFAULT_CHAPTER_CONTENT_TEMPLATE,
   DEFAULT_CHAPTER_POINTS_TEMPLATE,
   DEFAULT_INLINE_ADJUST_TEMPLATE,
+  DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
+  DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
+  DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
+  DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
   PROMPT_TEMPLATE_VARS,
   PROMPT_TEMPLATE_SAMPLES,
 } from '../lib/prompt-defaults';
@@ -43,23 +47,25 @@ const PROVIDER_LABELS: Record<LLMProvider, string> = {
 };
 
 /** 偏好設定 Modal 的分頁 */
-type PrefsTab = 'llm' | 'inline' | 'ai-prompts';
+type PrefsTab = 'llm' | 'inline' | 'ai-prompts' | 'wiki';
 const PREFS_TABS: { key: PrefsTab; label: string }[] = [
   { key: 'llm',        label: '🔑 LLM API' },
   { key: 'inline',     label: '✨ 選取調整' },
   { key: 'ai-prompts', label: '📜 AI 提示詞' },
+  { key: 'wiki',       label: '📚 Wiki 設定' },
 ];
 
 export function Toolbar() {
   const { project } = useProjectStore();
   const { view, setView } = useUIStore();
-  const { llmConfig, inlineEdit, aiPrompts, setLlmConfig, setInlineEdit, setAiPrompts } = useSettingsStore();
+  const { llmConfig, inlineEdit, aiPrompts, wikiPrefs, setLlmConfig, setInlineEdit, setAiPrompts, setWikiPrefs } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [activePrefsTab, setActivePrefsTab] = useState<PrefsTab>('llm');
   const [draftLlm, setDraftLlm] = useState(llmConfig);
   const [draftInline, setDraftInline] = useState(inlineEdit);
   const [draftPrompts, setDraftPrompts] = useState(aiPrompts);
+  const [draftWiki, setDraftWiki] = useState(wikiPrefs);
   const [activePromptKey, setActivePromptKey] = useState<keyof AIPromptPrefs>('chapterDraftsTemplate');
   const [promptViewMode, setPromptViewMode] = useState<EditPreviewMode>('edit');
   const [previewDataSource, setPreviewDataSource] = useState<PreviewDataSource>('project');
@@ -70,6 +76,7 @@ export function Toolbar() {
     setDraftLlm(llmConfig);
     setDraftInline(inlineEdit);
     setDraftPrompts(aiPrompts);
+    setDraftWiki(wikiPrefs);
     setActivePrefsTab('llm');
     setActivePromptKey('chapterDraftsTemplate');
     setPromptViewMode('edit');
@@ -81,6 +88,7 @@ export function Toolbar() {
     setLlmConfig(draftLlm);
     setInlineEdit(draftInline);
     setAiPrompts(draftPrompts);
+    setWikiPrefs(draftWiki);
     setShowPrefsModal(false);
   };
 
@@ -261,6 +269,65 @@ export function Toolbar() {
           </div>
         )}
 
+        {/* —— Wiki 設定 —— */}
+        {activePrefsTab === 'wiki' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label className="form-label">
+                Wiki 區塊預算佔比：{Math.round(draftWiki.budgetRatio * 100)}%
+              </label>
+              <input
+                type="range"
+                min={0.1}
+                max={0.5}
+                step={0.05}
+                value={draftWiki.budgetRatio}
+                onChange={(e) => setDraftWiki({ ...draftWiki, budgetRatio: parseFloat(e.target.value) })}
+                style={{ width: '100%' }}
+              />
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '4px 0 0', lineHeight: 1.6 }}>
+                Wiki 條目在每次章節生成 prompt 中可佔的 context 比例（10%–50%，預設 25%）。
+              </p>
+            </div>
+
+            <div>
+              <label className="form-label">連續超預算警告閾值</label>
+              <input
+                type="number"
+                className="form-input"
+                min={1}
+                max={20}
+                value={draftWiki.overflowWarnThreshold}
+                onChange={(e) =>
+                  setDraftWiki({
+                    ...draftWiki,
+                    overflowWarnThreshold: Math.max(1, Math.min(20, parseInt(e.target.value) || 3)),
+                  })
+                }
+                style={{ width: 120 }}
+              />
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '4px 0 0', lineHeight: 1.6 }}>
+                當連續多次生成都超出 Wiki 預算時，建議改用 pick-pages 模式（Phase 2.5）。
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="checkbox"
+                  disabled
+                  checked={draftWiki.enablePickPages}
+                  onChange={(e) => setDraftWiki({ ...draftWiki, enablePickPages: e.target.checked })}
+                />
+                <span>啟用 pick-pages 模式（Phase 2.5 後可用）</span>
+              </label>
+              <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '4px 0 0 22px', lineHeight: 1.6 }}>
+                兩段式 wiki 查詢：先讓 LLM 挑選相關頁，再注入完整內容。目前以 cheap relevance filter 替代。
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* —— AI 提示詞 —— */}
         {activePrefsTab === 'ai-prompts' && (
           <AIPromptsTab
@@ -319,6 +386,30 @@ const PROMPT_ENTRIES: PromptEntry[] = [
     label: '#4 局部段落改寫',
     desc: '正文選取後右鍵「✨ 調整內容」使用。',
     defaultValue: DEFAULT_INLINE_ADJUST_TEMPLATE,
+  },
+  {
+    key: 'wikiIngestPlanTemplate',
+    label: '#5 Wiki Plan',
+    desc: '章節「📚 存入 Wiki」第一階段：規劃要新增/更新/刪除哪些 wiki 頁。',
+    defaultValue: DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
+  },
+  {
+    key: 'wikiIngestCreateTemplate',
+    label: '#6 Wiki Create',
+    desc: 'Wiki ingest 第二階段：為新頁面生成內容。',
+    defaultValue: DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
+  },
+  {
+    key: 'wikiIngestUpdateTemplate',
+    label: '#7 Wiki Update',
+    desc: 'Wiki ingest 第二階段：更新既有頁面內容。',
+    defaultValue: DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
+  },
+  {
+    key: 'wikiQueryAnswerTemplate',
+    label: '#8 Wiki Query（Phase 2.5）',
+    desc: 'Phase 2.5 pick-pages 查詢用，目前未啟用。',
+    defaultValue: DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
   },
 ];
 

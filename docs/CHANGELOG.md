@@ -1,5 +1,27 @@
 # 開發日誌
 
+## 2026-05-18 — Phase 2 Part 1: LLM Wiki
+
+完整實作 LLM 自管知識層（spec：`docs/superpowers/specs/2026-05-17-llm-wiki-design.md`，經 4 輪 codex review；plan：`docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`）。
+
+**新增功能**
+- 左側 📚 Wiki 分頁：5 種 page type（concept/entity/summary/compare/synthesis）、index、編輯、操作記錄
+- 章節「📚 存入 Wiki」按鈕 + 5 種狀態徽章（unsynced/synced/stale/partial/partial_stale）
+- Ingest pipeline：Plan + 校驗 + Apply + 補償寫入（無 transaction） + 一鍵還原
+- Context Budget 整合：cheap relevance filter（2-4 字滑動窗 + 字頻 top 50）+ 預算截斷預警
+- 偏好設定「📚 Wiki 設定」 + 4 個 wiki prompt templates 可編輯
+- 跨平台 round-trip：backup schema v2（向後相容 v1）
+
+**Schema 變更**
+- SQLite: `002_wiki_tables.sql`（wiki_pages + wiki_log，含 batch_id、op_status、page_snapshot JSON）
+- Dexie: v5（wikiPages / wikiLog object stores、chapters 多 `wikiSyncedHash` / `wikiSyncStatus`）
+
+**已知限制 / 範圍**
+- Pick-pages 兩段式查詢留 Phase 2.5（已有警告機制）
+- Lint（矛盾 / 孤頁 / broken link）留 Phase 2.5
+- Wiki 不自動寫入 characters 表，僅在 `unrecorded_characters` 提示
+- Wiki 頁手動刪除不進 log（只有 ingest pipeline 的 delete op 才寫 log）
+
 ## 2026-05-17 Phase 5b — Tauri Windows 桌面版 + SQLite
 
 把 React app 包成 Tauri 桌面殼，桌面版的儲存層改走原生 SQLite

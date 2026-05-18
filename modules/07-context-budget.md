@@ -113,3 +113,11 @@
 | 2（高） | 參考章節正文 | `shallow` 模式截至 1000 字 |
 | 3（可選） | 更早章節摘要 | 剩餘 token 填入 |
 | 4（保留） | 輸出緩衝區 | 佔 context window 15% |
+
+## Phase 2 — wikiSection 整合（已實作 2026-05-18）
+
+`BudgetInputs` 新增 `wikiSection: string` 欄位。`buildGenerationPrompt()` 將其注入 `DEFAULT_CHAPTER_CONTENT_TEMPLATE` 的 `{{wikiSection}}`。
+
+實作：`src/lib/wiki-loader.ts`（cheap relevance filter + 優先級 + 預算截斷）→ `src/lib/wiki-section.ts`（格式化）。
+
+詳見：`docs/superpowers/specs/2026-05-17-llm-wiki-design.md` §5。

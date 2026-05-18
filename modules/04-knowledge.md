@@ -1,3 +1,9 @@
+> **Phase 2 LLM Wiki 已實作（2026-05-18）。** 設計與實作細節見：
+> - 規格：`docs/superpowers/specs/2026-05-17-llm-wiki-design.md`
+> - 實作計畫：`docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`
+>
+> 本檔（modules/04）保留為高層模組描述。
+
 # 模組 04｜知識管理系統（LLM Wiki + Vector RAG + Graph 關係層）
 
 > Phase / 依賴：見 [README 模組總表](../README.md#模組總表)（子系統 Phase：Wiki→2、RAG→2、Graph→2.5）

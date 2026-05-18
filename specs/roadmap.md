@@ -15,9 +15,9 @@
 
 ---
 
-## Phase 2 — 記憶與一致性（⚠️ 部分完成）
+## Phase 2 — 記憶與一致性（⚠️ 進行中：Wiki ✅、Vector RAG/FTS ⏳、角色關係圖 ❌）
 
-1. ❌ LLM Wiki 完整功能（存入 + 未存入提醒機制）→ 04-knowledge
+1. ✅ LLM Wiki 完整功能（2026-05-18）→ `docs/superpowers/specs/2026-05-17-llm-wiki-design.md`
 2. ❌ Vector RAG（Ollama embedding + LanceDB）→ 04-knowledge
 3. ❌ 角色關係圖視覺化（JSON 圖模式）→ 02-characters（角色弧線欄位 ✅ 已加，圖視覺化未做）
 4. ✅ 多 LLM provider 支援（Google Gemini / Grok / 自定義 OpenAI-compatible）→ 08-llm-adapter
