@@ -20,8 +20,7 @@
 | 影片合成（Phase 6，桌面） | ffmpeg sidecar（native） |
 | 影片合成（Phase 7，Web） | ffmpeg.wasm（功能降級，或介接後端 API） |
 | LLM 调用 | 自製 adapter（OpenAI-compatible / Google Gemini，可擴充） |
-| Embedding | Ollama（nomic-embed-text / mxbai-embed-large）— Phase 2 |
-| 向量資料庫 | LanceDB（瀏覽器端）— Phase 2 |
+| 全文檢索 | SQLite FTS5 + bigram tokenizer — Phase 2（未來真有 vector 需求改用 sqlite-vec，不引入 Ollama / LanceDB） |
 | Graph 關係層 | JSON 圖結構存於 IndexedDB；D3.js / React Flow 視覺化 — Phase 2.5 |
 | 電子書生成 | epub-gen 或手寫 EPUB 結構 — Phase 3 |
 | 圖像生成 | Grok Imagine / Flux Schnell — Phase 4 |

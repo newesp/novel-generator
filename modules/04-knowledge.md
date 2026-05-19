@@ -4,16 +4,16 @@
 >
 > 本檔（modules/04）保留為高層模組描述。
 
-# 模組 04｜知識管理系統（LLM Wiki + Vector RAG + Graph 關係層）
+# 模組 04｜知識管理系統（LLM Wiki + 全文檢索 + Graph 關係層）
 
-> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)（子系統 Phase：Wiki→2、RAG→2、Graph→2.5）
+> Phase / 依賴：見 [README 模組總表](../README.md#模組總表)（子系統 Phase：Wiki→2、FTS→2、Graph→2.5）
 
 ## 混合記憶架構
 
 | 子系統 | 定位 | Phase |
 |--------|------|-------|
 | LLM-Wiki | 高階結構化知識（世界觀、角色、劇情線、年表等） | 2 |
-| Vector RAG | 原始章節全文細節檢索（對話、細節描述、伏筆） | 2 |
+| 全文檢索（FTS5） | 原始章節細節檢索（對話、細節描述、伏筆） | 2 |
 | Graph 關係層 | 實體關係、因果鏈、時間線與約束推理 | 2.5 |
 
 ---
@@ -43,16 +43,16 @@
 
 ---
 
-## Vector RAG
+## 全文檢索（SQLite FTS5）
 
-嵌入向量由本機 Ollama 產生，完全離線運行，無需雲端 API。
+走 SQLite 內建 FTS5 + bigram tokenizer，毫秒級延遲，零新增依賴，與既有 `.db` 共存。原規劃的 Vector RAG（Ollama embedding + LanceDB）已放棄：Wiki 層已覆蓋概念導向檢索的核心需求，剩餘對白/伏筆/物品出處等定點查詢用 FTS5 更直接。未來真有 vector 需求改用 sqlite-vec，不引入 Ollama / LanceDB。
 
 | 項目 | 說明 |
 |------|------|
-| Embedding 模型 | `nomic-embed-text` 或 `mxbai-embed-large`（Ollama 本機） |
-| 向量資料庫 | LanceDB（瀏覽器端） |
-| 觸發時機 | 章節「存入 Wiki」時同步生成嵌入並存入 LanceDB |
-| 檢索時機 | 生成新章節前，Context Budget Manager 自動檢索相關段落 |
+| 索引引擎 | SQLite FTS5（`tauri-plugin-sql`，桌面版；Phase 7 Web 版走 wa-sqlite + OPFS） |
+| 分詞 | bigram tokenizer（適合中文，無需外部斷詞器） |
+| 觸發時機 | 章節寫入 / 更新時同步重建該章索引 |
+| 檢索時機 | 生成新章節前，Context Budget Manager 以關鍵字檢索相關段落 |
 
 ---
 
@@ -90,9 +90,9 @@
     ↓
 AI 提取章節關鍵資訊
     ↓
-整理進 Wiki + 生成向量嵌入（Ollama） + 更新 Graph JSON
+整理進 Wiki + 同步 FTS5 索引 + 更新 Graph JSON
     ↓
 進行 Lint：找出矛盾、缺少交叉引用（Phase 2.5）
     ↓
-下次生成時 → Context Budget Manager 自動載入相關 Wiki + RAG 檢索結果
+下次生成時 → Context Budget Manager 自動載入相關 Wiki + FTS5 檢索結果
 ```

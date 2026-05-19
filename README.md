@@ -2,7 +2,7 @@
 
 > 版本：1.5（Phase 2 進行中）　更新：2026-05-12
 
-本機瀏覽器 Web App，自動生成高品質中文小說，從大綱到正文完整流程；透過 **LLM Wiki + Vector RAG 混合記憶** 維持一致性。Multi-Agent 協作（Phase 4）為選配。
+本機瀏覽器 Web App，自動生成高品質中文小說，從大綱到正文完整流程；透過 **LLM Wiki + SQLite FTS5 全文檢索** 維持一致性。Multi-Agent 協作（Phase 4）為選配。
 
 - 目標語言：中文小說（優先）
 - 使用方式：本機瀏覽器執行
@@ -43,9 +43,9 @@ npm run tauri build
 ## 系統分層
 
 1. **UI 層** — 本機 Web App（React 19 + 自製元件）
-2. **業務邏輯層** — 大綱／角色／章節／潤色 + LLM Wiki + Vector RAG + Context Budget Manager + Graph 關係層（Phase 2.5）+ Multi-Agent（Phase 4，選做）
+2. **業務邏輯層** — 大綱／角色／章節／潤色 + LLM Wiki + FTS5 全文檢索 + Context Budget Manager + Graph 關係層（Phase 2.5）+ Multi-Agent（Phase 4，選做）
 3. **LLM 適配層** — OpenAI / Anthropic / Google / Grok / Ollama + 自定義 API
-4. **儲存層** — IndexedDB（Dexie，以 `bookId` 為根）/ File System API / LanceDB（向量，Ollama embedding）
+4. **儲存層** — IndexedDB（Dexie，瀏覽器版）/ SQLite + FTS5（桌面版，Tauri）/ File System API
 
 ---
 

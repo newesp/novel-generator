@@ -1,5 +1,19 @@
 # 開發日誌
 
+## 2026-05-19 — LLM Wiki hotfix + 路線調整
+
+**修補**
+- `postToLLMWithRetry`：對 408/425/429/5xx 與 fetch 例外做 3 次指數退避（800/2400/6000ms），緩解 NVIDIA / xAI gateway 偶發 502/ECONNRESET 中斷 ingest 串行呼叫
+- WikiPageEditor 重寫成絕對定位 flex 佈局，修「雙層 scrollbar」+ 加 ⛶ 全屏按鈕（同 OutlinePanel 款；ESC 收起）
+- ChapterEditor 章節「📚 存入 Wiki」按鈕狀態調整：
+  - 空白章節 disabled（tooltip 提示）
+  - `synced` 後改顯示「🔄 重新存入 Wiki」並保留 enabled（重新合併變更）
+  - `partial` 顯示「⚠️ (N)」，N 為當前 batch 失敗 op 數
+- Plan prompt 注入 `chapterOrdinal` / `chapterSummarySlug`，修第 N 章摘要 slug 永遠生成 `ch-1` 的衝突；既有 ch-1 受影響使用者請重新點「🔄 重新存入 Wiki」
+
+**路線調整**
+- 正式放棄 Vector RAG（Ollama embedding + LanceDB）。理由：LLM Wiki 已覆蓋「概念導向檢索」主訴求；剩餘「找特定對話／伏筆／物品出處」用 SQLite FTS5 + 中文 bigram tokenizer 解掉 80%，零依賴、毫秒級、就在現有 .db。若未來真需要 vector 改用 sqlite-vec，不引入 Ollama / LanceDB。`roadmap.md` / `modules/04-knowledge.md` / `modules/07-context-budget.md` / `specs/tech-stack.md` / `README.md` / `docs/plan.md` 已同步更新
+
 ## 2026-05-18 — Phase 2 Part 1: LLM Wiki
 
 完整實作 LLM 自管知識層（spec：`docs/superpowers/specs/2026-05-17-llm-wiki-design.md`，經 4 輪 codex review；plan：`docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`）。

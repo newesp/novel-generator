@@ -2,7 +2,7 @@
 
 ## 一、專案概述
 
-一款能夠自動生成高品質中文小說的本機 Web 應用程式，在本機瀏覽器中運行，提供從大綱到正文的完整生成流程，並透過 **LLM Wiki + Vector RAG 混合記憶** 確保內容一致性。Multi-Agent 協作引擎為選配功能，於後期階段導入。
+一款能夠自動生成高品質中文小說的本機 Web 應用程式，在本機瀏覽器中運行，提供從大綱到正文的完整生成流程，並透過 **LLM Wiki + SQLite FTS5 全文檢索** 確保內容一致性。Multi-Agent 協作引擎為選配功能，於後期階段導入。
 
 ### 目標語言
 - 中文小說（優先）
@@ -27,7 +27,7 @@
 ├─────────────────────────────────────────────────────────┤
 │                    業務邏輯層                           │
 │  大綱生成器 │ 角色系統 │ 章節管理器 │ 內容潤色器        │
-│          LLM Wiki + Vector RAG 混合記憶                  │
+│          LLM Wiki + FTS5 全文檢索 混合記憶               │
 │          Context Budget Manager（上下文預算管理器）      │
 │          Graph 關係層（Phase 2.5，JSON 模式）            │
 │          Multi-Agent 協作引擎（Phase 4，選做）           │
@@ -37,8 +37,8 @@
 │          + 自定義 API (如 NVIDIA)                        │
 ├─────────────────────────────────────────────────────────┤
 │                    數據存儲層                           │
-│  IndexedDB (Dexie.js) │ 文件系統 API                    │
-│  Vector DB: LanceDB（Ollama embedding，本機）           │
+│  IndexedDB (Dexie.js，Web) │ SQLite + FTS5（Tauri 桌面）│
+│  文件系統 API                                            │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -138,26 +138,28 @@
 
 ---
 
-### 3.4 知識管理系統（LLM Wiki + Vector RAG + Graph 關係層）
+### 3.4 知識管理系統（LLM Wiki + FTS5 全文檢索 + Graph 關係層）
 
 **核心概念：**
-採用混合記憶架構，結合結構化 Wiki、向量檢索與圖關係，確保長篇一致性。
+採用混合記憶架構，結合結構化 Wiki、全文檢索與圖關係，確保長篇一致性。
 
 **混合記憶組成：**
 - **LLM-Wiki**：高階結構化知識（世界觀、角色、劇情線、年表等）
-- **Vector RAG**：原始章節全文細節檢索（對話、細節描述、伏筆）
+- **FTS5 全文檢索**：原始章節細節檢索（對話、細節描述、伏筆）
 - **Graph 關係層**：實體關係、因果鏈、時間線與約束推理（Phase 2.5 導入）
 
-**Vector RAG 技術說明：**
+> 原規劃 Vector RAG（Ollama embedding + LanceDB）已放棄：Wiki 層已覆蓋概念導向檢索，剩餘定點查詢用 FTS5 更直接，零新增依賴。未來真有 vector 需求改用 sqlite-vec，不引入 Ollama / LanceDB。
 
-嵌入向量由本機 Ollama 產生，完全離線運行，無需雲端 API：
+**FTS5 全文檢索技術說明：**
+
+走 SQLite 內建 FTS5 + bigram tokenizer，毫秒延遲，與既有 `.db` 共存：
 
 | 項目 | 說明 |
 |------|------|
-| Embedding 模型 | `nomic-embed-text` 或 `mxbai-embed-large`（Ollama 本機） |
-| 向量資料庫 | LanceDB（瀏覽器端） |
-| 觸發時機 | 章節「存入 Wiki」時同步生成嵌入並存入 LanceDB |
-| 檢索時機 | 生成新章節前，Context Budget Manager 自動檢索相關段落 |
+| 索引引擎 | SQLite FTS5（桌面版 `tauri-plugin-sql`；Phase 7 Web 走 wa-sqlite + OPFS） |
+| 分詞 | bigram tokenizer（適合中文，無外部斷詞器） |
+| 觸發時機 | 章節寫入 / 更新時同步重建該章索引 |
+| 檢索時機 | 生成新章節前，Context Budget Manager 以關鍵字檢索相關段落 |
 
 **Graph 關係層技術說明：**
 
@@ -275,7 +277,7 @@ AI 提取章節關鍵資訊 → 整理進 Wiki + 生成向量嵌入（Ollama） 
 |--------|------|----------|
 | 1（必填） | 世界觀設定 + 故事節拍 + 章節要點 | ~10% |
 | 2（必填） | 相關 Wiki 條目（已篩選） | ~25% |
-| 3（高優先） | Vector RAG 檢索結果 | ~15% |
+| 3（高優先） | FTS5 全文檢索結果（關鍵字命中段落） | ~15% |
 | 4（高優先） | 上一章 / 指定參考章節（摘要或全文） | ~20% |
 | 5（可選） | 更早期章節的壓縮摘要 | ~15% |
 | 6（保留） | 輸出緩衝區 | ~15% |
@@ -448,8 +450,7 @@ Context Budget Manager 計算可用 token 上限
 | 前端框架 | React + TypeScript |
 | 狀態管理 | Zustand + persist |
 | LLM 调用 | LangChain.js / Vercel AI SDK / 直接 API |
-| Embedding 模型 | Ollama（nomic-embed-text / mxbai-embed-large） |
-| 向量資料庫 | LanceDB（瀏覽器端） |
+| 全文檢索 | SQLite FTS5 + bigram tokenizer（未來如需 vector 改用 sqlite-vec，不引入 Ollama / LanceDB） |
 | Graph 關係層 | JSON 圖結構存於 IndexedDB；D3.js / React Flow 視覺化 |
 | 本地存儲 | IndexedDB (Dexie.js) + 文件系統 API |
 | 電子書生成 | epub-gen 或手寫 EPUB 結構 |
@@ -496,7 +497,7 @@ Context Budget Manager 計算可用 token 上限
 
 ### Phase 2 — 記憶與一致性
 6. LLM Wiki 完整功能（存入 + 未存入提醒機制）
-7. Vector RAG（Ollama embedding + LanceDB）
+7. 全文檢索（SQLite FTS5 + bigram tokenizer）　※原規劃 Vector RAG（Ollama embedding + LanceDB）已放棄
 8. 角色系統 CRUD + 關係圖（JSON 圖模式）
 9. 多 LLM provider 支援（Ollama、Google、Grok 等）
 

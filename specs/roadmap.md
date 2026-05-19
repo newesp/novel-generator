@@ -15,10 +15,10 @@
 
 ---
 
-## Phase 2 — 記憶與一致性（⚠️ 進行中：Wiki ✅、Vector RAG/FTS ⏳、角色關係圖 ❌）
+## Phase 2 — 記憶與一致性（⚠️ 進行中：Wiki ✅、全文檢索 ⏳、角色關係圖 ❌）
 
 1. ✅ LLM Wiki 完整功能（2026-05-18）→ `docs/superpowers/specs/2026-05-17-llm-wiki-design.md`
-2. ❌ Vector RAG（Ollama embedding + LanceDB）→ 04-knowledge
+2. ❌ 全文檢索（SQLite FTS5 + bigram tokenizer）→ 04-knowledge
 3. ❌ 角色關係圖視覺化（JSON 圖模式）→ 02-characters（角色弧線欄位 ✅ 已加，圖視覺化未做）
 4. ✅ 多 LLM provider 支援（Google Gemini / Grok / 自定義 OpenAI-compatible）→ 08-llm-adapter
 
@@ -27,7 +27,7 @@
 ## Phase 2.5 — 結構強化（❌ 未開始）
 
 1. ❌ Graph 關係層（JSON 圖完整功能：多跳查詢、事件因果）→ 04-knowledge
-2. ❌ Context Budget Manager 動態版（摘要壓縮、RAG 整合）→ 07-context-budget
+2. ❌ Context Budget Manager 動態版（摘要壓縮）→ 07-context-budget
 3. ❌ 一致性 Lint（矛盾偵測、交叉引用檢查）→ 04-knowledge
 
 ---
