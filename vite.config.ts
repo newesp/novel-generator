@@ -1,4 +1,12 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type UserConfig } from 'vite'
+
+interface ViteUserConfigWithTest extends UserConfig {
+  test?: {
+    environment?: string
+    include?: string[]
+    globals?: boolean
+  }
+}
 import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import https from 'node:https'
@@ -118,7 +126,7 @@ function promptLogPlugin(): Plugin {
   }
 }
 
-export default defineConfig({
+const config: ViteUserConfigWithTest = {
   plugins: [react(), llmProxyPlugin(), promptLogPlugin()],
   server: {
     // 固定 port：避免 5173 被占用時自動跳 port，
@@ -126,4 +134,11 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
-})
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    globals: false,
+  },
+}
+
+export default defineConfig(config)

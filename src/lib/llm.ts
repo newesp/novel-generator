@@ -15,16 +15,22 @@ import { isTauri } from './platform';
  * sendAuthorization：Google Gemini 用 URL `?key=` 認證，不能帶 Authorization
  * （會被誤判為 OAuth token 而 401）。
  */
-async function postToLLM(targetUrl: string, apiKey: string, body: unknown, sendAuthorization: boolean): Promise<Response> {
+async function postToLLM(
+  targetUrl: string,
+  apiKey: string,
+  body: unknown,
+  sendAuthorization: boolean,
+  signal?: AbortSignal,
+): Promise<Response> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (sendAuthorization) headers['Authorization'] = `Bearer ${apiKey}`;
 
   if (isTauri()) {
-    return fetch(targetUrl, { method: 'POST', headers, body: JSON.stringify(body) });
+    return fetch(targetUrl, { method: 'POST', headers, body: JSON.stringify(body), signal });
   }
   // 瀏覽器：走 vite proxy middleware
   headers['x-proxy-target'] = targetUrl;
-  return fetch('/llm-proxy', { method: 'POST', headers, body: JSON.stringify(body) });
+  return fetch('/llm-proxy', { method: 'POST', headers, body: JSON.stringify(body), signal });
 }
 
 /**
@@ -34,17 +40,20 @@ async function postToLLM(targetUrl: string, apiKey: string, body: unknown, sendA
  *   gateway 偶發 502 / ECONNRESET 命中；單一章節生成也偶有發生。
  * - 只對「真的可重試」的失敗重試：HTTP 408/429/5xx + fetch 本身拋的網路例外
  * - 不重試 401/403/4xx（auth / 參數問題，重試無解）
+ * - signal 中止：立即往上拋 AbortError，不再重試
  */
 const TRANSIENT_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 const RETRY_DELAYS_MS = [800, 2400, 6000]; // total retries = 3
 
 async function postToLLMWithRetry(
   targetUrl: string, apiKey: string, body: unknown, sendAuthorization: boolean,
+  signal?: AbortSignal,
 ): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
     try {
-      const resp = await postToLLM(targetUrl, apiKey, body, sendAuthorization);
+      const resp = await postToLLM(targetUrl, apiKey, body, sendAuthorization, signal);
       if (resp.ok || !TRANSIENT_STATUSES.has(resp.status) || attempt === RETRY_DELAYS_MS.length) {
         return resp;
       }
@@ -53,6 +62,8 @@ async function postToLLMWithRetry(
       console.warn(`[llm] transient ${resp.status} on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}: ${errText.slice(0, 200)}`);
       lastError = new Error(`LLM API error ${resp.status}: ${errText}`);
     } catch (e) {
+      // AbortError 不重試，直接往上丟
+      if ((e as { name?: string }).name === 'AbortError') throw e;
       // 真正的網路例外（Tauri 直連時的 fetch reject、或 dev proxy 自身錯誤）
       if (attempt === RETRY_DELAYS_MS.length) throw e;
       console.warn(`[llm] network error on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}:`, e);
@@ -88,7 +99,11 @@ export function isLLMReady(cfg: LLMConfig): boolean {
   }
 }
 
-export async function complete(prompt: string, options?: GenerationOptions): Promise<string> {
+export async function complete(
+  prompt: string,
+  options?: GenerationOptions,
+  signal?: AbortSignal,
+): Promise<string> {
   const { llmConfig } = useSettingsStore.getState();
 
   if (!llmConfig.apiKey) {
@@ -97,17 +112,18 @@ export async function complete(prompt: string, options?: GenerationOptions): Pro
 
   switch (llmConfig.provider) {
     case 'google':
-      return completeGoogle(llmConfig, prompt, options);
+      return completeGoogle(llmConfig, prompt, options, signal);
     case 'grok':
       // Grok 走 OpenAI-compatible，差別只在預設 baseUrl
       return completeOpenAICompat(
         { ...llmConfig, baseUrl: llmConfig.baseUrl || GROK_DEFAULT_BASE },
         prompt,
         options,
+        signal,
       );
     case 'custom':
     default:
-      return completeOpenAICompat(llmConfig, prompt, options);
+      return completeOpenAICompat(llmConfig, prompt, options, signal);
   }
 }
 
@@ -118,6 +134,7 @@ async function completeOpenAICompat(
   cfg: LLMConfig,
   prompt: string,
   options?: GenerationOptions,
+  signal?: AbortSignal,
 ): Promise<string> {
   if (!cfg.baseUrl) {
     throw new Error('請先設定 API 端點 (Base URL)');
@@ -132,7 +149,7 @@ async function completeOpenAICompat(
     ],
     max_tokens: options?.maxTokens ?? 4096,
     temperature: options?.temperature ?? 0.7,
-  }, true);
+  }, true, signal);
 
   if (!response.ok) {
     const err = await response.text();
@@ -151,6 +168,7 @@ async function completeGoogle(
   cfg: LLMConfig,
   prompt: string,
   options?: GenerationOptions,
+  signal?: AbortSignal,
 ): Promise<string> {
   const base = (cfg.baseUrl || GOOGLE_DEFAULT_BASE).replace(/\/$/, '');
   const model = cfg.model || 'gemini-2.0-flash';
@@ -169,7 +187,7 @@ async function completeGoogle(
     body.systemInstruction = { parts: [{ text: options.systemPrompt }] };
   }
 
-  const response = await postToLLMWithRetry(targetUrl, cfg.apiKey, body, false);
+  const response = await postToLLMWithRetry(targetUrl, cfg.apiKey, body, false, signal);
 
   if (!response.ok) {
     const err = await response.text();
