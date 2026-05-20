@@ -1,0 +1,141 @@
+import { v4 as uuid } from 'uuid';
+import { complete } from '../llm';
+import { renderTemplate } from '../prompt-template';
+import { storage } from '../storage';
+import type { WikiPage, WikiLogEntry, WikiPageSnapshot, WikiPageType } from '../../types';
+import type { AIPromptPrefs } from '../../stores/settingsStore';
+import type { LintIssue } from './types';
+
+export interface LlmFixSuggestion {
+  /** LLM 產出的完整新 markdown */
+  newMarkdown: string;
+  /** 給 preview modal 用：原 markdown */
+  originalMarkdown: string;
+  /** 被修改的頁 id */
+  targetPageId: string;
+}
+
+/** 對單一 issue 召喚 LLM 修改建議。失敗時拋例外。 */
+export async function generateFixSuggestion(
+  issue: LintIssue,
+  pages: WikiPage[],
+  aiPrompts: AIPromptPrefs,
+  userDirection: string,
+  signal?: AbortSignal,
+): Promise<LlmFixSuggestion> {
+  const wikiTarget = issue.targets.find((t) => t.kind === 'wikiPage');
+  if (!wikiTarget) throw new Error('Issue 沒有 wikiPage target，無法產生修改建議');
+  const page = pages.find((p) => p.id === wikiTarget.id);
+  if (!page) throw new Error(`找不到對應 wiki page id=${wikiTarget.id}`);
+
+  const prompt = renderTemplate(aiPrompts.lintFixSuggestTemplate, {
+    issueTitle: issue.title,
+    issueDetail: issue.detail,
+    originalMarkdown: page.contentMd,
+    userDirection: userDirection || '(留白：請依 issue 內容自行判斷)',
+  });
+
+  const raw = await complete(prompt, { maxTokens: 4096 }, signal);
+  const newMarkdown = raw.trim().replace(/^```(?:markdown)?\s*/i, '').replace(/```\s*$/i, '');
+
+  return {
+    newMarkdown,
+    originalMarkdown: page.contentMd,
+    targetPageId: page.id,
+  };
+}
+
+/**
+ * 套用 LLM fix：先寫 wiki_log 再 update page（補償模式，仿 wiki-ingest）。
+ */
+export async function applyLlmFix(args: {
+  bookId: string;
+  page: WikiPage;
+  newMarkdown: string;
+  checkId: string;
+  lintBatchId: string;
+}): Promise<{ status: 'ok' | 'failed'; error?: string }> {
+  const { bookId, page, newMarkdown, checkId, lintBatchId } = args;
+  const now = Date.now();
+  const logId = uuid();
+
+  const afterPage: WikiPage = {
+    ...page,
+    contentMd: newMarkdown,
+    updatedAt: now,
+  };
+
+  const okLog: WikiLogEntry = {
+    id: logId, bookId, batchId: lintBatchId, appliedAt: now,
+    kind: 'update',
+    opStatus: 'ok',
+    pageId: page.id,
+    pageType: page.type, pageSlug: page.slug,
+    pageSnapshotBefore: page as WikiPageSnapshot,
+    pageSnapshotAfter: afterPage as WikiPageSnapshot,
+    source: `lint:${checkId}`,
+    summary: `~${page.type}/${page.slug} (lint:${checkId})`,
+  };
+
+  try {
+    await storage.wikiLog.add(okLog);
+  } catch (e) {
+    return { status: 'failed', error: `wiki_log insert 失敗：${(e as Error).message}` };
+  }
+
+  try {
+    await storage.wikiPages.update(afterPage);
+    return { status: 'ok' };
+  } catch (e) {
+    await storage.wikiLog.updateStatus(okLog.id, 'failed', (e as Error).message);
+    return { status: 'failed', error: (e as Error).message };
+  }
+}
+
+/**
+ * 套用 AutoFix(removeRelatedSlug)：移除一筆 relatedSlug，寫 wiki_log 補償。
+ */
+export async function applyRemoveRelatedSlug(args: {
+  bookId: string;
+  page: WikiPage;
+  removeTarget: { type: WikiPageType; slug: string };
+  lintBatchId: string;
+}): Promise<{ status: 'ok' | 'failed'; error?: string }> {
+  const { bookId, page, removeTarget, lintBatchId } = args;
+  const now = Date.now();
+  const logId = uuid();
+
+  const afterPage: WikiPage = {
+    ...page,
+    relatedSlugs: page.relatedSlugs.filter(
+      (r) => !(r.type === removeTarget.type && r.slug === removeTarget.slug),
+    ),
+    updatedAt: now,
+  };
+
+  const okLog: WikiLogEntry = {
+    id: logId, bookId, batchId: lintBatchId, appliedAt: now,
+    kind: 'update',
+    opStatus: 'ok',
+    pageId: page.id,
+    pageType: page.type, pageSlug: page.slug,
+    pageSnapshotBefore: page as WikiPageSnapshot,
+    pageSnapshotAfter: afterPage as WikiPageSnapshot,
+    source: `lint:broken-link`,
+    summary: `~${page.type}/${page.slug} 移除 broken ref ${removeTarget.type}/${removeTarget.slug}`,
+  };
+
+  try {
+    await storage.wikiLog.add(okLog);
+  } catch (e) {
+    return { status: 'failed', error: `wiki_log insert 失敗：${(e as Error).message}` };
+  }
+
+  try {
+    await storage.wikiPages.update(afterPage);
+    return { status: 'ok' };
+  } catch (e) {
+    await storage.wikiLog.updateStatus(okLog.id, 'failed', (e as Error).message);
+    return { status: 'failed', error: (e as Error).message };
+  }
+}
