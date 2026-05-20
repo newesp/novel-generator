@@ -12,6 +12,10 @@ import {
   DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
   DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
   DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
+  DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE,
+  DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE,
+  DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE,
+  DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
   PROMPT_TEMPLATE_VARS,
   PROMPT_TEMPLATE_SAMPLES,
 } from '../lib/prompt-defaults';
@@ -58,7 +62,10 @@ const PREFS_TABS: { key: PrefsTab; label: string }[] = [
 export function Toolbar() {
   const { project } = useProjectStore();
   const { view, setView } = useUIStore();
-  const { llmConfig, inlineEdit, aiPrompts, wikiPrefs, setLlmConfig, setInlineEdit, setAiPrompts, setWikiPrefs } = useSettingsStore();
+  const {
+    llmConfig, inlineEdit, aiPrompts, wikiPrefs, lintPrefs,
+    setLlmConfig, setInlineEdit, setAiPrompts, setWikiPrefs, setLintPrefs,
+  } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [activePrefsTab, setActivePrefsTab] = useState<PrefsTab>('llm');
@@ -66,6 +73,7 @@ export function Toolbar() {
   const [draftInline, setDraftInline] = useState(inlineEdit);
   const [draftPrompts, setDraftPrompts] = useState(aiPrompts);
   const [draftWiki, setDraftWiki] = useState(wikiPrefs);
+  const [draftLint, setDraftLint] = useState(lintPrefs);
   const [activePromptKey, setActivePromptKey] = useState<keyof AIPromptPrefs>('chapterDraftsTemplate');
   const [promptViewMode, setPromptViewMode] = useState<EditPreviewMode>('edit');
   const [previewDataSource, setPreviewDataSource] = useState<PreviewDataSource>('project');
@@ -77,6 +85,7 @@ export function Toolbar() {
     setDraftInline(inlineEdit);
     setDraftPrompts(aiPrompts);
     setDraftWiki(wikiPrefs);
+    setDraftLint(lintPrefs);
     setActivePrefsTab('llm');
     setActivePromptKey('chapterDraftsTemplate');
     setPromptViewMode('edit');
@@ -89,6 +98,7 @@ export function Toolbar() {
     setInlineEdit(draftInline);
     setAiPrompts(draftPrompts);
     setWikiPrefs(draftWiki);
+    setLintPrefs(draftLint);
     setShowPrefsModal(false);
   };
 
@@ -325,6 +335,87 @@ export function Toolbar() {
                 兩段式 wiki 查詢：先讓 LLM 挑選相關頁，再注入完整內容。目前以 cheap relevance filter 替代。
               </p>
             </div>
+
+            <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
+            <h4 style={{ margin: '0 0 8px' }}>Lint（Phase 2.5）</h4>
+
+            <div>
+              <label className="form-label">啟用的檢查</label>
+              {[
+                { k: 'brokenLink', label: 'Broken link（relatedSlugs 指向不存在頁）' },
+                { k: 'orphan', label: '孤頁（未被引用、info-only）' },
+                { k: 'aliasDup', label: '別名重複' },
+                { k: 'unrecorded', label: '未登錄角色（hybrid：pre-filter + 1 LLM call）' },
+                { k: 'wikiContradict', label: 'Wiki 內部矛盾（LLM，每 type 1 call）' },
+                { k: 'wikiVsChapter', label: 'Wiki vs 章節（LLM，每角色 1 call）' },
+              ].map(({ k, label }) => (
+                <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={draftLint.checks[k as keyof typeof draftLint.checks]}
+                    onChange={(e) => setDraftLint({
+                      ...draftLint,
+                      checks: { ...draftLint.checks, [k]: e.target.checked },
+                    })}
+                  />
+                  <span style={{ fontSize: 13 }}>{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div>
+              <label className="form-label">LLM 上限</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  單類型最多頁數
+                  <input
+                    type="number" className="form-input" min={1} max={100}
+                    value={draftLint.maxPagesPerTypeContradict}
+                    onChange={(e) => setDraftLint({
+                      ...draftLint,
+                      maxPagesPerTypeContradict: Math.max(1, parseInt(e.target.value) || 20),
+                    })}
+                    style={{ width: 80 }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  最多角色數
+                  <input
+                    type="number" className="form-input" min={1} max={50}
+                    value={draftLint.maxCharactersVsChapter}
+                    onChange={(e) => setDraftLint({
+                      ...draftLint,
+                      maxCharactersVsChapter: Math.max(1, parseInt(e.target.value) || 10),
+                    })}
+                    style={{ width: 80 }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  每角色章節數
+                  <input
+                    type="number" className="form-input" min={1} max={10}
+                    value={draftLint.maxChapterExcerptsPerChar}
+                    onChange={(e) => setDraftLint({
+                      ...draftLint,
+                      maxChapterExcerptsPerChar: Math.max(1, parseInt(e.target.value) || 3),
+                    })}
+                    style={{ width: 80 }}
+                  />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  未登錄候選上限
+                  <input
+                    type="number" className="form-input" min={1} max={100}
+                    value={draftLint.maxUnrecordedCandidates}
+                    onChange={(e) => setDraftLint({
+                      ...draftLint,
+                      maxUnrecordedCandidates: Math.max(1, parseInt(e.target.value) || 30),
+                    })}
+                    style={{ width: 80 }}
+                  />
+                </label>
+              </div>
+            </div>
           </div>
         )}
 
@@ -410,6 +501,30 @@ const PROMPT_ENTRIES: PromptEntry[] = [
     label: '#8 Wiki Query（Phase 2.5）',
     desc: 'Phase 2.5 pick-pages 查詢用，目前未啟用。',
     defaultValue: DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
+  },
+  {
+    key: 'lintUnrecordedVerifyTemplate',
+    label: '#9 Lint Unrecorded',
+    desc: 'Lint 未登錄角色 hybrid 的第二階段：把 pre-filter 候選送 LLM 驗證。',
+    defaultValue: DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE,
+  },
+  {
+    key: 'lintWikiContradictTemplate',
+    label: '#10 Lint 矛盾',
+    desc: 'Lint Wiki 內部矛盾：每 page type 一次 LLM call，輸入 digest 清單。',
+    defaultValue: DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE,
+  },
+  {
+    key: 'lintWikiVsChapterTemplate',
+    label: '#11 Lint vs章節',
+    desc: 'Lint Wiki vs 章節：每主要角色一次 LLM call，比對 wiki 與章節敘述。',
+    defaultValue: DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE,
+  },
+  {
+    key: 'lintFixSuggestTemplate',
+    label: '#12 Lint 修改建議',
+    desc: '使用者按 ✏️ 修改 → ✨ 生成建議修改 時，召喚 LLM 改寫 wiki 頁。',
+    defaultValue: DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
   },
 ];
 
