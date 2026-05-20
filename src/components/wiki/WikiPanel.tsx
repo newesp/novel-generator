@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useWikiStore } from '../../stores/wikiStore';
 import { useProjectStore } from '../../stores/projectStore';
+import { useLintStore } from '../../stores/lintStore';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { WikiPageEditor } from './WikiPageEditor';
+import { LintReportModal } from '../lint/LintReportModal';
 import type { WikiPage, WikiPageType } from '../../types';
 
 const TYPE_LABELS: Record<WikiPageType, string> = {
@@ -17,8 +19,10 @@ const TYPE_LABELS: Record<WikiPageType, string> = {
 export function WikiPanel() {
   const { project } = useProjectStore();
   const { pages, log, selectedPageId, totalLength, loadForBook, selectPage, createPageBlank } = useWikiStore();
+  const { runLint, isRunning: lintRunning } = useLintStore();
   const [filter, setFilter] = useState('');
   const [showNew, setShowNew] = useState(false);
+  const [lintOpen, setLintOpen] = useState(false);
 
   useEffect(() => {
     if (project) loadForBook(project.id);
@@ -55,7 +59,16 @@ export function WikiPanel() {
       <div style={{ padding: 12, borderBottom: '1px solid var(--border, #ccc)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <strong>📚 Wiki</strong>
-          <Button variant="primary" size="sm" onClick={() => setShowNew(true)}>+ 新增頁面</Button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { setLintOpen(true); if (project) runLint(project.id); }}
+              disabled={lintRunning || !project}
+              title="跑一致性 Lint：broken link、孤頁、別名重複、未登錄角色、wiki 內部矛盾、wiki vs 章節"
+            >🔍 執行 Lint</Button>
+            <Button variant="primary" size="sm" onClick={() => setShowNew(true)}>+ 新增頁面</Button>
+          </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-tertiary, #888)' }}>
           {pages.length} 頁 · 約 {Math.round(totalLength / 1000)}k 字
@@ -155,6 +168,8 @@ export function WikiPanel() {
           }}
         />
       )}
+
+      <LintReportModal open={lintOpen} onClose={() => setLintOpen(false)} />
     </div>
   );
 }
