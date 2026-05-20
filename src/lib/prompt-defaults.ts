@@ -242,6 +242,94 @@ export const DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE = `你是這本小說的 Wiki �
 {{pagesMarkdown}}
 `;
 
+// ─── #9. Lint — Unrecorded verify（Phase 2.5）─────────────────────
+export const DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE = `你是小說的角色清點助手。下面是程式預先掃出的「可能未登錄角色」候選名單，連同章節節錄。
+
+請判斷每個候選是否為「應該記錄」的角色（曾經有名有姓、有戲份或敘事相關）。普通虛詞、形容詞、地名、概念名請排除。
+
+已登錄角色名：
+{{knownNamesList}}
+
+候選清單（JSON）：
+{{candidatesJson}}
+
+請只輸出嚴格 JSON：
+{
+  "newCharacters": [
+    { "name": "<候選名>", "isMainEnough": true, "chapterRefs": ["<chapterId>"] }
+  ],
+  "rejected": ["<被排除的候選名>"]
+}
+`;
+
+// ─── #10. Lint — Wiki 內部矛盾（Phase 2.5）──────────────────────────
+export const DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE = `你是小說資料一致性檢查員。下面是同一類 wiki 頁的精簡 digest，請找出彼此衝突的事實（例如角色年齡 / 武器 / 能力、概念規則 / 限制、時間線等）。
+
+Page type：{{pageType}}
+
+頁面 digest（JSON array）：
+{{digestsJson}}
+
+請只輸出嚴格 JSON：
+{
+  "conflicts": [
+    {
+      "pages": ["<type/slug>", "<type/slug>"],
+      "field": "<衝突欄位名，例：年齡 / 武器 / 規則>",
+      "detail": "<具體說明 A 頁說 X、B 頁說 Y>"
+    }
+  ]
+}
+
+若沒有任何衝突，輸出 {"conflicts": []}。
+`;
+
+// ─── #11. Lint — Wiki vs 章節（Phase 2.5）───────────────────────────
+export const DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE = `你是小說資料一致性檢查員。檢查 wiki 上的角色設定與小說章節敘述是否衝突。
+
+角色：{{characterName}}
+別名集合：{{aliasesList}}
+
+Wiki 全文：
+{{wikiContent}}
+
+相關章節節錄（JSON array，每筆含 chapterId 與 excerpt）：
+{{chapterExcerptsJson}}
+
+請找出 wiki 與章節敘述事實衝突的地方（例如「wiki 寫精通劍術，但章節寫從未握劍」）。
+
+請只輸出嚴格 JSON：
+{
+  "conflicts": [
+    {
+      "field": "<衝突欄位名>",
+      "wikiSays": "<wiki 的說法>",
+      "chapterSays": "<章節的說法>",
+      "chapterRefs": ["<chapterId>"]
+    }
+  ]
+}
+
+若沒有任何衝突，輸出 {"conflicts": []}。
+`;
+
+// ─── #12. Lint — 修改建議（Phase 2.5）───────────────────────────────
+export const DEFAULT_LINT_FIX_SUGGEST_TEMPLATE = `你是 wiki 維護助手。下面有一個一致性 issue，請修改原 wiki 頁 markdown 來解決。
+
+Issue 標題：{{issueTitle}}
+Issue 細節：{{issueDetail}}
+
+使用者偏好的修改方向（可能為空，空則由你自行判斷）：
+{{userDirection}}
+
+原始 markdown：
+---
+{{originalMarkdown}}
+---
+
+請直接輸出修改後的完整 markdown（保留原檔結構：H1 標題、Aliases、Related blockquote、各 section）。不要包 \`\`\`markdown 圍欄，不要解釋。
+`;
+
 // ─── 預覽用的範例變數值（讓使用者看到代入後的長相）────────────────
 export const PROMPT_TEMPLATE_SAMPLES: Record<string, Record<string, string>> = {
   chapterDraftsTemplate: {
@@ -366,5 +454,25 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
   wikiQueryAnswerTemplate: [
     { var: 'question', desc: '使用者問題（Phase 2.5）' },
     { var: 'pagesMarkdown', desc: '相關 wiki 頁全文（Phase 2.5）' },
+  ],
+  lintUnrecordedVerifyTemplate: [
+    { var: 'knownNamesList', desc: '已登錄角色名單（用「、」分隔）' },
+    { var: 'candidatesJson', desc: '候選清單 JSON，含 name / occurrences / freq' },
+  ],
+  lintWikiContradictTemplate: [
+    { var: 'pageType', desc: 'wiki page type（entity / concept / ...）' },
+    { var: 'digestsJson', desc: 'WikiLintDigest JSON array' },
+  ],
+  lintWikiVsChapterTemplate: [
+    { var: 'characterName', desc: '角色名' },
+    { var: 'aliasesList', desc: '別名集合（character + entity 合併）' },
+    { var: 'wikiContent', desc: '對應 entity 頁完整 markdown' },
+    { var: 'chapterExcerptsJson', desc: '章節節錄 JSON array' },
+  ],
+  lintFixSuggestTemplate: [
+    { var: 'issueTitle', desc: 'Issue 標題' },
+    { var: 'issueDetail', desc: 'Issue 細節' },
+    { var: 'originalMarkdown', desc: '原 wiki 頁 markdown' },
+    { var: 'userDirection', desc: '使用者填的修改方向（可空）' },
   ],
 };

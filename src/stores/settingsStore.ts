@@ -11,7 +11,12 @@ import {
   DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
   DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
   DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
+  DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE,
+  DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE,
+  DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE,
+  DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
 } from '../lib/prompt-defaults';
+import { DEFAULT_LINT_PREFS, type LintPrefs } from '../lib/lint/types';
 
 // 為了相容舊 import 路徑，re-export
 export { DEFAULT_CHAPTER_CONTINUATION_RULES };
@@ -42,6 +47,14 @@ export interface AIPromptPrefs {
   wikiIngestUpdateTemplate: string;
   /** #8 Wiki query — Answer（Phase 2.5 預留） */
   wikiQueryAnswerTemplate: string;
+  /** #9 Lint — 未登錄角色 verify（Phase 2.5） */
+  lintUnrecordedVerifyTemplate: string;
+  /** #10 Lint — Wiki 內部矛盾（Phase 2.5） */
+  lintWikiContradictTemplate: string;
+  /** #11 Lint — Wiki vs 章節（Phase 2.5） */
+  lintWikiVsChapterTemplate: string;
+  /** #12 Lint — 修改建議（Phase 2.5） */
+  lintFixSuggestTemplate: string;
 }
 
 export interface WikiPrefs {
@@ -59,15 +72,21 @@ const DEFAULT_WIKI_PREFS: WikiPrefs = {
   enablePickPages: false,
 };
 
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
+};
+
 interface SettingsState {
   llmConfig: LLMConfig;
   inlineEdit: InlineEditPrefs;
   aiPrompts: AIPromptPrefs;
   wikiPrefs: WikiPrefs;
+  lintPrefs: LintPrefs;
   setLlmConfig: (config: Partial<LLMConfig>) => void;
   setInlineEdit: (prefs: Partial<InlineEditPrefs>) => void;
   setAiPrompts: (prefs: Partial<AIPromptPrefs>) => void;
   setWikiPrefs: (prefs: Partial<WikiPrefs>) => void;
+  setLintPrefs: (prefs: DeepPartial<LintPrefs>) => void;
 }
 
 const DEFAULT_AI_PROMPTS: AIPromptPrefs = {
@@ -80,7 +99,21 @@ const DEFAULT_AI_PROMPTS: AIPromptPrefs = {
   wikiIngestCreateTemplate: DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
   wikiIngestUpdateTemplate: DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
   wikiQueryAnswerTemplate: DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
+  lintUnrecordedVerifyTemplate: DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE,
+  lintWikiContradictTemplate: DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE,
+  lintWikiVsChapterTemplate: DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE,
+  lintFixSuggestTemplate: DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
 };
+
+function deepMergeLintPrefs(base: LintPrefs, patch: DeepPartial<LintPrefs>): LintPrefs {
+  return {
+    checks: { ...base.checks, ...(patch.checks ?? {}) },
+    maxPagesPerTypeContradict: patch.maxPagesPerTypeContradict ?? base.maxPagesPerTypeContradict,
+    maxCharactersVsChapter: patch.maxCharactersVsChapter ?? base.maxCharactersVsChapter,
+    maxChapterExcerptsPerChar: patch.maxChapterExcerptsPerChar ?? base.maxChapterExcerptsPerChar,
+    maxUnrecordedCandidates: patch.maxUnrecordedCandidates ?? base.maxUnrecordedCandidates,
+  };
+}
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
@@ -99,6 +132,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       aiPrompts: { ...DEFAULT_AI_PROMPTS },
       wikiPrefs: { ...DEFAULT_WIKI_PREFS },
+      lintPrefs: { ...DEFAULT_LINT_PREFS },
       setLlmConfig: (config) =>
         set((state) => ({ llmConfig: { ...state.llmConfig, ...config } })),
       setInlineEdit: (prefs) =>
@@ -107,6 +141,8 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({ aiPrompts: { ...state.aiPrompts, ...prefs } })),
       setWikiPrefs: (prefs) =>
         set((state) => ({ wikiPrefs: { ...state.wikiPrefs, ...prefs } })),
+      setLintPrefs: (patch) =>
+        set((state) => ({ lintPrefs: deepMergeLintPrefs(state.lintPrefs, patch) })),
     }),
     {
       name: 'novel-generator-settings',
@@ -117,6 +153,7 @@ export const useSettingsStore = create<SettingsState>()(
           ...current,
           ...p,
           wikiPrefs: { ...DEFAULT_WIKI_PREFS, ...(p.wikiPrefs ?? {}) },
+          lintPrefs: deepMergeLintPrefs(DEFAULT_LINT_PREFS, p.lintPrefs ?? {}),
           aiPrompts: {
             ...DEFAULT_AI_PROMPTS,
             ...(p.aiPrompts ?? {}),
