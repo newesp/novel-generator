@@ -1,5 +1,44 @@
 # 開發日誌
 
+## 2026-05-19 — Phase 2.5 Part 1: 一致性 Lint
+
+完整實作 Phase 2.5 #3（spec：`docs/superpowers/specs/2026-05-19-consistency-lint-design.md`，經 codex review 後修訂；plan：`docs/superpowers/plans/2026-05-19-consistency-lint.md`，16 個 task）。
+
+**新增功能**
+- Wiki 分頁加「🔍 執行 Lint」按鈕；專用 LintReportModal 進度列 + 報告版合一
+- 6 個 check（可逐一在偏好設定勾選）：
+  - ① Broken link — structural，AutoFix 一鍵移除 broken ref
+  - ② 孤頁 — structural，info-only（codex review 採納：不提供刪除）
+  - ③ 別名重複 — structural error，純報告
+  - ④ 未登錄角色 — **hybrid**（structural pre-filter 對話/稱呼語境 + 1 LLM call verify）
+  - ⑤ Wiki 內部矛盾 — LLM batch per page type，輸入 `WikiLintDigest`（rule-based markdown parser）
+  - ⑥ Wiki vs 章節 — LLM batch per character，aliases 集合搜尋章節
+- LLM 修改建議：✏️ 修改 inline 展開「修改方向」textarea → ✨ 生成建議 → 兩欄純文字 diff preview → 套用
+- 所有 fix（broken-link auto + LLM）都寫 `wiki_log`（`source='lint:<checkId>'`），與 wiki-ingest 補償模式一致；共用 `lintBatchId` 保留未來整批 undo 能力
+- 取消功能：AbortSignal 一路傳到 fetch；中途取消後已完成 check 結果仍展示
+
+**設定擴充**
+- 偏好設定 → 📚 Wiki 設定 底部加 Lint 區段：6 checkbox + 4 LLM 上限數字輸入
+- 偏好設定 → 📜 AI 提示詞 加 4 個 sub-tab（#9 Unrecorded / #10 矛盾 / #11 vs 章節 / #12 修改建議）
+- `setLintPrefs` 用 deep merge 避免 nested `checks` 物件被覆蓋
+- `persist.merge` 補齊舊使用者預設值
+
+**Schema 變動**
+- 零 SQLite / Dexie schema 變動（lint 結果不持久化、prefs 走 localStorage）
+- `wiki_log` 沿用既有 schema，僅 `source` 欄位加 `lint:*` 前綴
+
+**測試**
+- 加 vitest + jsdom（前所未有的單元測試 infra）
+- 21 個 unit test 全綠：digest.ts (8) + unrecorded pre-filter (7) + wiki-contradict JSON parser & batch (6)
+
+**已知限制**
+- 「維持現狀」session-only，重 lint 會再出現
+- 孤頁不提供刪除（需從 wiki 編輯器手動刪）
+- Lint 整批 undo 未實作（保留 wiki_log batch_id 共用設計，後續可補）
+- `complete()` 加 AbortSignal 支援，但既有 wiki-ingest / chapter generation 未串接 cancel UI（僅 lint 用到）
+
+---
+
 ## 2026-05-19 — LLM Wiki hotfix + 路線調整
 
 **修補**
