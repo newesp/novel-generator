@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { complete } from '../llm';
 import { renderTemplate } from '../prompt-template';
 import { storage } from '../storage';
+import { parseWikiPageMarkdown } from '../wiki-parser';
 import type { WikiPage, WikiLogEntry, WikiPageSnapshot, WikiPageType } from '../../types';
 import type { AIPromptPrefs } from '../../stores/settingsStore';
 import type { LintIssue } from './types';
@@ -59,9 +60,16 @@ export async function applyLlmFix(args: {
   const now = Date.now();
   const logId = uuid();
 
+  // 解析新 markdown 取出 title / aliases / relatedSlugs（沿用 wiki-ingest 同款邏輯）
+  // 確保 LLM 在 markdown H1 改了標題後，WikiPage.title 等 metadata 也同步
+  const parsed = parseWikiPageMarkdown(newMarkdown, page.title);
   const afterPage: WikiPage = {
     ...page,
-    contentMd: newMarkdown,
+    title: parsed.title || page.title,
+    aliases: parsed.aliases.length ? parsed.aliases : page.aliases,
+    relatedSlugs: parsed.relatedSlugs.length ? parsed.relatedSlugs : page.relatedSlugs,
+    description: parsed.fallbackDescription || page.description,
+    contentMd: parsed.contentMd,
     updatedAt: now,
   };
 
