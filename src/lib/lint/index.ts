@@ -6,6 +6,7 @@ import type { LintCheck, LintContext, LintIssue, LintReport, LintPrefs } from '.
 import { brokenLinkCheck } from './checks/broken-link';
 import { orphanCheck } from './checks/orphan';
 import { aliasDupCheck } from './checks/alias-dup';
+import { summaryMismatchCheck } from './checks/summary-mismatch';
 import { unrecordedCheck } from './checks/unrecorded';
 import { wikiContradictCheck } from './checks/wiki-contradict';
 import { wikiVsChapterCheck } from './checks/wiki-vs-chapter';
@@ -23,12 +24,13 @@ export interface LintCallbacks {
 
 /** 順序固定，UI 也按這個順序顯示進度 */
 const ALL_CHECKS: Array<{ check: LintCheck; prefKey: keyof LintPrefs['checks'] }> = [
-  { check: brokenLinkCheck,     prefKey: 'brokenLink' },
-  { check: orphanCheck,         prefKey: 'orphan' },
-  { check: aliasDupCheck,       prefKey: 'aliasDup' },
-  { check: unrecordedCheck,     prefKey: 'unrecorded' },
-  { check: wikiContradictCheck, prefKey: 'wikiContradict' },
-  { check: wikiVsChapterCheck,  prefKey: 'wikiVsChapter' },
+  { check: brokenLinkCheck,       prefKey: 'brokenLink' },
+  { check: orphanCheck,           prefKey: 'orphan' },
+  { check: aliasDupCheck,         prefKey: 'aliasDup' },
+  { check: summaryMismatchCheck,  prefKey: 'summaryMismatch' },
+  { check: unrecordedCheck,       prefKey: 'unrecorded' },
+  { check: wikiContradictCheck,   prefKey: 'wikiContradict' },
+  { check: wikiVsChapterCheck,    prefKey: 'wikiVsChapter' },
 ];
 
 export async function lintBook(

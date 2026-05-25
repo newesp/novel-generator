@@ -1,6 +1,19 @@
 import { v4 as uuid } from 'uuid';
 import type { LintCheck, LintContext, LintIssue } from '../types';
 
+/**
+ * 過濾佔位字串 — wiki ingest 偶爾把「Aliases: (無)」這種 markdown 佔位符
+ * 當成真實別名存進 aliases 陣列，造成 alias-dup 假陽性。
+ */
+const PLACEHOLDER_ALIASES = new Set<string>([
+  '(無)', '（無）', '無', '(none)', '（none）', 'none', 'N/A', 'n/a', '-', '—', '無別名',
+]);
+
+function isPlaceholder(s: string): boolean {
+  const t = s.trim();
+  return !t || PLACEHOLDER_ALIASES.has(t);
+}
+
 export const aliasDupCheck: LintCheck = {
   id: 'alias-dup',
   label: '別名重複',
@@ -12,6 +25,7 @@ export const aliasDupCheck: LintCheck = {
       const keys = [p.title, ...p.aliases];
       for (const k of keys) {
         if (!k) continue;
+        if (isPlaceholder(k)) continue;
         const list = map.get(k) ?? [];
         list.push({ pageId: p.id, label: `${p.type}/${p.slug}` });
         map.set(k, list);

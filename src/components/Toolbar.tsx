@@ -345,6 +345,7 @@ export function Toolbar() {
                 { k: 'brokenLink', label: 'Broken link（relatedSlugs 指向不存在頁）' },
                 { k: 'orphan', label: '孤頁（未被引用、info-only）' },
                 { k: 'aliasDup', label: '別名重複' },
+                { k: 'summaryMismatch', label: 'Summary 章節對不上（slug ↔ chapter title）' },
                 { k: 'unrecorded', label: '未登錄角色（hybrid：pre-filter + 1 LLM call）' },
                 { k: 'wikiContradict', label: 'Wiki 內部矛盾（LLM，每 type 1 call）' },
                 { k: 'wikiVsChapter', label: 'Wiki vs 章節（LLM，每角色 1 call）' },

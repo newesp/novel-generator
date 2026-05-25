@@ -53,6 +53,7 @@ export interface LintPrefs {
     brokenLink: boolean;
     orphan: boolean;
     aliasDup: boolean;
+    summaryMismatch: boolean;
     unrecorded: boolean;
     wikiContradict: boolean;
     wikiVsChapter: boolean;
@@ -68,6 +69,7 @@ export const DEFAULT_LINT_PREFS: LintPrefs = {
     brokenLink: true,
     orphan: true,
     aliasDup: true,
+    summaryMismatch: true,
     unrecorded: true,
     wikiContradict: true,
     wikiVsChapter: true,

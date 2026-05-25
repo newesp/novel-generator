@@ -14,6 +14,7 @@ const CHECK_LABELS: Record<string, string> = {
   'broken-link': 'Broken link',
   'orphan': '孤頁',
   'alias-dup': '別名重複',
+  'summary-mismatch': 'Summary 章節對不上',
   'unrecorded': '未登錄角色',
   'wikiContradict': 'Wiki 內部矛盾',
   'wikiVsChapter': 'Wiki vs 章節',
