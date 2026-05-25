@@ -503,8 +503,8 @@ Context Budget Manager 計算可用 token 上限
 
 ### Phase 2.5 — 結構強化
 10. Graph 關係層（JSON 圖完整功能：多跳查詢、事件因果）
-11. Context Budget Manager 動態版（摘要壓縮、RAG 整合）
-12. 一致性 Lint（矛盾偵測、交叉引用檢查）
+11. Context Budget Manager 動態版（摘要壓縮、FTS5 整合）
+12. ✅ 一致性 Lint（2026-05-19）— 7 個 check：broken-link / orphan / alias-dup / summary-mismatch / unrecorded（hybrid）/ wiki-contradict（LLM）/ wiki-vs-chapter（LLM）；fix 走 wiki_log 補償。詳見 `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`
 
 ### Phase 3 — 輸出與體驗
 13. 導出功能（.txt / .html / .epub）

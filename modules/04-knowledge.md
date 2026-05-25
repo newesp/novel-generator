@@ -1,6 +1,6 @@
-> **Phase 2 LLM Wiki 已實作（2026-05-18）。** 設計與實作細節見：
-> - 規格：`docs/superpowers/specs/2026-05-17-llm-wiki-design.md`
-> - 實作計畫：`docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`
+> **已實作：**
+> - Phase 2 LLM Wiki（2026-05-18）— 規格 `docs/superpowers/specs/2026-05-17-llm-wiki-design.md`、計畫 `docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`
+> - Phase 2.5 #3 一致性 Lint（2026-05-19）— 規格 `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`、計畫 `docs/superpowers/plans/2026-05-19-consistency-lint.md`
 >
 > 本檔（modules/04）保留為高層模組描述。
 
@@ -83,6 +83,27 @@
 
 ---
 
+## 一致性 Lint（Phase 2.5 #3，已實作 2026-05-19）
+
+7 個檢查項，可在偏好設定逐一勾選：
+
+| # | Check | 類型 | 偵測內容 | Fix |
+|---|-------|------|----------|-----|
+| ① | broken-link | structural | `relatedSlugs` 指向不存在頁 | 一鍵移除 ref |
+| ② | orphan | structural (info) | 未被任何頁 / 章節引用的孤頁 | 無（人工） |
+| ③ | alias-dup | structural | 多頁共用 alias / title（過濾「(無)」佔位符） | 無（人工） |
+| ④ | summary-mismatch | structural | `summary/ch-N` title 與 chapter[N-1].title 不一致或孤兒 | LLM 重寫 |
+| ⑤ | unrecorded | hybrid | 章節提及但 wiki/characters 未登錄的人名（anchor-based pre-filter + 1 LLM verify call） | LLM 建議建頁 |
+| ⑥ | wiki-contradict | LLM batch | 同 type wiki 頁互相矛盾（每 type 1 call，用 `WikiLintDigest`） | LLM 改寫 |
+| ⑦ | wiki-vs-chapter | LLM batch | wiki 角色設定與章節敘述事實衝突（每角色 1 call、aliases 集合搜尋） | LLM 改寫 |
+
+**特點：**
+- 手動觸發（Wiki 分頁「🔍 執行 Lint」按鈕，不打擾寫作）
+- 結果不持久化（modal 關掉就丟）；「維持現狀」session-only
+- 所有 fix 走 `wiki_log`（`source='lint:<checkId>'`），保留未來整批 undo
+- LLM 修改走 ✏️ 修改 textarea 可輸入方向 → ✨ 生成建議 → 兩欄純文字 diff preview → 套用同步 title/aliases/relatedSlugs metadata
+- 預估成本 ≤15 LLM calls / 整本書
+
 ## 完整運作流程
 
 ```
@@ -92,7 +113,7 @@ AI 提取章節關鍵資訊
     ↓
 整理進 Wiki + 同步 FTS5 索引 + 更新 Graph JSON
     ↓
-進行 Lint：找出矛盾、缺少交叉引用（Phase 2.5）
+進行 Lint：找出矛盾、缺少交叉引用（Phase 2.5 ✅）
     ↓
 下次生成時 → Context Budget Manager 自動載入相關 Wiki + FTS5 檢索結果
 ```
