@@ -133,6 +133,16 @@ export const wikiVsChapterCheck: LintCheck = {
       }
 
       for (const c of parsed.conflicts) {
+        // 防呆：LLM 偶爾把 wiki metadata（Aliases/Type/Related）當衝突回報
+        // prompt 已明確排除，這裡再加一層過濾
+        const fieldLower = (c.field || '').toLowerCase();
+        if (
+          fieldLower.includes('alias') || c.field?.includes('別名') ||
+          fieldLower === 'type' || c.field === '類型' ||
+          fieldLower === 'related' || c.field === '相關'
+        ) {
+          continue;
+        }
         const targets: IssueTarget[] = [
           {
             kind: 'wikiPage', id: item.entityPage.id,

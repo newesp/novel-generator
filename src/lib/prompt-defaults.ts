@@ -286,7 +286,7 @@ Page type：{{pageType}}
 `;
 
 // ─── #11. Lint — Wiki vs 章節（Phase 2.5）───────────────────────────
-export const DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE = `你是小說資料一致性檢查員。檢查 wiki 上的角色設定與小說章節敘述是否衝突。
+export const DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE = `你是小說資料一致性檢查員。檢查 wiki 上的角色設定與小說章節敘述是否「在敘事事實上」衝突。
 
 角色：{{characterName}}
 別名集合：{{aliasesList}}
@@ -297,21 +297,49 @@ Wiki 全文：
 相關章節節錄（JSON array，每筆含 chapterId 與 excerpt）：
 {{chapterExcerptsJson}}
 
-請找出 wiki 與章節敘述事實衝突的地方（例如「wiki 寫精通劍術，但章節寫從未握劍」）。
+# 檢查範圍
 
-請只輸出嚴格 JSON：
+**只看敘事事實衝突**，包括但不限於：
+- 年齡、性別、外貌特徵（身高、髮色、傷痕）
+- 能力 / 武器 / 修為等級 / 戰鬥風格
+- 出身、身份、職業、所屬勢力
+- 關係（父母、師徒、敵友、上下級）
+- 傷勢、死亡、失蹤等狀態變更
+- 角色在特定章節做了什麼、說了什麼立場
+
+# 不要當衝突回報
+
+下列情況**絕對不要**列為 conflict：
+
+1. **Wiki Aliases / Type / Related 等 metadata 不檢查**。
+   Aliases 是「列出所有可能的稱呼」，章節只用其中一部分稱呼是**正常**的，不是衝突。
+   章節用了「艾莉亞長官」而 wiki Aliases 列了「艾莉亞、艾莉亞長官」→ **不是衝突**。
+
+2. **Wiki 寫了 N 件事、章節只提到 M < N 件** — 章節本就無法窮舉所有設定，缺少不是矛盾。
+
+3. **章節用代稱、Wiki 用本名**（或反之）→ 不是衝突，這是寫作風格。
+
+4. **時間順序差異但無明確矛盾** — wiki 不一定按章節順序敘述。
+
+5. **語氣 / 描述顆粒度差異** — 「精通劍術」vs「揮劍如風」是同義加強，不是衝突。
+
+只有當 wiki 與章節**直接互斥**（「wiki 寫精通劍術，但第 5 章寫他從未握過劍」、「wiki 寫 25 歲，但第 3 章主角自稱三十五」這種）才算衝突。
+
+# 輸出
+
+只輸出嚴格 JSON：
 {
   "conflicts": [
     {
-      "field": "<衝突欄位名>",
-      "wikiSays": "<wiki 的說法>",
-      "chapterSays": "<章節的說法>",
+      "field": "<衝突欄位名（年齡 / 武器 / 能力 / ...，不可為 Aliases / Type / Related）>",
+      "wikiSays": "<wiki 的具體說法，含原文片段>",
+      "chapterSays": "<章節的具體說法，含原文片段>",
       "chapterRefs": ["<chapterId>"]
     }
   ]
 }
 
-若沒有任何衝突，輸出 {"conflicts": []}。
+若沒有任何衝突，輸出 {"conflicts": []}。寧可漏報、不要誤報。
 `;
 
 // ─── #12. Lint — 修改建議（Phase 2.5）───────────────────────────────
