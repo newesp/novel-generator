@@ -4,7 +4,21 @@ import { renderTemplate } from '../../prompt-template';
 import type { Chapter, Character, WikiPage } from '../../../types';
 import type { LintCheck, LintContext, LintIssue, IssueTarget } from '../types';
 
-/** 黑名單：常見虛詞 / 通用詞，避免假陽性炸 */
+/**
+ * 未登錄角色 — hybrid check
+ *
+ * 演算法（v2，2026-05-19 修補）：
+ *   先找 context marker（對話標籤 / 稱呼前綴 / 敬稱後綴），再從 marker
+ *   位置抽出緊鄰的 2-3 字當 candidate name。
+ *
+ *   舊版用「2-4 字滑動窗 + post-hoc inContext check」，會被 `叫做林七的弟子` 這種
+ *   片段誤判（4 字窗 `林七的弟` 撞到 prefix `叫做` 就過），把真的 `林七`
+ *   被 overlap dedup 蓋掉。
+ *
+ *   新版只在三種錨點抓 name，幾乎不會抓到通用名詞與文法碎片。
+ */
+
+/** 黑名單：候選不會是這些 */
 const STOPWORDS = new Set<string>([
   '突然', '這時', '此時', '當下', '眼前', '不能', '不行', '不要', '可以',
   '可能', '應該', '已經', '依然', '仍然', '繼續', '主人', '師父', '主公',
@@ -13,10 +27,19 @@ const STOPWORDS = new Set<string>([
   '一陣', '一聲', '一道', '一片', '那一', '這一',
 ]);
 
-/** 對話標籤動詞 / 稱呼語境 */
-const DIALOGUE_VERBS = ['說', '問', '答', '道', '喊', '叫', '吼', '笑', '哭', '怒', '呼', '罵'];
-const NAME_PREFIX = ['叫做', '名為', '叫', '稱', '這位'];
-const HONORIFICS = ['師兄', '師姐', '師妹', '師弟', '師父', '師娘', '姑娘', '公子', '長老', '大人', '先生', '夫人'];
+/** 文法字元黑名單：候選名稱不能以這些字開頭或結尾 */
+const GRAMMAR_BOUNDARY_CHARS = new Set<string>([
+  '的', '了', '在', '是', '和', '與', '也', '有', '就', '或', '還', '又',
+  '這', '那', '個', '中', '上', '下', '出', '到', '來', '去', '把', '被',
+  '從', '向', '對', '為', '以', '及', '之', '其', '所', '而', '但', '已',
+  '不', '都', '很', '太', '更', '最', '會', '能', '要', '想', '可', '一',
+  '著', '過', '們', '然', '做',
+]);
+
+function hasGrammarBoundary(name: string): boolean {
+  if (name.length === 0) return true;
+  return GRAMMAR_BOUNDARY_CHARS.has(name[0]) || GRAMMAR_BOUNDARY_CHARS.has(name[name.length - 1]);
+}
 
 export interface UnrecordedCandidate {
   name: string;
@@ -26,23 +49,31 @@ export interface UnrecordedCandidate {
 
 interface MatchHit {
   chapterId: string;
-  index: number;
-  inContext: boolean;
+  index: number;          // 章節內 name 起始位置
 }
 
-function isInContext(content: string, name: string, index: number): boolean {
-  const before = content.slice(Math.max(0, index - 8), index);
-  const after = content.slice(index + name.length, index + name.length + 8);
-  // 對話標籤：後面接動詞
-  if (DIALOGUE_VERBS.some((v) => after.startsWith(v))) return true;
-  // 對話標籤：「」+ 名字
-  if (before.endsWith('」')) return true;
-  // 稱呼語境：前綴
-  if (NAME_PREFIX.some((p) => before.endsWith(p))) return true;
-  // 稱呼語境：後綴
-  if (HONORIFICS.some((h) => after.startsWith(h))) return true;
-  return false;
-}
+const CHINESE = '[\\u4e00-\\u9fff]';
+
+/**
+ * Anchor patterns — 每個 pattern 配一個「name capture group index」說明哪個
+ * group 是真正的人名。
+ *
+ * 整體策略：
+ *   - 對話標籤：「...」+ name(2-3 字) + 動詞
+ *   - 動作賓語：name(2-3 字) + 動詞 + 道|說（少用，太鬆）
+ *   - 稱呼前綴：叫做|名為|這位 + name(2-3 字)
+ *   - 敬稱後綴：name(2-3 字) + 師兄|師姐|大人|姑娘|公子|長老|...
+ *
+ * 全部要求 name 長度 2-3 字（人名常見長度），4 字單字名極少在現代小說。
+ */
+const ANCHOR_PATTERNS: Array<{ regex: RegExp; nameGroup: number }> = [
+  // 「對話」name + 動詞
+  { regex: new RegExp(`」(${CHINESE}{2,3})(?:說|問|答|道|喊|叫|吼|笑|哭|怒|呼|罵|喃|嘆|嚷|嘶|嗤|啐|唸)`, 'g'), nameGroup: 1 },
+  // 稱呼前綴
+  { regex: new RegExp(`(?:叫做|名為|這位|名叫)(${CHINESE}{2,3})`, 'g'), nameGroup: 1 },
+  // 敬稱後綴
+  { regex: new RegExp(`(${CHINESE}{2,3})(?:師兄|師姐|師妹|師弟|師父|師娘|姑娘|公子|長老|大人|先生|夫人|前輩|宗主|掌門|城主|教主)`, 'g'), nameGroup: 1 },
+];
 
 export function findCandidates(
   chapters: Chapter[],
@@ -62,37 +93,41 @@ export function findCandidates(
 
   // name → hits
   const hitsByName = new Map<string, MatchHit[]>();
+
   for (const chapter of chapters) {
     const content = chapter.content;
-    // 對每個 2-4 字長度都掃一遍
-    for (let len = 2; len <= 4; len++) {
-      for (let i = 0; i <= content.length - len; i++) {
-        const name = content.slice(i, i + len);
-        if (!/^[一-鿿]+$/.test(name)) continue;
+
+    for (const { regex, nameGroup } of ANCHOR_PATTERNS) {
+      // 每個 chapter 跑 pattern，重置 lastIndex
+      regex.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = regex.exec(content)) !== null) {
+        const name = m[nameGroup];
+        if (!name) continue;
+        if (name.length < 2) continue;
         if (STOPWORDS.has(name)) continue;
+        if (hasGrammarBoundary(name)) continue;
         if (known.has(name)) continue;
+        // 額外排除：是更長已知名稱的子字串
+        let isSubstringOfKnown = false;
+        for (const k of known) {
+          if (k.length > name.length && k.includes(name)) { isSubstringOfKnown = true; break; }
+        }
+        if (isSubstringOfKnown) continue;
+
+        // 計算 name 在 content 內的實際 index
+        const nameIndex = m.index + m[0].indexOf(name);
+
         const list = hitsByName.get(name) ?? [];
-        list.push({ chapterId: chapter.id, index: i, inContext: isInContext(content, name, i) });
+        list.push({ chapterId: chapter.id, index: nameIndex });
         hitsByName.set(name, list);
       }
     }
   }
 
-  // 篩選：(a) 在語境中出現 ≥1 次  或  (b) 字頻 ≥3
+  // 收 occurrences（每章只取一個 excerpt，最多 2 章）
   const candidates: UnrecordedCandidate[] = [];
   for (const [name, hits] of hitsByName.entries()) {
-    const inContextCount = hits.filter((h) => h.inContext).length;
-    const freq = hits.length;
-    if (inContextCount === 0 && freq < 3) continue;
-
-    // 額外保險：若名字是更長已知名稱的子字串就略過（e.g.「王大」是「王大山」子字串）
-    let isSubstringOfKnown = false;
-    for (const k of known) {
-      if (k.length > name.length && k.includes(name)) { isSubstringOfKnown = true; break; }
-    }
-    if (isSubstringOfKnown) continue;
-
-    // 收 occurrences（每章只取一個 excerpt，最多 2 章）
     const seenChapters = new Set<string>();
     const occurrences: UnrecordedCandidate['occurrences'] = [];
     for (const hit of hits) {
@@ -104,7 +139,7 @@ export function findCandidates(
       occurrences.push({ chapterId: chapter.id, excerpt: chapter.content.slice(start, end) });
       if (occurrences.length >= 2) break;
     }
-    candidates.push({ name, occurrences, freq });
+    candidates.push({ name, occurrences, freq: hits.length });
   }
 
   // 排字頻降冪

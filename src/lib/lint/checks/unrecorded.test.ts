@@ -15,30 +15,49 @@ function ch(id: string, content: string): Chapter {
   };
 }
 
-describe('findCandidates (unrecorded pre-filter)', () => {
+describe('findCandidates (unrecorded — anchor-based v2)', () => {
   it('catches names in dialogue tags', () => {
-    const c = ch('c1', '「滾開！」趙六說。然後王大笑了。');
+    const c = ch('c1', '「滾開！」趙六說。「來吧。」王大笑了。');
     const out = findCandidates([c], emptyPages, emptyChars);
     const names = out.map((o) => o.name);
     expect(names).toContain('趙六');
     expect(names).toContain('王大');
   });
 
-  it('catches names with honorific context', () => {
-    const c = ch('c1', '一位姓孫的長老走進來。叫做林七的弟子站起身。');
+  it('catches names with honorific suffix', () => {
+    const c = ch('c1', '一位孫姓的長老。叫做林七的弟子站起身。林七姑娘也來了。');
     const out = findCandidates([c], emptyPages, emptyChars);
     const names = out.map((o) => o.name);
-    // 「林七」應抓（前綴「叫做」是稱呼語境）
+    // 「叫做林七」前綴匹配 → 林七
     expect(names).toContain('林七');
+    // 林七姑娘也匹配
   });
 
-  it('excludes common stopwords', () => {
-    const c = ch('c1', '突然眼前一黑。這時他想起了。突然他又站起來。眼前那一刻。');
+  it('catches names with prefix 叫做 / 名為', () => {
+    const c = ch('c1', '此人名為趙武。我們叫做錢三。');
     const out = findCandidates([c], emptyPages, emptyChars);
     const names = out.map((o) => o.name);
-    expect(names).not.toContain('突然');
-    expect(names).not.toContain('眼前');
-    expect(names).not.toContain('這時');
+    expect(names).toContain('趙武');
+    expect(names).toContain('錢三');
+  });
+
+  it('does NOT catch frequent non-name words without anchor', () => {
+    // 「艙室」科幻通用名詞，沒有對話標籤 / 稱呼語境 → 不該抓
+    const c = ch('c1', '艙室裡有人。艙室外面也有。艙室深處更冷。整艘飛船的通訊器都壞了。');
+    const out = findCandidates([c], emptyPages, emptyChars);
+    const names = out.map((o) => o.name);
+    expect(names).not.toContain('艙室');
+    expect(names).not.toContain('通訊');
+    expect(names).not.toContain('通訊器');
+  });
+
+  it('does NOT catch grammar fragments at name position', () => {
+    // 「的人說」「中的說」等碎片：的/中 在首位 → 應被 grammar boundary 擋掉
+    const c = ch('c1', '「滾開！」的人說。「跟我來。」中的說。');
+    const out = findCandidates([c], emptyPages, emptyChars);
+    const names = out.map((o) => o.name);
+    expect(names).not.toContain('的人');
+    expect(names).not.toContain('中的');
   });
 
   it('excludes names already in characters table', () => {
@@ -63,18 +82,12 @@ describe('findCandidates (unrecorded pre-filter)', () => {
     expect(out.find((o) => o.name === '趙六')).toBeUndefined();
   });
 
-  it('requires freq ≥3 when no context match', () => {
-    // 「林七」單次普通出現、沒在對話標籤附近 → 應被頻率門檻排除
-    const c = ch('c1', '某天林七出門了。沒人知道他去哪。');
-    const out = findCandidates([c], emptyPages, emptyChars);
-    expect(out.find((o) => o.name === '林七')).toBeUndefined();
-  });
-
   it('returns excerpts containing the name', () => {
-    const c = ch('c1', '「滾開！」趙六說。後來趙六又回來了。最後趙六走了。');
+    const c = ch('c1', '「滾開！」趙六說。後來「跟我來」趙六說。最後「再見」趙六說。');
     const out = findCandidates([c], emptyPages, emptyChars);
     const zhao = out.find((o) => o.name === '趙六');
     expect(zhao).toBeDefined();
+    expect(zhao!.freq).toBeGreaterThanOrEqual(2);
     expect(zhao!.occurrences[0].chapterId).toBe('c1');
     expect(zhao!.occurrences[0].excerpt).toContain('趙六');
   });
