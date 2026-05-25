@@ -156,8 +156,9 @@ export const DEFAULT_WIKI_INGEST_PLAN_TEMPLATE = `你是這本中文小說 Wiki 
 1. **不要對已存在的 slug 做 create**（會自動降級為 update，但會浪費 token）。
 2. **不要為「已知角色」清單中已有的角色，新建 entity 頁**——除非本章首次給出值得單獨成頁的細節（用 update 補充更好）。
 3. **不要把章節摘要做為 entity**；章節摘要請用 type=summary、slug = 上方「章節摘要建議 slug」（\`{{chapterSummarySlug}}\`）。**絕對不要把每章的 summary 都叫 \`ch-1\`**。
-4. unrecorded_characters 是本章出現、但**不在已知角色清單也不在 wiki 中**的人物（不論 entity 是否要建頁）。
-5. 若本章沒任何值得 ingest 的，operations 可以是空陣列；但 unrecorded_characters 仍可填。
+4. **章節摘要 (\`summary/{{chapterSummarySlug}}\`) 的 \`title\` 欄位必須完全等於本章 title（即「{{chapterTitle}}」），不要加「第 N 章：」「Chapter N -」「Ch.N」之類前綴**——之後章節改名重新 ingest 時 lint 才能正確對齊。description 與 content_brief 可自由發揮。
+5. unrecorded_characters 是本章出現、但**不在已知角色清單也不在 wiki 中**的人物（不論 entity 是否要建頁）。
+6. 若本章沒任何值得 ingest 的，operations 可以是空陣列；但 unrecorded_characters 仍可填。
 `;
 
 // ─── #6. Wiki Ingest — Apply create ─────────────────────────────
