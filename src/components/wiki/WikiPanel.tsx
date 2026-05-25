@@ -99,21 +99,27 @@ export function WikiPanel() {
                 }}>
                   {TYPE_LABELS[type]} ({arr.length})
                 </div>
-                {arr.map((p) => (
-                  <div
-                    key={p.id}
-                    onClick={() => selectPage(p.id)}
-                    style={{
-                      padding: '6px 12px',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      background: selectedPageId === p.id ? 'var(--accent-soft, #e0e8ff)' : 'transparent',
-                    }}
-                  >
-                    {p.title}
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary, #888)' }}>{p.slug}</div>
-                  </div>
-                ))}
+                {arr.map((p) => {
+                  const isSelected = selectedPageId === p.id;
+                  return (
+                    <div
+                      key={p.id}
+                      onClick={() => selectPage(p.id)}
+                      style={{
+                        padding: '6px 12px 6px 9px',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        background: isSelected ? 'var(--accent-bg)' : 'transparent',
+                        borderLeft: isSelected ? '3px solid var(--accent)' : '3px solid transparent',
+                        color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        fontWeight: isSelected ? 600 : 400,
+                      }}
+                    >
+                      {p.title}
+                      <div style={{ fontSize: 11, color: 'var(--text-tertiary, #888)', fontWeight: 400 }}>{p.slug}</div>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
