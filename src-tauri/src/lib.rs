@@ -15,6 +15,12 @@ pub fn run() {
       sql: include_str!("../migrations/002_wiki_tables.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 3,
+      description: "FTS5 chapters/wiki_pages search index",
+      sql: include_str!("../migrations/003_fts.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()
