@@ -198,7 +198,8 @@ Phase 2.5 導入，採用 JSON 圖結構存於 IndexedDB，完全在瀏覽器端
 
 ```
 生成章節 → 用戶點擊"存入 Wiki" → 
-AI 提取章節關鍵資訊 → 整理進 Wiki + 生成向量嵌入（Ollama） + 更新 Graph JSON →
+AI 提取章節關鍵資訊 → deterministic integrity guards（related refs sanitize / 必建角色 entity）→
+整理進 Wiki + 同步 FTS5 索引 + 更新 Graph JSON →
 進行 Lint，找出矛盾、缺少交叉引用 →
 下次生成時 → Context Budget Manager 自動載入相關 Wiki + FTS5 檢索結果 + Wiki 章節摘要
 ```
@@ -382,19 +383,21 @@ Context Budget Manager 計算可用 token 上限
 
 ---
 
-### 3.10 多媒體生成模組（Phase 4，選做）
+### 3.10 多媒體生成模組（Phase 6 漫畫圖片 MVP；TTS / 影片後續）
 
 **功能列表：**
 
 | 功能 | 描述 | 技術方案 |
 |------|------|----------|
 | 封面圖生成 | 一鍵生成專業小說封面 | Grok Imagine / Flux / DALL·E |
-| 轉漫畫分鏡 | 章節轉多格漫畫分鏡 + 對話框 | Grok Imagine + 分鏡模板 |
-| 語音朗讀 | 章節轉 TTS（支援多角色不同音色） | Edge-TTS / ElevenLabs |
+| 章節轉漫畫圖片 MVP | 章節 → 可編輯分鏡 → 批次生成連續漫畫圖片 | ComfyUI HTTP API / OpenAI-compatible image provider |
+| 語音朗讀 | 章節轉 TTS（支援多角色不同音色） | Edge-TTS / ElevenLabs（後續獨立 spec） |
+| 漫畫 + TTS → 影片 | 連續漫畫圖 + AI 念稿 → 合成 mp4 | ffmpeg sidecar（後續獨立 spec） |
 
 **整合方式：**
-- 章節工具列增加「多媒體」按鈕
-- 生成後可預覽封面與分鏡
+- 章節工具列增加「轉漫畫」入口
+- 先生成可編輯分鏡，使用者確認後才批次生圖
+- 生成後可預覽連續漫畫圖片，支援單格重生 / 失敗重試 / 圖片包下載
 - EPUB 輸出時可選擇嵌入封面與插圖
 
 ---
@@ -458,8 +461,8 @@ Context Budget Manager 計算可用 token 上限
 | Graph 關係層 | JSON 圖結構存於 IndexedDB；D3.js / React Flow 視覺化 |
 | 本地存儲 | IndexedDB (Dexie.js) + 文件系統 API |
 | 電子書生成 | epub-gen 或手寫 EPUB 結構 |
-| 圖像生成 | Grok Imagine / Flux Schnell（Phase 4） |
-| TTS | Edge-TTS / ElevenLabs API（Phase 4） |
+| 圖像生成 | Provider Adapter First；本地 ComfyUI HTTP API + 線上 OpenAI-compatible image provider（Phase 6 漫畫圖片 MVP） |
+| TTS | Edge-TTS / ElevenLabs API（Phase 6 後續獨立 spec） |
 | UI 元件 | shadcn/ui + Radix UI |
 
 > **epub 技術說明：** epubjs 定位為電子書**閱讀器**，不適合用於生成 epub 檔案。epub 本質上是符合特定規範的 ZIP 壓縮包（包含 OPF、NCX/NAV、HTML 章節檔），建議改用 `epub-gen` 套件，或直接手寫 epub 結構以獲得最大控制彈性。

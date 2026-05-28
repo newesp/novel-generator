@@ -1,6 +1,6 @@
 # 小說產生器（Novel Generator）
 
-> 版本：1.6（Phase 2 進行中）　更新：2026-05-28
+> 版本：1.6（Phase 2.5 MVP Complete / Advanced polish remaining）　更新：2026-05-28
 
 本機瀏覽器 Web App，自動生成高品質中文小說，從大綱到正文完整流程；透過 **LLM Wiki + SQLite FTS5 全文檢索** 維持一致性。Multi-Agent 協作（Phase 4）為選配。
 
@@ -43,7 +43,7 @@ npm run tauri build
 ## 系統分層
 
 1. **UI 層** — 本機 Web App（React 19 + 自製元件）
-2. **業務邏輯層** — 大綱／角色／章節／潤色 + LLM Wiki + FTS5 全文檢索 + Context Budget Manager + Graph 關係層（Phase 2.5）+ Multi-Agent（Phase 4，選做）
+2. **業務邏輯層** — 大綱／角色／章節／潤色 + LLM Wiki + FTS5 全文檢索 + Context Budget Manager + Graph 關係層（Phase 2.5 MVP complete）+ Multi-Agent（Phase 4，選做）
 3. **LLM 適配層** — OpenAI / Anthropic / Google / Grok / Ollama + 自定義 API
 4. **儲存層** — IndexedDB（Dexie，瀏覽器版）/ SQLite + FTS5（桌面版，Tauri）/ File System API
 
@@ -63,7 +63,7 @@ npm run tauri build
 | [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager（Wiki 摘要 + pick-pages + 摘要品質 ✅） | 1 / 2.5 | 04 |
 | [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM 適配層 | 1 / 2 | tech-stack |
 | [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎 | 4（選做） | 04, 07 |
-| [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成 | 4（選做） | 00, tech-stack |
+| [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（Phase 6 漫畫圖片 MVP 設計完成） | 6 / 4（選做） | 00, tech-stack |
 
 ---
 

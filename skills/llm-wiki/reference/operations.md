@@ -19,6 +19,7 @@ Inputs:
 - The new content (Q&A pair or source summary)
 - Current `index.md` (so the LLM knows what pages exist)
 - Wiki `SKILL.md` (schema/conventions)
+- Application-provided integrity hints, when available, such as required character entities detected from the local character table and the current chapter text
 
 Output (JSON):
 ```json
@@ -54,6 +55,11 @@ For each operation, one LLM call:
 Caller writes files, regenerates `index.md` deterministically (sort pages by
 type then slug, pull description from each page's first prose paragraph), then
 appends one line to `log.md`.
+
+Application guards run around the LLM plan/apply steps. In the Novel Generator
+integration, related refs are sanitized against the current Wiki index, deletes
+cascade stale refs, and required character entities can be appended to the plan
+when a known character appears in the chapter but has no Wiki entity yet.
 
 ### Cost note
 

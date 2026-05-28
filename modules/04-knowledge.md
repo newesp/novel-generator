@@ -1,8 +1,10 @@
 > **已實作：**
 > - Phase 2 LLM Wiki（2026-05-18）— 規格 `docs/superpowers/specs/2026-05-17-llm-wiki-design.md`、計畫 `docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`
 > - Phase 2 FTS5 全文檢索（2026-05-28）— 規格 `docs/superpowers/specs/2026-05-26-fts5-search-design.md`、計畫 `docs/superpowers/plans/2026-05-26-fts5-search.md`
+> - Phase 2.5 MVP Complete / Advanced polish remaining（2026-05-28）
 > - Phase 2.5 #3 一致性 Lint（2026-05-19）— 規格 `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`、計畫 `docs/superpowers/plans/2026-05-19-consistency-lint.md`
 > - Phase 2.5 Graph JSON 基礎層（2026-05-28）— `src/lib/knowledge-graph.ts`，含 2-hop 查詢 UI；事件因果 / 時間線 MVP 已補
+> - Wiki 存在完整性防線（2026-05-28）— `src/lib/wiki-mutations.ts` / `wiki-related-sanitize.ts` / `wiki-character-entities.ts`，統一維護 related refs、刪除 cascade、角色 entity 必建 guard
 >
 > 本檔（modules/04）保留為高層模組描述。
 
@@ -16,7 +18,7 @@
 |--------|------|-------|
 | LLM-Wiki | 高階結構化知識（世界觀、角色、劇情線、年表等） | 2 |
 | 全文檢索（FTS5） | 原始章節細節檢索（對話、細節描述、伏筆） | 2 |
-| Graph 關係層 | 實體關係、因果鏈、時間線與約束推理 | 2.5（角色關係圖 MVP 已先完成） |
+| Graph 關係層 | 實體關係、因果鏈、時間線與約束推理 | 2.5（MVP complete；進階 polish remaining） |
 
 ---
 
@@ -85,6 +87,19 @@
 
 ---
 
+## Wiki 存在完整性防線（已實作 2026-05-28）
+
+Wiki 寫入不只依賴 LLM 自覺，核心結構改由 deterministic guard 保底：
+
+- **related refs sanitize**：create / update / lint fix / summary rebuild 寫入前會移除不存在的 related refs，避免 broken link 回流。
+- **刪除 cascade**：刪除 Wiki page 或 chapter summary 時，同步清掉其他頁面的 related refs，避免孤立殘留連結。
+- **slug rename / canonicalize**：支援 entity slug 修正，並同步更新引用端。
+- **必建角色 entity**：Wiki ingest 前比對「角色庫 + 本章正文 + 現有 Wiki entity」。若角色庫已有、本章出現、但 Wiki entity 不存在，會注入必建候選給 plan prompt；若 LLM plan 漏掉，系統自動補 `create entity/<slug>` operation。
+
+這層防線用來解決「主角已在角色庫且章節中反覆出現，但 ingest 只建立路人 entity」這類模型選擇偏差。Lint 仍負責事後檢查，但 Wiki 寫入路徑會先盡量維持存在完整性。
+
+---
+
 ## 一致性 Lint（Phase 2.5 #3，已實作 2026-05-19）
 
 7 個檢查項，可在偏好設定逐一勾選：
@@ -111,9 +126,9 @@
 ```
 生成章節 → 用戶點擊"存入 Wiki"
     ↓
-AI 提取章節關鍵資訊
+AI 提取章節關鍵資訊 + deterministic integrity guards
     ↓
-整理進 Wiki + 同步 FTS5 索引 + 更新 Graph JSON
+整理進 Wiki + 同步 FTS5 索引 + 更新 Graph JSON + 修正 related refs / 必建角色 entity
     ↓
 進行 Lint：找出矛盾、缺少交叉引用（Phase 2.5 ✅）
     ↓

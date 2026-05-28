@@ -2,6 +2,9 @@
 
 ## 2026-05-28 — Phase 2: SQLite FTS5 全文檢索
 
+> Phase 2.5 已標記為 **MVP Complete / Advanced polish remaining**。主幹可用，剩餘 LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表、Graph 進階事件抽取與 Lint 整批 undo UI 作為後續 polish。
+> Phase 6 漫畫圖片 MVP 設計已完成：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`。範圍鎖定「選擇章節 → 可編輯分鏡 → 批次生成連續漫畫圖片」，本地優先 ComfyUI HTTP API，線上支援 OpenAI-compatible image provider。
+
 **新增功能**
 - Tauri SQLite adapter 掛上 optional `storage.search`，桌面版啟用 FTS5；Dexie/Web 版維持 undefined 並自動隱藏 UI
 - 工具列新增「🔎 全文搜尋」modal，可搜尋章節與 Wiki，結果支援 snippet 高亮並可跳到章節或 Wiki 頁
@@ -9,15 +12,17 @@
 - Wiki 列表 summary 頁改依 `ch-N` 數字排序；超過 50 章自動分段，並提供「跳到章節」輸入
 - 角色分頁新增「列表 / 關係圖」切換；關係圖從 `Character.relations` 推導角色連線，點節點可開啟角色編輯
 - Wiki 分頁新增 `◎ Graph` 查詢 modal，可用角色/Wiki 名稱查 2-hop 關聯節點與路徑
+- Wiki ingest 新增「必建角色 entity」三層防線：prompt 明示、程式預檢角色庫中本章出現但 Wiki 缺頁的角色、LLM plan 漏掉時自動補 create op，避免主角未進 Wiki 卻只建立路人 entity
 
 **底層**
 - 沿用 `003_fts.sql`：`chapters_fts` / `wiki_pages_fts` virtual table、trigram tokenizer、trigger 同步與 backfill
 - 新增 `wiki-ingest-fts` helper 與單元測試
 - 新增 `character-graph` helper 與單元測試；先用 SVG circular layout，完整 Graph JSON 留 Phase 2.5
 - 新增 `knowledge-graph` helper 與單元測試：characters + wiki pages → serializable JSON graph，支援 label lookup 與 multi-hop neighborhood
+- 新增 `wiki-character-entities` helper 與單元測試，將角色庫與 Wiki entity 存在性檢查從 LLM prompt 中抽成 deterministic guard
 
 **驗證**
-- `vitest run`：44 tests passed
+- `vitest run`：88 tests passed
 - `tsc -b`：passed
 - `vite build`：passed（仍有既有 chunk size warning）
 - 針對新增 FTS 檔案執行 ESLint：passed；全專案 ESLint 仍受既有檔案與 `src-tauri/target` 產物影響

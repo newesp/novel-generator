@@ -4,12 +4,12 @@
 
 ## 功能列表
 
-| 功能 | 描述 | 技術方案 | Phase |
-|------|------|----------|------|
-| 封面圖生成 | 一鍵生成專業小說封面 | Grok Imagine / Flux / DALL·E | 4 |
-| 章節轉漫畫 | 章節 → LLM 拆鏡 → 連續漫畫圖（含對話框） | Grok Imagine / Flux + 分鏡模板 | 4 / 6 |
-| 語音朗讀 | 章節轉 TTS（支援多角色不同音色） | Edge-TTS / ElevenLabs | 4 |
-| 漫畫 + TTS → 影片 | 連續漫畫圖 + AI 念稿 → 合成 mp4 | ffmpeg sidecar（Tauri 桌面）| 6 |
+| 功能            | 描述                        | 技術方案                                   | Phase |
+| ------------- | ------------------------- | -------------------------------------- | ----- |
+| 封面圖生成         | 一鍵生成專業小說封面                | gemini-2.5-flash-image / Flux / DALL·E | 4     |
+| 章節轉漫畫圖片 MVP | 章節 → 可編輯分鏡 → 批次生成連續漫畫圖 | ComfyUI HTTP API / OpenAI-compatible image provider | 6 |
+| 語音朗讀          | 章節轉 TTS（支援多角色不同音色）        | Edge-TTS / ElevenLabs                  | 4     |
+| 漫畫 + TTS → 影片 | 連續漫畫圖 + AI 念稿 → 合成 mp4    | ffmpeg sidecar（Tauri 桌面）               | 6     |
 
 ---
 
@@ -21,27 +21,36 @@
 
 ---
 
-## 影片 Pipeline（Phase 6）
+## 漫畫圖片 MVP（Phase 6）
 
-> 強烈傾向**桌面版專屬**功能。Web 版可選擇降級或標示「請使用桌面版」。
+> 設計：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`  
+> MVP 先做「選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片」。TTS / 影片合成保留擴充點，後續獨立 spec。
 
 ```
 章節文本
-   ↓ LLM 拆鏡（提示工程）
-分鏡腳本（每鏡：構圖描述 + 對白 + 旁白）
-   ↓ 並行：
-   ├─→ 圖像 API → PNG（每鏡 1 張，或多張漸進演出）
-   └─→ TTS API → MP3（旁白 / 對白依角色配音）
+   ↓ novel-to-storyboard（章節 + 角色卡 + Wiki）
+可編輯分鏡（每格：構圖、角色、prompt、negative prompt、對白/旁白）
    ↓
-ffmpeg sidecar：圖片 + 音檔 + 轉場 → mp4
+ImageGenerationProvider
+   ├─→ ComfyUI HTTP API（本地）
+   └─→ OpenAI-compatible image API（線上）
    ↓
-存至 <project_folder>/media/chXX/video.mp4
+PNG / JPG / WEBP 圖片 + MediaAsset metadata
+   ↓
+漫畫預覽：單格重生、失敗重試、替換圖片、下載圖片包
 ```
+
+### 圖片模型支援
+
+- **Provider Adapter First**：pipeline 只依賴 `ImageGenerationProvider`，不直接綁單一模型。
+- **本地 MVP**：ComfyUI HTTP API，支援 workflow JSON、prompt / negative / seed / size node mapping、submit / poll / download。
+- **線上 MVP**：OpenAI-compatible image provider，支援自訂 endpoint / model / API key，回傳 image URL 或 base64 後 normalize。
+- **角色一致性**：必做 visual continuity bible；可選 reference image。provider 不支援 reference image 時降級為 prompt-only。
 
 ### 儲存規則
 
-- **metadata 進 SQLite**：分鏡描述、圖片/音檔 prompt、章節 ↔ 媒體 asset 關聯
-- **binary 進檔案系統**：`<project_folder>/media/chXX/panel-NN.png` / `audio-NN.mp3` / `video.mp4`
+- **metadata 進 SQLite**：ChapterComic、ComicPanel、MediaAsset、provider params、seed、錯誤狀態
+- **binary 進檔案系統**：`<project_folder>/media/chXX/panel-NN.png`
 - DB 不存大型 binary（避免膨脹）
 
 ### 為何走桌面

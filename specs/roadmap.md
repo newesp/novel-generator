@@ -24,9 +24,10 @@
 
 ---
 
-## Phase 2.5 — 結構強化（⚠️ 進行中：Lint ✅、Graph MVP ✅、Budget 動態 ✅ MVP）
+## Phase 2.5 — 結構強化（✅ MVP Complete / Advanced polish remaining）
 
-1. ⚠️ Graph 關係層（JSON 圖基礎 + 2-hop 查詢 ✅；事件因果 / 時間線 MVP ✅；進階事件抽取待補）→ 04-knowledge
+1. ✅ Graph 關係層 MVP（JSON 圖基礎 + 2-hop 查詢 ✅；事件因果 / 時間線 MVP ✅）→ 04-knowledge
+   - ⏳ Advanced polish：進階事件抽取、因果推理強化、時間線視覺化深化
 2. ✅ Context Budget Manager 動態版 MVP（Wiki 章節摘要注入 ✅；deterministic pick-pages ✅；摘要品質/重建 ✅）→ 07-context-budget
    - ✅ 2026-05-28：章節生成會從 Wiki `summary/ch-N` 組出 `olderChapterSummary`
    - ✅ 參考章節優先：已有全文時不重複塞同章摘要；無正文時用 Wiki summary 補位
@@ -36,6 +37,16 @@
    - 7 個 check：broken-link / orphan / alias-dup / summary-mismatch / unrecorded（hybrid） / wiki-contradict（LLM batch） / wiki-vs-chapter（LLM batch）
    - 所有 fix 走 `wiki_log` 補償，保留未來整批 undo 能力
    - LLM 修改建議 preview + 兩欄純文字 diff + 套用同步 metadata
+4. ✅ Wiki 存在完整性防線（2026-05-28）
+   - related refs sanitize、刪除 cascade、slug rename/canonicalize
+   - Wiki ingest 必建角色 entity guard：角色庫已有且本章出現但 Wiki 缺頁時，prompt 注入候選並在 LLM plan 漏掉時自動補 create op
+
+**Advanced polish remaining**
+- LLM pick-pages
+- 批次摘要重建排程
+- 摘要品質趨勢報表
+- Graph 進階事件抽取 / 因果推理深化
+- Lint 整批 undo UI
 
 ---
 
@@ -98,21 +109,28 @@ StorageAdapter / MediaAdapter (interface)
 
 ---
 
-## Phase 6 — 漫畫 + AI 念稿 + 影片生成（⏳ 規劃中，前置：Phase 5 ✅）
+## Phase 6 — 漫畫圖片 MVP（⏳ 設計完成，前置：Phase 5 ✅）
 
-> 目標：選擇章節 → 生成連續漫畫圖片 → 配 AI TTS → 合成影片（mp4）
+> 目標：選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片。  
+> 設計：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`  
+> TTS / 影片合成留後續獨立 spec，先只保留資料結構擴充點。
 
 ### 任務
 
-1. ❌ **`MediaAdapter` interface**（saveImage / saveAudio / renderVideo）
-2. ❌ **漫畫分鏡 pipeline**：章節文本 → LLM 拆鏡 → 各鏡呼叫圖像生成 API → 存檔
-3. ❌ **TTS pipeline**：章節旁白 / 對話拆段 → TTS API → 存檔（多角色不同音色可選）
-4. ❌ **影片合成**（Tauri 桌面端優先）：
-   - 桌面：呼叫 ffmpeg sidecar，組合圖片 + 音檔 + 轉場 → mp4
-   - Web：可選用 ffmpeg.wasm（慢但可用）或顯示「請使用桌面版」
-5. ❌ **UI 整合**：章節工具列「轉漫畫」「轉影片」按鈕；預覽 + 重新生成單一面板
+1. ❌ **Comic / Media 資料模型**：ChapterComic、ComicPanel、MediaAsset metadata；binary 不進 DB
+2. ❌ **ImageGenerationProvider interface**：Provider Adapter First，pipeline 不直接依賴單一模型
+3. ❌ **本地圖片模型**：ComfyUI HTTP API（workflow JSON + node mapping + submit/poll/download）
+4. ❌ **線上圖片模型**：OpenAI-compatible image provider（endpoint/model/API key）
+5. ❌ **漫畫分鏡 pipeline**：章節文本 + 角色卡 + Wiki → 可編輯 storyboard
+6. ❌ **UI 整合**：章節工具列「轉漫畫」→ storyboard editor → batch progress → comic preview
+7. ❌ **單格重生 / 失敗重試 / 圖片包下載**
 
 > 前置工作：`skills/novel-to-storyboard/` 已建立（分鏡 skill 骨架：SKILL.md + openai.yaml + 參考文件），可作為 Phase 6 設計起點。
+
+### 後續延伸
+
+- TTS pipeline：章節旁白 / 對話拆段 → TTS API → 存檔（多角色不同音色可選）
+- 影片合成：桌面呼叫 ffmpeg sidecar；Web 版以 ffmpeg.wasm 降級或提示桌面版
 
 ### 為何強烈傾向桌面
 
