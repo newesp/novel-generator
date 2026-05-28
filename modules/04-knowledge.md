@@ -2,7 +2,7 @@
 > - Phase 2 LLM Wiki（2026-05-18）— 規格 `docs/superpowers/specs/2026-05-17-llm-wiki-design.md`、計畫 `docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`
 > - Phase 2 FTS5 全文檢索（2026-05-28）— 規格 `docs/superpowers/specs/2026-05-26-fts5-search-design.md`、計畫 `docs/superpowers/plans/2026-05-26-fts5-search.md`
 > - Phase 2.5 #3 一致性 Lint（2026-05-19）— 規格 `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`、計畫 `docs/superpowers/plans/2026-05-19-consistency-lint.md`
-> - Phase 2.5 Graph JSON 基礎層（2026-05-28）— `src/lib/knowledge-graph.ts`，含 2-hop 查詢 UI；事件因果待補
+> - Phase 2.5 Graph JSON 基礎層（2026-05-28）— `src/lib/knowledge-graph.ts`，含 2-hop 查詢 UI；事件因果 / 時間線 MVP 已補
 >
 > 本檔（modules/04）保留為高層模組描述。
 
@@ -119,3 +119,9 @@ AI 提取章節關鍵資訊
     ↓
 下次生成時 → Context Budget Manager 自動載入相關 Wiki + FTS5 檢索結果
 ```
+
+## 問 Wiki（Phase 2.5 MVP，已實作 2026-05-28）
+
+- Wiki 面板提供「問 Wiki」入口。
+- 問題會先用 deterministic relevance selection 挑出相關 Wiki pages，再套用 `wikiQueryAnswerTemplate` 呼叫 LLM。
+- 回答要求標註 `type/slug`，若 Wiki 無相關內容需誠實說明。

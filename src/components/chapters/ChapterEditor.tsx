@@ -140,6 +140,7 @@ export function ChapterEditor() {
       bookId: chapter.projectId,
       contextWindowTokens: ctxWindow,
       budgetRatio: wikiPrefs.budgetRatio,
+      selectionMode: wikiPrefs.enablePickPages ? 'pick-pages' : 'auto',
       chapterContext: {
         title,
         points,

@@ -24,10 +24,14 @@
 
 ---
 
-## Phase 2.5 — 結構強化（⚠️ 進行中：Lint ✅、Graph MVP ✅、Budget 動態 ❌）
+## Phase 2.5 — 結構強化（⚠️ 進行中：Lint ✅、Graph MVP ✅、Budget 動態 ✅ MVP）
 
-1. ⚠️ Graph 關係層（JSON 圖基礎 + 2-hop 查詢 ✅；事件因果 ❌）→ 04-knowledge
-2. ❌ Context Budget Manager 動態版（摘要壓縮）→ 07-context-budget
+1. ⚠️ Graph 關係層（JSON 圖基礎 + 2-hop 查詢 ✅；事件因果 / 時間線 MVP ✅；進階事件抽取待補）→ 04-knowledge
+2. ✅ Context Budget Manager 動態版 MVP（Wiki 章節摘要注入 ✅；deterministic pick-pages ✅；摘要品質/重建 ✅）→ 07-context-budget
+   - ✅ 2026-05-28：章節生成會從 Wiki `summary/ch-N` 組出 `olderChapterSummary`
+   - ✅ 參考章節優先：已有全文時不重複塞同章摘要；無正文時用 Wiki summary 補位
+   - ✅ 2026-05-28：大型 Wiki 以 deterministic pick-pages 降級；Wiki Query UI 可直接問 Wiki
+   - ⏳ 待補：LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表
 3. ✅ 一致性 Lint（2026-05-19）→ `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`
    - 7 個 check：broken-link / orphan / alias-dup / summary-mismatch / unrecorded（hybrid） / wiki-contradict（LLM batch） / wiki-vs-chapter（LLM batch）
    - 所有 fix 走 `wiki_log` 補償，保留未來整批 undo 能力

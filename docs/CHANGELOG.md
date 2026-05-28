@@ -407,3 +407,9 @@ vite.config.ts                       # llmProxyPlugin（CORS 繞過）+ promptLo
 
 - 章節生成現在會從 Wiki `summary/ch-N` 自動組出 `olderChapterSummary`：近期摘要保留、遠期摘要依本章標題/要點/節拍/角色做輕量相關性挑選。
 - 既有「參考章節」仍是最高優先；若已載入參考章節全文，就不再重複塞同章摘要；若參考章節沒有正文，則以對應 Wiki 摘要補位。
+## 2026-05-28 - Phase 2.5 Context / Wiki / Graph MVP
+
+- Context Budget 新增 deterministic pick-pages：大型 Wiki 超出預算時會改用相關頁 + 近期 summary 的降級策略；設定中的 pick-pages 開關已可用。
+- Wiki 新增「問 Wiki」入口：依問題挑選相關 Wiki pages，使用既有 `wikiQueryAnswerTemplate` 呼叫 LLM 回答並標註來源。
+- Wiki 新增「摘要品質檢查」入口：檢查缺失、過短、標題不一致、缺少故事訊號的 `summary/ch-N`，可直接重建並更新 Wiki summary page / 寫入 `wiki_log`。
+- Knowledge Graph 新增 `event_sequence` / `causal_hint` / `timeline_reference` 邊，先用 summary 章序與因果關鍵詞建立時間線與因果 MVP。

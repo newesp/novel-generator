@@ -7,6 +7,8 @@ import { Input } from '../common/Input';
 import { WikiPageEditor } from './WikiPageEditor';
 import { LintReportModal } from '../lint/LintReportModal';
 import { KnowledgeGraphModal } from './KnowledgeGraphModal';
+import { SummaryQualityModal } from './SummaryQualityModal';
+import { WikiQueryModal } from './WikiQueryModal';
 import {
   buildSummaryRanges,
   compareWikiPagesForList,
@@ -24,7 +26,7 @@ const TYPE_LABELS: Record<WikiPageType, string> = {
 };
 
 export function WikiPanel() {
-  const { project, characters, loadCharacters } = useProjectStore();
+  const { project, chapters, characters, loadChapters, loadCharacters } = useProjectStore();
   const { pages, log, selectedPageId, totalLength, loadForBook, selectPage, createPageBlank } = useWikiStore();
   const { runLint, isRunning: lintRunning } = useLintStore();
   const [filter, setFilter] = useState('');
@@ -32,12 +34,15 @@ export function WikiPanel() {
   const [showNew, setShowNew] = useState(false);
   const [lintOpen, setLintOpen] = useState(false);
   const [graphOpen, setGraphOpen] = useState(false);
+  const [summaryQualityOpen, setSummaryQualityOpen] = useState(false);
+  const [queryOpen, setQueryOpen] = useState(false);
 
   useEffect(() => {
     if (!project) return;
     void loadForBook(project.id);
+    void loadChapters(project.id);
     void loadCharacters(project.id);
-  }, [project, loadForBook, loadCharacters]);
+  }, [project, loadForBook, loadChapters, loadCharacters]);
 
   const filtered = useMemo(() => {
     if (!filter.trim()) return pages;
@@ -85,6 +90,20 @@ export function WikiPanel() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <strong>📚 Wiki</strong>
           <div style={{ display: 'flex', gap: 6 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setQueryOpen(true)}
+              disabled={!project || pages.length === 0}
+              title="用目前 Wiki 內容回答問題"
+            >問 Wiki</Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setSummaryQualityOpen(true)}
+              disabled={!project}
+              title="檢查 summary/ch-N 品質並重建 Wiki 摘要"
+            >摘要品質</Button>
             <Button
               variant="secondary"
               size="sm"
@@ -242,6 +261,21 @@ export function WikiPanel() {
         onClose={() => setGraphOpen(false)}
         characters={characters}
         wikiPages={pages}
+      />
+      <SummaryQualityModal
+        open={summaryQualityOpen}
+        onClose={() => setSummaryQualityOpen(false)}
+        chapters={chapters}
+        characters={characters}
+        pages={pages}
+        onChanged={async () => {
+          if (project) await loadForBook(project.id);
+        }}
+      />
+      <WikiQueryModal
+        open={queryOpen}
+        onClose={() => setQueryOpen(false)}
+        pages={pages}
       />
     </div>
   );

@@ -57,10 +57,10 @@ npm run tauri build
 | [01-outline.md](modules/01-outline.md) | 大綱生成系統 | 1 | 00, 02, 07, 08 |
 | [02-characters.md](modules/02-characters.md) | 角色系統 | 2 | 00, 04 |
 | [03-chapters.md](modules/03-chapters.md) | 章節管理器 | 1 | 00, 04, 05, 07 |
-| [04-knowledge.md](modules/04-knowledge.md) | 知識管理（Wiki ✅ + FTS5 ✅ + Lint ✅ + Graph） | 2 / 2.5 | 00, 07 |
+| [04-knowledge.md](modules/04-knowledge.md) | 知識管理（Wiki ✅ + FTS5 ✅ + Lint ✅ + Graph / 問 Wiki ✅） | 2 / 2.5 | 00, 07 |
 | [05-versions.md](modules/05-versions.md) | 章節版本管理 | 1 | 00 |
 | [06-polish.md](modules/06-polish.md) | 內容潤色器 | 3 | 00, 08 |
-| [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager | 1 / 2.5 | 04 |
+| [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager（Wiki 摘要 + pick-pages + 摘要品質 ✅） | 1 / 2.5 | 04 |
 | [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM 適配層 | 1 / 2 | tech-stack |
 | [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎 | 4（選做） | 04, 07 |
 | [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成 | 4（選做） | 00, tech-stack |

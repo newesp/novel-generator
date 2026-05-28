@@ -21,11 +21,14 @@
 
 ---
 
-## 摘要壓縮策略（Phase 2.5）
+## 摘要壓縮策略（Phase 2.5，部分已實作）
 
-- 距離當前章節較遠的章節，自動以 AI 壓縮摘要取代全文（摘要長度約為原文 10-15%）
-- 摘要在章節「存入 Wiki」時同步生成並快取，避免每次生成時重複呼叫
-- 摘要存儲於章節資料結構的 `summary` 欄位
+- 已實作：從 Wiki `summary/ch-N` 頁面載入更早章節摘要並注入 `olderChapterSummary`
+- 已實作：參考章節全文優先；若參考章節沒有正文，才用對應 Wiki summary 補位
+- 已實作：摘要品質檢查與單章重建入口會更新 Wiki summary page，並寫入 `wiki_log`
+- 已實作：大型 Wiki 會以 deterministic pick-pages 進行降級，優先保留相關頁與近期 summary
+- 待補：LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表
+- 不新增 `Chapter.summary` 欄位；章節摘要維持存於 Wiki summary page
 
 ---
 
@@ -68,7 +71,7 @@
 | `chapterPoints` | 章節要點 |
 | `referenceChapterTitle` | 參考章節標題 |
 | `referenceChapterContent` | 參考章節正文（`referenceDepth` 控制截斷）|
-| `olderChapterSummary` | 更早章節摘要（Phase 2 由摘要引擎填入；Phase 1 傳空字串）|
+| `olderChapterSummary` | 更早章節摘要（由 Wiki `summary/ch-N` 產生；無可用摘要時傳空字串）|
 
 ### formatCharacters()
 

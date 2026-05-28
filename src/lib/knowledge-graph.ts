@@ -1,7 +1,13 @@
 import type { Character, WikiPage } from '../types';
 
 export type KnowledgeGraphNodeKind = 'character' | 'wikiPage';
-export type KnowledgeGraphEdgeType = 'character_relation' | 'wiki_related' | 'wiki_mention';
+export type KnowledgeGraphEdgeType =
+  | 'character_relation'
+  | 'wiki_related'
+  | 'wiki_mention'
+  | 'event_sequence'
+  | 'causal_hint'
+  | 'timeline_reference';
 
 export interface KnowledgeGraphNode {
   id: string;
@@ -94,6 +100,8 @@ export function buildKnowledgeGraph(input: BuildKnowledgeGraphInput): KnowledgeG
     }
   }
 
+  addTimelineAndCausalEdges(edges, wikiNodes);
+
   return { nodes, edges: [...edges.values()] };
 }
 
@@ -167,4 +175,58 @@ function addEdge(
 function mentionsWikiPage(text: string, page: WikiPage): boolean {
   if (text.includes(page.title)) return true;
   return page.aliases.some((alias) => alias && text.includes(alias));
+}
+
+function addTimelineAndCausalEdges(
+  edges: Map<string, KnowledgeGraphEdge>,
+  wikiNodes: Array<{ page: WikiPage; node: KnowledgeGraphNode }>,
+): void {
+  const summaries = wikiNodes
+    .filter((item) => item.page.type === 'summary')
+    .map((item) => ({ ...item, chapterNumber: summaryNumber(item.page.slug) }))
+    .filter((item): item is { page: WikiPage; node: KnowledgeGraphNode; chapterNumber: number } =>
+      item.chapterNumber !== null)
+    .sort((a, b) => a.chapterNumber - b.chapterNumber);
+
+  for (let i = 1; i < summaries.length; i += 1) {
+    const previous = summaries[i - 1];
+    const current = summaries[i];
+    addEdge(edges, previous.node.id, current.node.id, 'event_sequence', `Chapter ${previous.chapterNumber} -> ${current.chapterNumber}`);
+    if (hasCausalSignal(current.page.contentMd)) {
+      addEdge(edges, previous.node.id, current.node.id, 'causal_hint', extractCausalSentence(current.page.contentMd));
+    }
+  }
+
+  for (const source of wikiNodes) {
+    for (const target of summaries) {
+      if (source.node.id === target.node.id) continue;
+      if (mentionsChapter(source.page.contentMd, target.chapterNumber)) {
+        addEdge(edges, source.node.id, target.node.id, 'timeline_reference', `mentions chapter ${target.chapterNumber}`);
+      }
+    }
+  }
+}
+
+function summaryNumber(slug: string): number | null {
+  const match = /^ch-(\d+)$/i.exec(slug);
+  return match ? Number(match[1]) : null;
+}
+
+function hasCausalSignal(text: string): boolean {
+  return /(because|therefore|as a result|causes?|leads to|導致|因為|因此|所以|伏筆|揭露)/i.test(text);
+}
+
+function extractCausalSentence(text: string): string {
+  const sentence = text
+    .split(/(?<=[.!?。！？])\s+/)
+    .find(hasCausalSignal);
+  return sentence?.trim().slice(0, 240) || 'causal hint';
+}
+
+function mentionsChapter(text: string, chapterNumber: number): boolean {
+  const patterns = [
+    new RegExp(`chapter\\s*${chapterNumber}\\b`, 'i'),
+    new RegExp(`第\\s*${chapterNumber}\\s*章`),
+  ];
+  return patterns.some((pattern) => pattern.test(text));
 }

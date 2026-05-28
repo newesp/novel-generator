@@ -332,7 +332,6 @@ export function Toolbar() {
               <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <input
                   type="checkbox"
-                  disabled
                   checked={draftWiki.enablePickPages}
                   onChange={(e) => setDraftWiki({ ...draftWiki, enablePickPages: e.target.checked })}
                 />

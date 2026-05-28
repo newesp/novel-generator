@@ -120,4 +120,31 @@ describe('knowledge graph', () => {
       'character:c2->wiki:w1:wiki_mention',
     ]);
   });
+
+  it('adds timeline and causal edges between chapter summaries', () => {
+    const graph = buildKnowledgeGraph({
+      characters: [],
+      wikiPages: [
+        wikiPage({
+          id: 'w1',
+          type: 'summary',
+          slug: 'ch-1',
+          title: 'First',
+          contentMd: 'Aster hides the key and leaves a clue.',
+        }),
+        wikiPage({
+          id: 'w2',
+          type: 'summary',
+          slug: 'ch-2',
+          title: 'Second',
+          contentMd: 'Because of the clue, Mira opens the sealed gate.',
+        }),
+      ],
+    });
+
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ from: 'wiki:w1', to: 'wiki:w2', type: 'event_sequence' }),
+      expect.objectContaining({ from: 'wiki:w1', to: 'wiki:w2', type: 'causal_hint' }),
+    ]));
+  });
 });

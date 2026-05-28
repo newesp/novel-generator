@@ -200,7 +200,7 @@ Phase 2.5 導入，採用 JSON 圖結構存於 IndexedDB，完全在瀏覽器端
 生成章節 → 用戶點擊"存入 Wiki" → 
 AI 提取章節關鍵資訊 → 整理進 Wiki + 生成向量嵌入（Ollama） + 更新 Graph JSON →
 進行 Lint，找出矛盾、缺少交叉引用 →
-下次生成時 → Context Budget Manager 自動載入相關 Wiki + RAG 檢索結果
+下次生成時 → Context Budget Manager 自動載入相關 Wiki + FTS5 檢索結果 + Wiki 章節摘要
 ```
 
 **UI 設計：**
@@ -286,7 +286,11 @@ AI 提取章節關鍵資訊 → 整理進 Wiki + 生成向量嵌入（Ollama） 
 
 - 距離當前章節較遠的章節，自動以 AI 壓縮摘要取代全文（摘要長度約為原文 10-15%）
 - 摘要在章節「存入 Wiki」時同步生成並快取，避免每次生成時重複呼叫
-- 摘要存儲於章節資料結構的 `summary` 欄位
+- 已實作：生成章節時會從 Wiki `summary/ch-N` 頁面組出 `olderChapterSummary`，不新增 `Chapter.summary` 欄位
+- 參考章節仍最高優先：已有全文時放入 `referenceChapterContent` 並排除同章摘要；無正文時用 Wiki summary 補位
+- 已實作：摘要品質檢查與單章重建會更新 Wiki summary page，並寫入 `wiki_log`
+- 已實作：超大 Wiki 可使用 deterministic pick-pages 降級策略；Wiki Query UI 也共用相關頁挑選
+- 待補：LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表
 
 **動態調整機制：**
 
@@ -503,7 +507,7 @@ Context Budget Manager 計算可用 token 上限
 
 ### Phase 2.5 — 結構強化
 10. Graph 關係層（JSON 圖完整功能：多跳查詢、事件因果）
-11. Context Budget Manager 動態版（摘要壓縮、FTS5 整合）
+11. ✅ Context Budget Manager 動態版 MVP（Wiki 摘要注入 / deterministic pick-pages / 摘要品質檢查與重建）
 12. ✅ 一致性 Lint（2026-05-19）— 7 個 check：broken-link / orphan / alias-dup / summary-mismatch / unrecorded（hybrid）/ wiki-contradict（LLM）/ wiki-vs-chapter（LLM）；fix 走 wiki_log 補償。詳見 `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`
 
 ### Phase 3 — 輸出與體驗
