@@ -433,7 +433,7 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'points', desc: '章節要點' },
     { var: 'targetWords', desc: '目標字數（或「由你自行決定」）' },
     { var: 'referenceSection', desc: '參考章節區段（沒設參考章節則空）' },
-    { var: 'olderSummarySection', desc: '更早章節摘要區段（目前未實作，永遠為空）' },
+    { var: 'olderSummarySection', desc: '更早章節摘要區段（由 Wiki summary/ch-N 產生，無可用摘要時為空）' },
     { var: 'adjustInstructionSection', desc: '額外調整指令區段（目前未從 UI 傳入）' },
     { var: 'adjustInstructionRule', desc: '若有調整指令，第 1 條規則會附加「與用戶調整指令」' },
   ],

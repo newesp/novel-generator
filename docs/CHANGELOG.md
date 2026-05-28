@@ -403,3 +403,7 @@ vite.config.ts                       # llmProxyPlugin（CORS 繞過）+ promptLo
 714769d feat: Phase 1 implementation — full novel generator MVP
 03f43dc chore: initial commit
 ```
+## 2026-05-28 - Context Budget: Wiki summaries
+
+- 章節生成現在會從 Wiki `summary/ch-N` 自動組出 `olderChapterSummary`：近期摘要保留、遠期摘要依本章標題/要點/節拍/角色做輕量相關性挑選。
+- 既有「參考章節」仍是最高優先；若已載入參考章節全文，就不再重複塞同章摘要；若參考章節沒有正文，則以對應 Wiki 摘要補位。

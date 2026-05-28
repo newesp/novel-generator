@@ -11,6 +11,7 @@ import { complete, isLLMReady } from '../../lib/llm';
 import { allocateBudget, buildGenerationPrompt, formatCharacters } from '../../lib/context-budget';
 import { loadWikiForGeneration } from '../../lib/wiki-loader';
 import { formatWikiSection } from '../../lib/wiki-section';
+import { loadOlderChapterSummaryFromWiki } from '../../lib/wiki-summary-loader';
 import { logPromptToTemp } from '../../lib/prompt-log';
 import { regenerateChapterPoints } from '../../lib/ai-tasks';
 import { EditPreviewTabs, type EditPreviewMode } from '../common/EditPreviewTabs';
@@ -149,6 +150,16 @@ export function ChapterEditor() {
       },
     });
     const wikiSection = formatWikiSection(wikiResult);
+    const olderChapterSummary = await loadOlderChapterSummaryFromWiki({
+      bookId: chapter.projectId,
+      currentChapterOrder: chapter.order,
+      referenceChapterOrder: refChapter?.order,
+      referenceChapterHasFullContent: !!refChapter?.content.trim(),
+      title,
+      points,
+      beat,
+      characterNames: characters.map((c) => c.name),
+    });
 
     const allocation = allocateBudget({
       worldSetting: project?.worldSetting ?? '',
@@ -158,7 +169,7 @@ export function ChapterEditor() {
       chapterPoints: points,
       referenceChapterTitle: refChapter?.title ?? '',
       referenceChapterContent: refChapter?.content ?? '',
-      olderChapterSummary: '',
+      olderChapterSummary,
       wikiSection,
     });
 
