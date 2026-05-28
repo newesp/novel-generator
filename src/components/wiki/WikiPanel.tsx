@@ -6,6 +6,7 @@ import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { WikiPageEditor } from './WikiPageEditor';
 import { LintReportModal } from '../lint/LintReportModal';
+import { KnowledgeGraphModal } from './KnowledgeGraphModal';
 import {
   buildSummaryRanges,
   compareWikiPagesForList,
@@ -23,17 +24,20 @@ const TYPE_LABELS: Record<WikiPageType, string> = {
 };
 
 export function WikiPanel() {
-  const { project } = useProjectStore();
+  const { project, characters, loadCharacters } = useProjectStore();
   const { pages, log, selectedPageId, totalLength, loadForBook, selectPage, createPageBlank } = useWikiStore();
   const { runLint, isRunning: lintRunning } = useLintStore();
   const [filter, setFilter] = useState('');
   const [chapterJump, setChapterJump] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [lintOpen, setLintOpen] = useState(false);
+  const [graphOpen, setGraphOpen] = useState(false);
 
   useEffect(() => {
-    if (project) loadForBook(project.id);
-  }, [project, loadForBook]);
+    if (!project) return;
+    void loadForBook(project.id);
+    void loadCharacters(project.id);
+  }, [project, loadForBook, loadCharacters]);
 
   const filtered = useMemo(() => {
     if (!filter.trim()) return pages;
@@ -81,6 +85,13 @@ export function WikiPanel() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <strong>📚 Wiki</strong>
           <div style={{ display: 'flex', gap: 6 }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setGraphOpen(true)}
+              disabled={!project}
+              title="查詢角色與 Wiki 的 2-hop Graph 關聯"
+            >◎ Graph</Button>
             <Button
               variant="secondary"
               size="sm"
@@ -226,6 +237,12 @@ export function WikiPanel() {
       )}
 
       <LintReportModal open={lintOpen} onClose={() => setLintOpen(false)} />
+      <KnowledgeGraphModal
+        open={graphOpen}
+        onClose={() => setGraphOpen(false)}
+        characters={characters}
+        wikiPages={pages}
+      />
     </div>
   );
 }

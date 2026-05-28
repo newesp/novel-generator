@@ -2,6 +2,7 @@
 > - Phase 2 LLM Wiki（2026-05-18）— 規格 `docs/superpowers/specs/2026-05-17-llm-wiki-design.md`、計畫 `docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`
 > - Phase 2 FTS5 全文檢索（2026-05-28）— 規格 `docs/superpowers/specs/2026-05-26-fts5-search-design.md`、計畫 `docs/superpowers/plans/2026-05-26-fts5-search.md`
 > - Phase 2.5 #3 一致性 Lint（2026-05-19）— 規格 `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`、計畫 `docs/superpowers/plans/2026-05-19-consistency-lint.md`
+> - Phase 2.5 Graph JSON 基礎層（2026-05-28）— `src/lib/knowledge-graph.ts`，含 2-hop 查詢 UI；事件因果待補
 >
 > 本檔（modules/04）保留為高層模組描述。
 
@@ -79,7 +80,7 @@
 
 **核心功能：**
 - 人物關係網視覺化 MVP 已在角色分頁完成：從 `Character.relations` 推導角色連線，以 SVG circular layout 顯示；完整 Graph JSON 來源待本節後續實作
-- 基本多跳查詢（透過 JS 遍歷 JSON 圖）
+- 基本多跳查詢（✅ `knowledge-graph.ts`：characters + wiki pages → serializable graph；Wiki 分頁 `◎ Graph` 可查 2-hop neighborhood）
 - 提供 Critic Agent（Phase 4）結構化審核依據
 
 ---

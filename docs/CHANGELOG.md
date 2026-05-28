@@ -8,11 +8,13 @@
 - Wiki ingest create 會用 FTS5 從全書章節抓取最多 3 段相關片段，注入 `{{ftsExcerptsSection}}`，提升新 Wiki 頁跨章節脈絡
 - Wiki 列表 summary 頁改依 `ch-N` 數字排序；超過 50 章自動分段，並提供「跳到章節」輸入
 - 角色分頁新增「列表 / 關係圖」切換；關係圖從 `Character.relations` 推導角色連線，點節點可開啟角色編輯
+- Wiki 分頁新增 `◎ Graph` 查詢 modal，可用角色/Wiki 名稱查 2-hop 關聯節點與路徑
 
 **底層**
 - 沿用 `003_fts.sql`：`chapters_fts` / `wiki_pages_fts` virtual table、trigram tokenizer、trigger 同步與 backfill
 - 新增 `wiki-ingest-fts` helper 與單元測試
 - 新增 `character-graph` helper 與單元測試；先用 SVG circular layout，完整 Graph JSON 留 Phase 2.5
+- 新增 `knowledge-graph` helper 與單元測試：characters + wiki pages → serializable JSON graph，支援 label lookup 與 multi-hop neighborhood
 
 **驗證**
 - `vitest run`：44 tests passed

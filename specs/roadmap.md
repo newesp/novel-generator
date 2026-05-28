@@ -24,9 +24,9 @@
 
 ---
 
-## Phase 2.5 — 結構強化（⚠️ 進行中：Lint ✅、Graph ❌、Budget 動態 ❌）
+## Phase 2.5 — 結構強化（⚠️ 進行中：Lint ✅、Graph MVP ✅、Budget 動態 ❌）
 
-1. ❌ Graph 關係層（JSON 圖完整功能：多跳查詢、事件因果）→ 04-knowledge
+1. ⚠️ Graph 關係層（JSON 圖基礎 + 2-hop 查詢 ✅；事件因果 ❌）→ 04-knowledge
 2. ❌ Context Budget Manager 動態版（摘要壓縮）→ 07-context-budget
 3. ✅ 一致性 Lint（2026-05-19）→ `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`
    - 7 個 check：broken-link / orphan / alias-dup / summary-mismatch / unrecorded（hybrid） / wiki-contradict（LLM batch） / wiki-vs-chapter（LLM batch）
