@@ -23,6 +23,7 @@ import { complete } from './llm';
 import { renderTemplate } from './prompt-template';
 import { parseAndValidatePlan, type Plan, type PlanOp } from './wiki-plan';
 import { parseWikiPageMarkdown } from './wiki-parser';
+import { buildFtsExcerptsSection, buildFtsLookupQuery } from './wiki-ingest-fts';
 
 export interface IngestResult {
   batchId: string;
@@ -192,11 +193,28 @@ async function applyOneOp(
   let afterContent: string;
   try {
     if (op.action === 'create') {
+      let ftsExcerptsSection = '';
+      if (storage.search) {
+        try {
+          const query = buildFtsLookupQuery({
+            title: op.title,
+            aliases: op.aliases,
+            contentBrief: op.content_brief,
+          });
+          const hits = await storage.search.search(bookId, query, { scope: 'chapter', limit: 4 });
+          ftsExcerptsSection = buildFtsExcerptsSection(
+            hits.filter((hit) => hit.id !== chapter.id).slice(0, 3),
+          );
+        } catch (e) {
+          console.warn('FTS search failed during wiki ingest create; continuing without excerpts.', e);
+        }
+      }
       const prompt = renderTemplate(aiPrompts.wikiIngestCreateTemplate, {
         type: op.type, slug: op.slug, title: op.title,
         aliasesList: op.aliases.join('、') || '(無)',
         reason: op.reason, contentBrief: op.content_brief,
         chapterExcerpt,
+        ftsExcerptsSection,
       });
       afterContent = await complete(prompt, { maxTokens: 2048 });
     } else {

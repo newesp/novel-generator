@@ -1,6 +1,6 @@
 # 小說產生器（Novel Generator）
 
-> 版本：1.5（Phase 2 進行中）　更新：2026-05-12
+> 版本：1.6（Phase 2 進行中）　更新：2026-05-28
 
 本機瀏覽器 Web App，自動生成高品質中文小說，從大綱到正文完整流程；透過 **LLM Wiki + SQLite FTS5 全文檢索** 維持一致性。Multi-Agent 協作（Phase 4）為選配。
 
@@ -57,7 +57,7 @@ npm run tauri build
 | [01-outline.md](modules/01-outline.md) | 大綱生成系統 | 1 | 00, 02, 07, 08 |
 | [02-characters.md](modules/02-characters.md) | 角色系統 | 2 | 00, 04 |
 | [03-chapters.md](modules/03-chapters.md) | 章節管理器 | 1 | 00, 04, 05, 07 |
-| [04-knowledge.md](modules/04-knowledge.md) | 知識管理（Wiki ✅ + FTS5 + Lint ✅ + Graph） | 2 / 2.5 | 00, 07 |
+| [04-knowledge.md](modules/04-knowledge.md) | 知識管理（Wiki ✅ + FTS5 ✅ + Lint ✅ + Graph） | 2 / 2.5 | 00, 07 |
 | [05-versions.md](modules/05-versions.md) | 章節版本管理 | 1 | 00 |
 | [06-polish.md](modules/06-polish.md) | 內容潤色器 | 3 | 00, 08 |
 | [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager | 1 / 2.5 | 04 |

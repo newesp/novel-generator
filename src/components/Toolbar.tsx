@@ -21,12 +21,14 @@ import {
 } from '../lib/prompt-defaults';
 import { renderTemplate } from '../lib/prompt-template';
 import { buildLivePromptVars } from '../lib/prompt-preview';
+import { storage } from '../lib/storage';
 import { Button } from './common/Button';
 import { Modal } from './common/Modal';
 import { Input } from './common/Input';
 import { EditPreviewTabs, type EditPreviewMode } from './common/EditPreviewTabs';
 import { MarkdownView } from './common/MarkdownView';
 import { BackupModal } from './BackupModal';
+import { GlobalSearchModal } from './search/GlobalSearchModal';
 import type { LLMProvider } from '../types';
 
 /** 各 provider 的預設值，切換 provider 時自動套用（若使用者未填） */
@@ -68,6 +70,7 @@ export function Toolbar() {
   } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [activePrefsTab, setActivePrefsTab] = useState<PrefsTab>('llm');
   const [draftLlm, setDraftLlm] = useState(llmConfig);
   const [draftInline, setDraftInline] = useState(inlineEdit);
@@ -128,11 +131,15 @@ export function Toolbar() {
         )}
 
         <div className="toolbar-spacer" />
+        {view === 'editor' && project && storage.search && (
+          <Button variant="secondary" onClick={() => setShowSearchModal(true)}>🔎 全文搜尋</Button>
+        )}
         <Button variant="secondary" onClick={() => setShowBackupModal(true)}>💾 備份</Button>
         <Button variant="secondary" onClick={openPrefs}>⚙️ 偏好設定</Button>
       </div>
 
       <BackupModal open={showBackupModal} onClose={() => setShowBackupModal(false)} />
+      <GlobalSearchModal open={showSearchModal} onClose={() => setShowSearchModal(false)} />
 
       <Modal
         open={showPrefsModal}

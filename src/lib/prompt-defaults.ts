@@ -181,6 +181,7 @@ export const DEFAULT_WIKI_INGEST_CREATE_TEMPLATE = `根據以下資訊撰寫一�
 
 ## 本章節相關片段（資料來源）
 {{chapterExcerpt}}
+{{ftsExcerptsSection}}
 
 ## 輸出格式（嚴格遵守）
 
@@ -471,6 +472,7 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'reason', desc: '建立原因' },
     { var: 'contentBrief', desc: '內容 brief' },
     { var: 'chapterExcerpt', desc: '相關章節片段' },
+    { var: 'ftsExcerptsSection', desc: 'FTS 抓到的全書相關段落（Tauri-only；無命中為空字串）' },
   ],
   wikiIngestUpdateTemplate: [
     { var: 'type', desc: '頁面類型' },

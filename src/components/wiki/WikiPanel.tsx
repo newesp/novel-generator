@@ -6,6 +6,12 @@ import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { WikiPageEditor } from './WikiPageEditor';
 import { LintReportModal } from '../lint/LintReportModal';
+import {
+  buildSummaryRanges,
+  compareWikiPagesForList,
+  formatSummaryPageLabel,
+  getSummaryChapterNumber,
+} from '../../lib/wiki-list';
 import type { WikiPage, WikiPageType } from '../../types';
 
 const TYPE_LABELS: Record<WikiPageType, string> = {
@@ -21,6 +27,7 @@ export function WikiPanel() {
   const { pages, log, selectedPageId, totalLength, loadForBook, selectPage, createPageBlank } = useWikiStore();
   const { runLint, isRunning: lintRunning } = useLintStore();
   const [filter, setFilter] = useState('');
+  const [chapterJump, setChapterJump] = useState('');
   const [showNew, setShowNew] = useState(false);
   const [lintOpen, setLintOpen] = useState(false);
 
@@ -47,10 +54,24 @@ export function WikiPanel() {
       synthesis: [],
     };
     for (const p of filtered) out[p.type].push(p);
+    for (const type of Object.keys(out) as WikiPageType[]) {
+      out[type].sort(compareWikiPagesForList);
+    }
     return out;
   }, [filtered]);
 
   const selected = pages.find((p) => p.id === selectedPageId) ?? null;
+  const summaryRanges = useMemo(() => buildSummaryRanges(grouped.summary), [grouped.summary]);
+
+  const jumpToChapter = () => {
+    const chapterNumber = parseInt(chapterJump, 10);
+    if (!Number.isFinite(chapterNumber) || chapterNumber <= 0) return;
+    const target = pages.find((p) => p.type === 'summary' && getSummaryChapterNumber(p) === chapterNumber);
+    if (!target) return;
+    setFilter('');
+    setChapterJump('');
+    selectPage(target.id);
+  };
 
   if (!project) return null;
 
@@ -81,6 +102,20 @@ export function WikiPanel() {
             style={{ width: '100%' }}
           />
         </div>
+        {pages.some((p) => p.type === 'summary') && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            <Input
+              placeholder="跳到章節 #"
+              value={chapterJump}
+              onChange={(e) => setChapterJump(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={(e) => { if (e.key === 'Enter') jumpToChapter(); }}
+              style={{ width: '100%' }}
+            />
+            <Button variant="secondary" size="sm" onClick={jumpToChapter} disabled={!chapterJump.trim()}>
+              跳
+            </Button>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
@@ -99,27 +134,42 @@ export function WikiPanel() {
                 }}>
                   {TYPE_LABELS[type]} ({arr.length})
                 </div>
-                {arr.map((p) => {
-                  const isSelected = selectedPageId === p.id;
-                  return (
-                    <div
+                {type === 'summary' && arr.length > 50 ? (
+                  summaryRanges.map((range) => {
+                    const hasSelected = range.pages.some((p) => p.id === selectedPageId);
+                    return (
+                      <details key={range.key} open={hasSelected || range.start === 1}>
+                        <summary style={{
+                          padding: '7px 12px',
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          color: 'var(--text-secondary)',
+                          background: 'var(--bg-secondary)',
+                          borderTop: '1px solid var(--border, #333)',
+                        }}>
+                          {range.label} ({range.pages.length})
+                        </summary>
+                        {range.pages.map((p) => (
+                          <WikiListItem
+                            key={p.id}
+                            page={p}
+                            selected={selectedPageId === p.id}
+                            onSelect={() => selectPage(p.id)}
+                          />
+                        ))}
+                      </details>
+                    );
+                  })
+                ) : (
+                  arr.map((p) => (
+                    <WikiListItem
                       key={p.id}
-                      onClick={() => selectPage(p.id)}
-                      style={{
-                        padding: '6px 12px 6px 9px',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        background: isSelected ? 'var(--accent-bg)' : 'transparent',
-                        borderLeft: isSelected ? '3px solid var(--accent)' : '3px solid transparent',
-                        color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        fontWeight: isSelected ? 600 : 400,
-                      }}
-                    >
-                      {p.title}
-                      <div style={{ fontSize: 11, color: 'var(--text-tertiary, #888)', fontWeight: 400 }}>{p.slug}</div>
-                    </div>
-                  );
-                })}
+                      page={p}
+                      selected={selectedPageId === p.id}
+                      onSelect={() => selectPage(p.id)}
+                    />
+                  ))
+                )}
               </div>
             );
           })}
@@ -176,6 +226,37 @@ export function WikiPanel() {
       )}
 
       <LintReportModal open={lintOpen} onClose={() => setLintOpen(false)} />
+    </div>
+  );
+}
+
+function WikiListItem({ page, selected, onSelect }: {
+  page: WikiPage;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const title = page.type === 'summary' ? formatSummaryPageLabel(page) : page.title;
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        padding: '6px 12px 6px 9px',
+        cursor: 'pointer',
+        fontSize: 13,
+        background: selected ? 'var(--accent-bg)' : 'transparent',
+        borderLeft: selected ? '3px solid var(--accent)' : '3px solid transparent',
+        color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
+        fontWeight: selected ? 600 : 400,
+      }}
+    >
+      <div style={{
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}>
+        {title}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-tertiary, #888)', fontWeight: 400 }}>{page.slug}</div>
     </div>
   );
 }

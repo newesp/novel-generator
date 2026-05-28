@@ -34,3 +34,26 @@
 - 僅讀 main 分支；版本合併後將摘要存入 `docs/CHANGELOG.md`。
 - Phase 1 優先「能跑的最小版本」，品質可日後迭代。
 - 技術棧現況（權威來源是 `package.json`）：React 19 / TypeScript strict / Vite 8 / Zustand 5 / Dexie 4 / Tauri 2.x（桌面殼層） / tauri-plugin-sql（SQLite） / 自製 UI 元件（無 shadcn、無 Tailwind，使用 CSS variables）。
+
+
+## Pre-handoff self-review
+
+### Before writing code
+
+1. Establish the review range (`BASE_SHA..HEAD_SHA`) and confirm it matches this PR's intended changes.
+2. Read at least 2 sibling modules before inventing structure. Adopt their guardrails unless there's a documented reason to differ.
+### During implementation
+
+3. Verify external API, SDK, runtime-version, and config assumptions via official docs or real tool calls. Mark anything unverified as `[unverified]`.
+4. Ask before proceeding on unverified assumptions that affect correctness, security, or data; otherwise document them explicitly.
+### Before requesting human review
+
+5. Run the project's real build, lint, and test commands. Include the actual command output, or the relevant passing summary / failing lines when output is long.
+6. Remove dead code: unused files, exports, enum members, fields written but never read, and stale comments.
+7. Keep docs aligned with actual behavior.
+8. Keep one PR focused on one concern.
+9. Scan the diff for secrets, PII, and customer-identifiable data.
+10. Smoke-test the actual runtime path against test/staging endpoints. Do not use production side-effecting endpoints unless explicitly approved.
+11. Run a self-review workflow. If Superpowers is available, use the `requesting-code-review` skill to dispatch parallel reviewers for (1) correctness & logic, (2) security & performance, (3) maintainability + naming + file locations. Fix all Critical and Important findings, then re-dispatch until they return zero Critical and zero Important. If Superpowers is not available, perform the same three review passes manually or with the available agent tooling.
+12. If this is your own PR branch, squash noisy iteration commits into meaningful commits before handoff. Force-push only to your fork/branch, never upstream/shared branches.
+13. Post a self-review report: commands run, outputs or summaries, reviewer findings, fixes made, and deferred items with reasons.

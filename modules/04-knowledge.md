@@ -1,5 +1,6 @@
 > **已實作：**
 > - Phase 2 LLM Wiki（2026-05-18）— 規格 `docs/superpowers/specs/2026-05-17-llm-wiki-design.md`、計畫 `docs/superpowers/plans/2026-05-17-llm-wiki-phase-2.md`
+> - Phase 2 FTS5 全文檢索（2026-05-28）— 規格 `docs/superpowers/specs/2026-05-26-fts5-search-design.md`、計畫 `docs/superpowers/plans/2026-05-26-fts5-search.md`
 > - Phase 2.5 #3 一致性 Lint（2026-05-19）— 規格 `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`、計畫 `docs/superpowers/plans/2026-05-19-consistency-lint.md`
 >
 > 本檔（modules/04）保留為高層模組描述。
@@ -45,14 +46,14 @@
 
 ## 全文檢索（SQLite FTS5）
 
-走 SQLite 內建 FTS5 + bigram tokenizer，毫秒級延遲，零新增依賴，與既有 `.db` 共存。原規劃的 Vector RAG（Ollama embedding + LanceDB）已放棄：Wiki 層已覆蓋概念導向檢索的核心需求，剩餘對白/伏筆/物品出處等定點查詢用 FTS5 更直接。未來真有 vector 需求改用 sqlite-vec，不引入 Ollama / LanceDB。
+走 SQLite 內建 FTS5 + trigram tokenizer，毫秒級延遲，零新增依賴，與既有 `.db` 共存。原規劃的 Vector RAG（Ollama embedding + LanceDB）已放棄：Wiki 層已覆蓋概念導向檢索的核心需求，剩餘對白/伏筆/物品出處等定點查詢用 FTS5 更直接。未來真有 vector 需求改用 sqlite-vec，不引入 Ollama / LanceDB。
 
 | 項目 | 說明 |
 |------|------|
 | 索引引擎 | SQLite FTS5（`tauri-plugin-sql`，桌面版；Phase 7 Web 版走 wa-sqlite + OPFS） |
-| 分詞 | bigram tokenizer（適合中文，無需外部斷詞器） |
-| 觸發時機 | 章節寫入 / 更新時同步重建該章索引 |
-| 檢索時機 | 生成新章節前，Context Budget Manager 以關鍵字檢索相關段落 |
+| 分詞 | trigram tokenizer（適合中文，無需外部斷詞器） |
+| 觸發時機 | `chapters` / `wiki_pages` 寫入、更新、刪除時由 SQLite trigger 同步索引 |
+| 檢索時機 | 工具列全域搜尋；Wiki ingest create 時補全書相關章節片段 |
 
 ---
 

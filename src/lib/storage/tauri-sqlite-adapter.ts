@@ -42,6 +42,7 @@ import {
   type WikiPageRow,
   type WikiLogRow,
 } from './sqlite-helpers';
+import { createFtsSearchStore } from '../search/fts-tauri';
 
 const DB_URL = 'sqlite:novel-generator.db';
 
@@ -500,5 +501,6 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
 export const tauriSqliteAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
   wikiPages, wikiLog,
+  search: createFtsSearchStore(getDb),
   replaceAll,
 };

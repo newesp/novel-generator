@@ -14,6 +14,7 @@ import type {
   Project, Chapter, ChapterVersion, Character,
   WikiPage, WikiLogEntry, WikiPageType,
 } from '../../types';
+import type { SearchStore } from '../search/types';
 
 export interface ProjectStore {
   /** 依 updatedAt 由新到舊排列（首頁書庫用） */
@@ -112,6 +113,8 @@ export interface StorageAdapter {
   appMeta: AppMetaStore;
   wikiPages: WikiPagesStore;
   wikiLog: WikiLogStore;
+  /** Tauri-only FTS5 search store. Browser/Dexie adapter leaves this undefined. */
+  search?: SearchStore;
 
   /**
    * 原子性清空再寫入（給 backup importSnapshot 用）

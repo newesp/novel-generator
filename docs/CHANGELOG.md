@@ -1,5 +1,25 @@
 # 開發日誌
 
+## 2026-05-28 — Phase 2: SQLite FTS5 全文檢索
+
+**新增功能**
+- Tauri SQLite adapter 掛上 optional `storage.search`，桌面版啟用 FTS5；Dexie/Web 版維持 undefined 並自動隱藏 UI
+- 工具列新增「🔎 全文搜尋」modal，可搜尋章節與 Wiki，結果支援 snippet 高亮並可跳到章節或 Wiki 頁
+- Wiki ingest create 會用 FTS5 從全書章節抓取最多 3 段相關片段，注入 `{{ftsExcerptsSection}}`，提升新 Wiki 頁跨章節脈絡
+- Wiki 列表 summary 頁改依 `ch-N` 數字排序；超過 50 章自動分段，並提供「跳到章節」輸入
+
+**底層**
+- 沿用 `003_fts.sql`：`chapters_fts` / `wiki_pages_fts` virtual table、trigram tokenizer、trigger 同步與 backfill
+- 新增 `wiki-ingest-fts` helper 與單元測試
+
+**驗證**
+- `vitest run`：44 tests passed
+- `tsc -b`：passed
+- `vite build`：passed（仍有既有 chunk size warning）
+- 針對新增 FTS 檔案執行 ESLint：passed；全專案 ESLint 仍受既有檔案與 `src-tauri/target` 產物影響
+
+---
+
 ## 2026-05-19 — Phase 2.5 Part 1: 一致性 Lint
 
 完整實作 Phase 2.5 #3（spec：`docs/superpowers/specs/2026-05-19-consistency-lint-design.md`，經 codex review 後修訂；plan：`docs/superpowers/plans/2026-05-19-consistency-lint.md`，16 個 task）。
