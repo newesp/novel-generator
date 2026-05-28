@@ -25,6 +25,11 @@ import { parseAndValidatePlan, type Plan, type PlanOp } from './wiki-plan';
 import { parseWikiPageMarkdown } from './wiki-parser';
 import { buildFtsExcerptsSection, buildFtsLookupQuery } from './wiki-ingest-fts';
 import { sanitizeWikiRelatedRefs } from './wiki-related-sanitize';
+import {
+  ensureRequiredCharacterEntityOps,
+  findRequiredCharacterEntities,
+  formatRequiredCharacterEntitiesForPrompt,
+} from './wiki-character-entities';
 
 export interface IngestResult {
   batchId: string;
@@ -54,6 +59,12 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
     null, 2,
   );
   const knownCharactersList = allChars.map((c) => c.name).filter(Boolean).join('、') || '(無)';
+  const requiredCharacterEntities = findRequiredCharacterEntities({
+    chapterContent: chapter.content,
+    characters: allChars,
+    pages: allPages,
+  });
+  const requiredEntityCandidatesJson = formatRequiredCharacterEntitiesForPrompt(requiredCharacterEntities);
 
   // [2] Plan
   // 章節序號 — 給 summary slug 避免衝突（spec §4.2 規則 3）
@@ -70,6 +81,7 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
     chapterContent: chapter.content,
     chapterOrdinal: String(chapterOrdinal),
     chapterSummarySlug,
+    requiredEntityCandidatesJson,
   });
 
   let planRaw: string;
@@ -83,11 +95,17 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
   for (const p of allPages) existing.set(`${p.type}/${p.slug}`, p);
   let plan: Plan;
   try {
-    plan = parseAndValidatePlan(planRaw, { existing });
+    plan = ensureRequiredCharacterEntityOps({
+      plan: parseAndValidatePlan(planRaw, { existing }),
+      required: requiredCharacterEntities,
+    });
   } catch {
     // 重試 1 次（spec §4.4）
     planRaw = await complete(planPrompt + '\n\n（重要：請只輸出嚴格 JSON）', { maxTokens: 2048 });
-    plan = parseAndValidatePlan(planRaw, { existing });
+    plan = ensureRequiredCharacterEntityOps({
+      plan: parseAndValidatePlan(planRaw, { existing }),
+      required: requiredCharacterEntities,
+    });
   }
   const plannedKeys = new Set(plan.operations.map((op) => `${op.type}/${op.slug}`));
 
@@ -350,7 +368,9 @@ function withWikiPlanSafetyRules(template: string): string {
 
 ## 系統補充規則（不可忽略）
 - 「已知角色」只代表角色庫已有資料，不代表 Wiki entity 已存在。若當前 Wiki 索引沒有該角色的 entity，本章又提供足夠資訊，請建立 entity；只有 Wiki 索引已存在該 entity 時才使用 update。
-- 若要在 Related 建立關聯，必須同時在 operations 中建立/更新該目標頁，或目標頁已存在於當前 Wiki 索引。`;
+- 若要在 Related 建立關聯，必須同時在 operations 中建立/更新該目標頁，或目標頁已存在於當前 Wiki 索引。
+- 以下角色是程式已判定「角色庫已有、本章出現、但 Wiki entity 不存在」的必建候選；除非候選明顯錯誤，operations 必須包含對應 create entity。若你漏掉，系統會自動補上。
+{{requiredEntityCandidatesJson}}`;
 }
 
 function withWikiRelatedSafetyRules(template: string): string {
