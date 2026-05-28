@@ -3,6 +3,8 @@ import { v4 as uuid } from 'uuid';
 import { storage } from '../lib/storage';
 import type { Project, Chapter, ChapterVersion, Character } from '../types';
 import { recomputeChapterSyncStatus } from '../lib/wiki-ingest';
+import { deleteWikiPageCascade } from '../lib/wiki-mutations';
+import { summarySlugForChapter } from '../lib/wiki-summary-quality';
 
 interface ProjectState {
   books: Project[];
@@ -131,6 +133,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   deleteChapter: async (id) => {
+    const chapter = get().chapters.find((c) => c.id === id);
+    if (chapter) {
+      const summaryPage = await storage.wikiPages.findBySlug(
+        chapter.projectId,
+        'summary',
+        summarySlugForChapter(chapter),
+      );
+      if (summaryPage) {
+        await deleteWikiPageCascade({ pageId: summaryPage.id, source: `chapter-delete:${id}` });
+      }
+    }
     await storage.chapters.delete(id);
     await storage.versions.deleteByChapter(id);
     set({ chapters: get().chapters.filter((c) => c.id !== id) });

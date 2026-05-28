@@ -38,7 +38,7 @@ describe('broken link check', () => {
       page({
         id: 'tie-bi',
         slug: 'tie-bi',
-        contentMd: '> **Related:** [艾莉亞](../entity/ai-li-ya), [阿飛](../entity/a-fei)',
+        contentMd: '> **Related:** [艾莉亞](../entity/ai-li-ya.md), [阿飛](../entity/a-fei)',
       }),
       page({ id: 'a-fei', slug: 'a-fei', title: '阿飛' }),
     ]));

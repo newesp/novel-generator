@@ -2,7 +2,7 @@ import { v4 as uuid } from 'uuid';
 import { complete } from '../llm';
 import { renderTemplate } from '../prompt-template';
 import { storage } from '../storage';
-import { parseWikiPageMarkdown } from '../wiki-parser';
+import { updateWikiPageWithIntegrity } from '../wiki-mutations';
 import type { WikiPage, WikiLogEntry, WikiPageSnapshot, WikiPageType } from '../../types';
 import type { AIPromptPrefs } from '../../stores/settingsStore';
 import type { LintIssue } from './types';
@@ -60,46 +60,16 @@ export async function applyLlmFix(args: {
   checkId: string;
   lintBatchId: string;
 }): Promise<{ status: 'ok' | 'failed'; error?: string }> {
-  const { bookId, page, newMarkdown, checkId, lintBatchId } = args;
-  const now = Date.now();
-  const logId = uuid();
-
-  // 解析新 markdown 取出 title / aliases / relatedSlugs（沿用 wiki-ingest 同款邏輯）
-  // 確保 LLM 在 markdown H1 改了標題後，WikiPage.title 等 metadata 也同步
-  const parsed = parseWikiPageMarkdown(newMarkdown, page.title);
-  const afterPage: WikiPage = {
-    ...page,
-    title: parsed.title || page.title,
-    aliases: parsed.aliases.length ? parsed.aliases : page.aliases,
-    relatedSlugs: parsed.relatedSlugs.length ? parsed.relatedSlugs : page.relatedSlugs,
-    description: parsed.fallbackDescription || page.description,
-    contentMd: parsed.contentMd,
-    updatedAt: now,
-  };
-
-  const okLog: WikiLogEntry = {
-    id: logId, bookId, batchId: lintBatchId, appliedAt: now,
-    kind: 'update',
-    opStatus: 'ok',
-    pageId: page.id,
-    pageType: page.type, pageSlug: page.slug,
-    pageSnapshotBefore: page as WikiPageSnapshot,
-    pageSnapshotAfter: afterPage as WikiPageSnapshot,
-    source: `lint:${checkId}`,
-    summary: `~${page.type}/${page.slug} (lint:${checkId})`,
-  };
-
+  const { page, newMarkdown, checkId, lintBatchId } = args;
   try {
-    await storage.wikiLog.add(okLog);
-  } catch (e) {
-    return { status: 'failed', error: `wiki_log insert 失敗：${(e as Error).message}` };
-  }
-
-  try {
-    await storage.wikiPages.update(afterPage);
+    await updateWikiPageWithIntegrity({
+      page: { ...page, contentMd: newMarkdown },
+      source: `lint:${checkId}`,
+      summary: `~${page.type}/${page.slug} (lint:${checkId})`,
+      batchId: lintBatchId,
+    });
     return { status: 'ok' };
   } catch (e) {
-    await storage.wikiLog.updateStatus(okLog.id, 'failed', (e as Error).message);
     return { status: 'failed', error: (e as Error).message };
   }
 }

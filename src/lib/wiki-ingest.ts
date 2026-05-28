@@ -24,6 +24,7 @@ import { renderTemplate } from './prompt-template';
 import { parseAndValidatePlan, type Plan, type PlanOp } from './wiki-plan';
 import { parseWikiPageMarkdown } from './wiki-parser';
 import { buildFtsExcerptsSection, buildFtsLookupQuery } from './wiki-ingest-fts';
+import { sanitizeWikiRelatedRefs } from './wiki-related-sanitize';
 
 export interface IngestResult {
   batchId: string;
@@ -61,7 +62,7 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
   const chapterSummarySlug = `ch-${chapterOrdinal}`;
 
   const aiPrompts = useSettingsStore.getState().aiPrompts;
-  const planPrompt = renderTemplate(aiPrompts.wikiIngestPlanTemplate, {
+  const planPrompt = renderTemplate(withWikiPlanSafetyRules(aiPrompts.wikiIngestPlanTemplate), {
     indexCount: String(allPages.length),
     indexJson,
     knownCharactersList,
@@ -71,11 +72,11 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
     chapterSummarySlug,
   });
 
-  let planRaw = '';
+  let planRaw: string;
   try {
     planRaw = await complete(planPrompt, { maxTokens: 2048 });
   } catch (e) {
-    throw new Error(`Plan LLM 呼叫失敗：${(e as Error).message}`);
+    throw new Error(`Plan LLM 呼叫失敗：${(e as Error).message}`, { cause: e });
   }
 
   const existing = new Map<string, WikiPage>();
@@ -83,11 +84,12 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
   let plan: Plan;
   try {
     plan = parseAndValidatePlan(planRaw, { existing });
-  } catch (_e) {
+  } catch {
     // 重試 1 次（spec §4.4）
     planRaw = await complete(planPrompt + '\n\n（重要：請只輸出嚴格 JSON）', { maxTokens: 2048 });
     plan = parseAndValidatePlan(planRaw, { existing });
   }
+  const plannedKeys = new Set(plan.operations.map((op) => `${op.type}/${op.slug}`));
 
   // [3]+[4] Apply each op
   const logEntries: WikiLogEntry[] = [];
@@ -95,7 +97,7 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
   let failedCount = 0;
 
   for (const op of plan.operations) {
-    const opResult = await applyOneOp(bookId, chapter, op, batchId, aiPrompts, existing);
+    const opResult = await applyOneOp(bookId, chapter, op, batchId, aiPrompts, existing, plannedKeys);
     logEntries.push(opResult.logEntry);
     if (opResult.logEntry.opStatus === 'ok') okCount++;
     else failedCount++;
@@ -147,7 +149,8 @@ export async function retryRemaining(chapter: Chapter, batchId: string): Promise
           change_brief: oldLog.errorMessage ?? '重試',
         };
 
-    const r = await applyOneOp(bookId, chapter, op, batchId, aiPrompts, existing);
+    const plannedKeys = new Set([...existing.keys(), `${op.type}/${op.slug}`]);
+    const r = await applyOneOp(bookId, chapter, op, batchId, aiPrompts, existing, plannedKeys);
     logEntries.push(r.logEntry);
     if (r.logEntry.opStatus === 'ok') {
       await storage.wikiLog.updateStatus(oldLog.id, 'undone');
@@ -177,6 +180,7 @@ async function applyOneOp(
   bookId: string, chapter: Chapter, op: PlanOp, batchId: string,
   aiPrompts: ReturnType<typeof useSettingsStore.getState>['aiPrompts'],
   existing: Map<string, WikiPage>,
+  plannedKeys: Set<string>,
 ): Promise<ApplyResult> {
   const now = Date.now();
   const logId = uuid();
@@ -186,6 +190,10 @@ async function applyOneOp(
   const summary = op.action === 'create'
     ? `+${op.type}/${op.slug}`
     : `~${op.type}/${op.slug}`;
+  const allowedRelatedRefsList = [...new Set([...existing.keys(), ...plannedKeys, key])]
+    .sort()
+    .map((ref) => `- ${ref}`)
+    .join('\n') || '- (none)';
 
   // chapter excerpt（前 4k 字）
   const chapterExcerpt = chapter.content.slice(0, 4000);
@@ -209,23 +217,25 @@ async function applyOneOp(
           console.warn('FTS search failed during wiki ingest create; continuing without excerpts.', e);
         }
       }
-      const prompt = renderTemplate(aiPrompts.wikiIngestCreateTemplate, {
+      const prompt = renderTemplate(withWikiRelatedSafetyRules(aiPrompts.wikiIngestCreateTemplate), {
         type: op.type, slug: op.slug, title: op.title,
         aliasesList: op.aliases.join('、') || '(無)',
         reason: op.reason, contentBrief: op.content_brief,
         chapterExcerpt,
         ftsExcerptsSection,
+        allowedRelatedRefsList,
       });
       afterContent = await complete(prompt, { maxTokens: 2048 });
     } else {
       if (!beforePage) {
         throw new Error('update 但既有頁不存在（不該發生，校驗會降級）');
       }
-      const prompt = renderTemplate(aiPrompts.wikiIngestUpdateTemplate, {
+      const prompt = renderTemplate(withWikiRelatedSafetyRules(aiPrompts.wikiIngestUpdateTemplate), {
         type: op.type, slug: op.slug,
         existingMarkdown: beforePage.contentMd,
         reason: op.reason, changeBrief: op.change_brief,
         chapterExcerpt,
+        allowedRelatedRefsList,
       });
       afterContent = await complete(prompt, { maxTokens: 2048 });
     }
@@ -248,6 +258,12 @@ async function applyOneOp(
 
   // 解析 Apply 輸出
   const parsed = parseWikiPageMarkdown(afterContent, op.action === 'create' ? op.title : beforePage!.title);
+  const allowedRefs = new Set([...existing.keys(), ...plannedKeys, key]);
+  const sanitized = sanitizeWikiRelatedRefs({
+    markdown: parsed.contentMd,
+    relatedSlugs: parsed.relatedSlugs,
+    allowedRefs,
+  });
   const description = op.action === 'create' && op.description
     ? op.description
     : parsed.fallbackDescription;
@@ -259,18 +275,18 @@ async function applyOneOp(
           ...beforePage,
           title: parsed.title || op.title,
           aliases: parsed.aliases.length ? parsed.aliases : op.aliases,
-          relatedSlugs: parsed.relatedSlugs,
+          relatedSlugs: sanitized.relatedSlugs,
           description,
-          contentMd: parsed.contentMd,
+          contentMd: sanitized.contentMd,
           updatedAt: now,
         }
       : {
           id: uuid(), bookId, type: op.type, slug: op.slug,
           title: parsed.title || op.title,
           aliases: parsed.aliases.length ? parsed.aliases : op.aliases,
-          relatedSlugs: parsed.relatedSlugs,
+          relatedSlugs: sanitized.relatedSlugs,
           description,
-          contentMd: parsed.contentMd,
+          contentMd: sanitized.contentMd,
           createdAt: now, updatedAt: now,
         };
   } else {
@@ -279,9 +295,9 @@ async function applyOneOp(
       ...beforePage!,
       title: parsed.title || beforePage!.title,
       aliases: parsed.aliases.length ? parsed.aliases : beforePage!.aliases,
-      relatedSlugs: parsed.relatedSlugs,
+      relatedSlugs: sanitized.relatedSlugs,
       description,
-      contentMd: parsed.contentMd,
+      contentMd: sanitized.contentMd,
       updatedAt: now,
     };
   }
@@ -327,6 +343,22 @@ async function sha1Hex(text: string): Promise<string> {
   const enc = new TextEncoder().encode(text);
   const buf = await crypto.subtle.digest('SHA-1', enc);
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function withWikiPlanSafetyRules(template: string): string {
+  return `${template}
+
+## 系統補充規則（不可忽略）
+- 「已知角色」只代表角色庫已有資料，不代表 Wiki entity 已存在。若當前 Wiki 索引沒有該角色的 entity，本章又提供足夠資訊，請建立 entity；只有 Wiki 索引已存在該 entity 時才使用 update。
+- 若要在 Related 建立關聯，必須同時在 operations 中建立/更新該目標頁，或目標頁已存在於當前 Wiki 索引。`;
+}
+
+function withWikiRelatedSafetyRules(template: string): string {
+  return `${template}
+
+## 系統補充規則（不可忽略）
+Related 只能使用以下 type/slug 目標；沒有合適目標就省略 Related 整行。連結格式必須是 \`../type/slug\`，不要加 \`.md\`。
+{{allowedRelatedRefsList}}`;
 }
 
 // 給 UI 用：判斷章節是否該標 stale（spec §3.2）

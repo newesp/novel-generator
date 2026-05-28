@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 import type { Chapter, Character, WikiLogEntry, WikiPage } from '../types';
 import { complete } from './llm';
 import { storage } from './storage';
+import { normalizeWikiPageForSave } from './wiki-mutations';
 import { summarySlugForChapter } from './wiki-summary-quality';
 
 export interface RebuildSummaryResult {
@@ -46,7 +47,7 @@ export async function rebuildChapterSummary(input: {
   const prompt = buildSummaryRebuildPrompt({ chapter: input.chapter, charactersList });
   const contentMd = await complete(prompt, { maxTokens: 1600, temperature: 0.3 });
   const action: 'create' | 'update' = before ? 'update' : 'create';
-  const page: WikiPage = before
+  const draftPage: WikiPage = before
     ? {
         ...before,
         title: input.chapter.title,
@@ -67,6 +68,12 @@ export async function rebuildChapterSummary(input: {
         createdAt: now,
         updatedAt: now,
       };
+  const pages = await storage.wikiPages.list(input.chapter.projectId);
+  const page = normalizeWikiPageForSave({
+    page: draftPage,
+    pages: before ? pages.map((p) => p.id === draftPage.id ? draftPage : p) : [...pages, draftPage],
+    now,
+  });
 
   if (before) await storage.wikiPages.update(page);
   else await storage.wikiPages.add(page);

@@ -3,6 +3,7 @@ import { v4 as uuid } from 'uuid';
 import { storage } from '../lib/storage';
 import type { WikiPage, WikiPageType, WikiLogEntry } from '../types';
 import { renameWikiSlugInPages } from '../lib/wiki-slug-rename';
+import { deleteWikiPageCascade, updateWikiPageWithIntegrity } from '../lib/wiki-mutations';
 
 interface WikiState {
   pages: WikiPage[];
@@ -51,14 +52,22 @@ export const useWikiStore = create<WikiState>((set, get) => ({
       createdAt: now,
       updatedAt: now,
     };
-    await storage.wikiPages.add(page);
+    await updateWikiPageWithIntegrity({
+      page,
+      source: 'manual:create',
+      summary: `+${type}/${slug}`,
+    });
     await get().loadForBook(bookId);
     return id;
   },
 
   savePage: async (page) => {
-    await storage.wikiPages.update({ ...page, updatedAt: Date.now() });
-    await get().loadForBook(page.bookId);
+    const saved = await updateWikiPageWithIntegrity({
+      page,
+      source: 'manual:save',
+      summary: `~${page.type}/${page.slug}`,
+    });
+    await get().loadForBook(saved.bookId);
   },
 
   renamePageSlug: async (id, newSlug) => {
@@ -107,7 +116,7 @@ export const useWikiStore = create<WikiState>((set, get) => ({
   deletePage: async (id) => {
     const page = get().pages.find((p) => p.id === id);
     if (!page) return;
-    await storage.wikiPages.delete(id);
+    await deleteWikiPageCascade({ pageId: id, source: 'manual:delete' });
     await get().loadForBook(page.bookId);
   },
 }));

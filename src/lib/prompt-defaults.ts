@@ -154,7 +154,7 @@ export const DEFAULT_WIKI_INGEST_PLAN_TEMPLATE = `你是這本中文小說 Wiki 
 
 ## 規則
 1. **不要對已存在的 slug 做 create**（會自動降級為 update，但會浪費 token）。
-2. **不要為「已知角色」清單中已有的角色，新建 entity 頁**——除非本章首次給出值得單獨成頁的細節（用 update 補充更好）。
+2. **已知角色不代表已有 Wiki entity**：若角色庫已有角色、但「當前 Wiki 索引」沒有對應 entity，本章又出現足夠資訊，應建立 entity 頁；只有當 Wiki 索引已存在該 entity 時才用 update。
 3. **不要把章節摘要做為 entity**；章節摘要請用 type=summary、slug = 上方「章節摘要建議 slug」（\`{{chapterSummarySlug}}\`）。**絕對不要把每章的 summary 都叫 \`ch-1\`**。
 4. **章節摘要 (\`summary/{{chapterSummarySlug}}\`) 的 \`title\` 欄位必須完全等於本章 title（即「{{chapterTitle}}」），不要加「第 N 章：」「Chapter N -」「Ch.N」之類前綴**——之後章節改名重新 ingest 時 lint 才能正確對齊。description 與 content_brief 可自由發揮。
 5. unrecorded_characters 是本章出現、但**不在已知角色清單也不在 wiki 中**的人物（不論 entity 是否要建頁）。
@@ -185,14 +185,14 @@ export const DEFAULT_WIKI_INGEST_CREATE_TEMPLATE = `根據以下資訊撰寫一�
 
 ## 輸出格式（嚴格遵守）
 
-第一行 H1 為顯示標題；接著 \`> \` blockquote 含 Type/Aliases/Related（無 related 可省略 Related 整行）；空一行後正文 ## 段落；最後 \`## 出處\` 段標註來源章節。範例：
+第一行 H1 為顯示標題；接著 \`> \` blockquote 含 Type/Aliases/Related（無 related 可省略 Related 整行）；Related 只能連到已存在或本次計畫會建立的 Wiki 頁，且連結格式用 \`../type/slug\`，不要加 \`.md\`；空一行後正文 ## 段落；最後 \`## 出處\` 段標註來源章節。範例：
 
 \`\`\`markdown
 # <顯示標題>
 
 > **Type:** {{type}}
 > **Aliases:** {{aliasesList}}
-> **Related:** [其他頁](../entity/other.md)
+> **Related:** [其他頁](../entity/other)
 
 ## 概述
 

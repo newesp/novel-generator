@@ -81,7 +81,8 @@ function parseWikiHref(href: string): { type: WikiPageType; slug: string } | nul
     .replace(/\\/g, '/')
     .replace(/^\.?\//, '')
     .replace(/^\.\.\//, '')
-    .replace(/[#?].*$/, '');
+    .replace(/[#?].*$/, '')
+    .replace(/\.md$/i, '');
   const match = /^(concept|entity|summary|compare|synthesis)\/([a-z0-9-]+)$/i.exec(normalized);
   if (!match) return null;
   return { type: match[1].toLowerCase() as WikiPageType, slug: match[2] };
