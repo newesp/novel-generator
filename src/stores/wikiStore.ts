@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuid } from 'uuid';
 import { storage } from '../lib/storage';
 import type { WikiPage, WikiPageType, WikiLogEntry } from '../types';
+import { renameWikiSlugInPages } from '../lib/wiki-slug-rename';
 
 interface WikiState {
   pages: WikiPage[];
@@ -13,6 +14,7 @@ interface WikiState {
   selectPage: (id: string | null) => void;
   createPageBlank: (bookId: string, type: WikiPageType, slug: string, title: string) => Promise<string>;
   savePage: (page: WikiPage) => Promise<void>;
+  renamePageSlug: (id: string, newSlug: string) => Promise<void>;
   deletePage: (id: string) => Promise<void>;
 }
 
@@ -57,6 +59,49 @@ export const useWikiStore = create<WikiState>((set, get) => ({
   savePage: async (page) => {
     await storage.wikiPages.update({ ...page, updatedAt: Date.now() });
     await get().loadForBook(page.bookId);
+  },
+
+  renamePageSlug: async (id, newSlug) => {
+    const selected = get().pages.find((p) => p.id === id) ?? await storage.wikiPages.get(id);
+    if (!selected) throw new Error(`Wiki page not found: ${id}`);
+
+    const pages = await storage.wikiPages.list(selected.bookId);
+    const plan = renameWikiSlugInPages({ pages, pageId: id, newSlug });
+    if (plan.changedPages.length === 0) {
+      set({ selectedPageId: id });
+      return;
+    }
+
+    const beforeById = new Map(pages.map((page) => [page.id, page]));
+    const batchId = uuid();
+    const appliedAt = Date.now();
+
+    for (const afterPage of plan.changedPages) {
+      const beforePage = beforeById.get(afterPage.id) ?? null;
+      const isTarget = afterPage.id === id;
+      const logEntry: WikiLogEntry = {
+        id: uuid(),
+        bookId: afterPage.bookId,
+        batchId,
+        appliedAt,
+        kind: 'update',
+        opStatus: 'ok',
+        pageId: afterPage.id,
+        pageType: afterPage.type,
+        pageSlug: afterPage.slug,
+        pageSnapshotBefore: beforePage,
+        pageSnapshotAfter: afterPage,
+        source: `slug-rename:${id}`,
+        summary: isTarget
+          ? `~${plan.oldRef.type}/${plan.oldRef.slug} -> ${plan.newRef.type}/${plan.newRef.slug}`
+          : `~${afterPage.type}/${afterPage.slug} rewrite refs ${plan.oldRef.type}/${plan.oldRef.slug} -> ${plan.newRef.type}/${plan.newRef.slug}`,
+      };
+      await storage.wikiLog.add(logEntry);
+      await storage.wikiPages.update(afterPage);
+    }
+
+    await get().loadForBook(plan.bookId);
+    set({ selectedPageId: id });
   },
 
   deletePage: async (id) => {

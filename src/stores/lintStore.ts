@@ -8,6 +8,7 @@ import {
   type LlmFixSuggestion,
 } from '../lib/lint/llm-fix';
 import { useSettingsStore } from './settingsStore';
+import { useWikiStore } from './wikiStore';
 import type { LintIssue, LintReport } from '../lib/lint/types';
 
 interface LintState {
@@ -19,16 +20,18 @@ interface LintState {
   userDirections: Record<string, string>;
   /** issueId → 已產生的 LLM fix 建議（套用前留存） */
   fixSuggestions: Record<string, LlmFixSuggestion>;
+  fixTargetPageIds: Record<string, string>;
   /** issueId → 正在生成建議 / 套用中 flag */
   busyIssueIds: Set<string>;
 
   runLint: (bookId: string) => Promise<void>;
   cancel: () => void;
   setUserDirection: (issueId: string, value: string) => void;
+  setFixTargetPageId: (issueId: string, pageId: string) => void;
 
   applyAutoFix: (issue: LintIssue) => Promise<void>;
   generateFix: (issue: LintIssue) => Promise<void>;
-  applyLlmFix: (issue: LintIssue) => Promise<void>;
+  applyLlmFix: (issue: LintIssue, editedMarkdown?: string) => Promise<void>;
   dismiss: (issueId: string) => void;
   discardSuggestion: (issueId: string) => void;
 }
@@ -40,6 +43,7 @@ export const useLintStore = create<LintState>((set, get) => ({
   controller: null,
   userDirections: {},
   fixSuggestions: {},
+  fixTargetPageIds: {},
   busyIssueIds: new Set(),
 
   runLint: async (bookId) => {
@@ -51,6 +55,7 @@ export const useLintStore = create<LintState>((set, get) => ({
       controller,
       userDirections: {},
       fixSuggestions: {},
+      fixTargetPageIds: {},
       busyIssueIds: new Set(),
     });
     try {
@@ -73,14 +78,39 @@ export const useLintStore = create<LintState>((set, get) => ({
     set((s) => ({ userDirections: { ...s.userDirections, [issueId]: value } }));
   },
 
+  setFixTargetPageId: (issueId, pageId) => {
+    set((s) => ({ fixTargetPageIds: { ...s.fixTargetPageIds, [issueId]: pageId } }));
+  },
+
   applyAutoFix: async (issue) => {
     const report = get().report;
     if (!report) return;
-    if (issue.fix?.kind !== 'removeRelatedSlug') return;
+    if (!issue.fix || (issue.fix.kind !== 'removeRelatedSlug' && issue.fix.kind !== 'renameWikiSlug')) return;
     const fix = issue.fix;
 
     const busy = new Set(get().busyIssueIds); busy.add(issue.id);
     set({ busyIssueIds: busy });
+
+    if (fix.kind === 'renameWikiSlug') {
+      try {
+        await useWikiStore.getState().renamePageSlug(fix.pageId, fix.newSlug);
+      } catch (e) {
+        alert(`Slug 重命名失敗：${(e as Error).message}`);
+        busy.delete(issue.id);
+        set({ busyIssueIds: new Set(busy) });
+        return;
+      }
+
+      busy.delete(issue.id);
+      const updated = report.issues.map((i) =>
+        i.id === issue.id ? { ...i, status: 'applied' as const } : i,
+      );
+      set({
+        report: { ...report, issues: updated },
+        busyIssueIds: new Set(busy),
+      });
+      return;
+    }
 
     const pages = await storage.wikiPages.list(report.bookId);
     const page = pages.find((p) => p.id === fix.pageId);
@@ -108,6 +138,7 @@ export const useLintStore = create<LintState>((set, get) => ({
     const updated = report.issues.map((i) =>
       i.id === issue.id ? { ...i, status: 'applied' as const } : i,
     );
+    await useWikiStore.getState().loadForBook(report.bookId);
     set({
       report: { ...report, issues: updated },
       busyIssueIds: new Set(busy),
@@ -126,7 +157,13 @@ export const useLintStore = create<LintState>((set, get) => ({
       const pages = await storage.wikiPages.list(report.bookId);
       const direction = get().userDirections[issue.id] ?? '';
       const aiPrompts = useSettingsStore.getState().aiPrompts;
-      const suggestion = await generateFixSuggestion(issue, pages, aiPrompts, direction);
+      const suggestion = await generateFixSuggestion(
+        issue,
+        pages,
+        aiPrompts,
+        direction,
+        get().fixTargetPageIds[issue.id],
+      );
       set((s) => ({ fixSuggestions: { ...s.fixSuggestions, [issue.id]: suggestion } }));
     } catch (e) {
       alert(`生成建議失敗：${(e as Error).message}`);
@@ -136,7 +173,7 @@ export const useLintStore = create<LintState>((set, get) => ({
     }
   },
 
-  applyLlmFix: async (issue) => {
+  applyLlmFix: async (issue, editedMarkdown) => {
     const report = get().report;
     if (!report) return;
     const suggestion = get().fixSuggestions[issue.id];
@@ -157,7 +194,7 @@ export const useLintStore = create<LintState>((set, get) => ({
     const result = await applyLlmFixCore({
       bookId: report.bookId,
       page,
-      newMarkdown: suggestion.newMarkdown,
+      newMarkdown: editedMarkdown ?? suggestion.newMarkdown,
       checkId: issue.checkId,
       lintBatchId: report.lintBatchId,
     });
@@ -180,11 +217,14 @@ export const useLintStore = create<LintState>((set, get) => ({
     delete newSuggestions[issue.id];
     const newDirections = { ...get().userDirections };
     delete newDirections[issue.id];
+    const newFixTargetPageIds = { ...get().fixTargetPageIds };
+    delete newFixTargetPageIds[issue.id];
 
     set({
       report: { ...report, issues: updated },
       fixSuggestions: newSuggestions,
       userDirections: newDirections,
+      fixTargetPageIds: newFixTargetPageIds,
       busyIssueIds: busy2,
     });
   },

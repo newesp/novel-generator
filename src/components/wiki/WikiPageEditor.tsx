@@ -4,19 +4,17 @@ import { useWikiStore } from '../../stores/wikiStore';
 import { Button } from '../common/Button';
 
 export function WikiPageEditor({ page }: { page: WikiPage }) {
-  const { savePage, deletePage } = useWikiStore();
+  return <WikiPageEditorContent key={`${page.id}:${page.updatedAt}`} page={page} />;
+}
+
+function WikiPageEditorContent({ page }: { page: WikiPage }) {
+  const { savePage, deletePage, renamePageSlug } = useWikiStore();
   const [draftTitle, setDraftTitle] = useState(page.title);
   const [draftAliases, setDraftAliases] = useState(page.aliases.join('、'));
   const [draftContent, setDraftContent] = useState(page.contentMd);
   const [dirty, setDirty] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-
-  useEffect(() => {
-    setDraftTitle(page.title);
-    setDraftAliases(page.aliases.join('、'));
-    setDraftContent(page.contentMd);
-    setDirty(false);
-  }, [page.id, page.title, page.aliases, page.contentMd]);
+  const [renamingSlug, setRenamingSlug] = useState(false);
 
   // ESC 退出全屏
   useEffect(() => {
@@ -42,6 +40,30 @@ export function WikiPageEditor({ page }: { page: WikiPage }) {
     await deletePage(page.id);
   };
 
+  const onRenameSlug = async () => {
+    if (dirty) {
+      alert('請先儲存目前編輯內容，再重命名 slug。');
+      return;
+    }
+
+    const next = prompt(`重命名 ${page.type}/${page.slug}`, page.slug);
+    if (next === null) return;
+
+    const newSlug = next.trim().toLowerCase();
+    if (!newSlug || newSlug === page.slug) return;
+
+    if (!confirm(`將 ${page.type}/${page.slug} 改成 ${page.type}/${newSlug}，並同步更新所有 Wiki 內部引用？`)) return;
+
+    setRenamingSlug(true);
+    try {
+      await renamePageSlug(page.id, newSlug);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setRenamingSlug(false);
+    }
+  };
+
   const containerStyle: React.CSSProperties = fullscreen
     ? {
         position: 'fixed', inset: 0, zIndex: 150,
@@ -64,15 +86,20 @@ export function WikiPageEditor({ page }: { page: WikiPage }) {
       }}>
         {/* 第 1 列：type/slug + 全屏 */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <div
-            style={{
-              fontSize: 11, color: 'var(--text-tertiary, #888)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              fontFamily: 'var(--font-mono, monospace)',
-            }}
-            title="slug 不可直接修改（其他頁的 relatedSlugs 引用會失效）。需要的話請刪除後重建。"
-          >
-            {page.type} / {page.slug}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 11, color: 'var(--text-tertiary, #888)',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                fontFamily: 'var(--font-mono, monospace)',
+              }}
+              title="slug 可透過重命名同步更新所有 Wiki 內部引用。"
+            >
+              {page.type} / {page.slug}
+            </div>
+            <Button variant="secondary" onClick={onRenameSlug} disabled={renamingSlug} style={{ padding: '2px 8px', fontSize: 11, flex: '0 0 auto' }}>
+              {renamingSlug ? '重命名中...' : '重命名 slug'}
+            </Button>
           </div>
           {fullscreen ? (
             <Button variant="secondary" onClick={() => setFullscreen(false)}>✕ 收起 (Esc)</Button>

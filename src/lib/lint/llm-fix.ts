@@ -14,6 +14,7 @@ export interface LlmFixSuggestion {
   originalMarkdown: string;
   /** 被修改的頁 id */
   targetPageId: string;
+  targetLabel: string;
 }
 
 /** 對單一 issue 召喚 LLM 修改建議。失敗時拋例外。 */
@@ -22,9 +23,11 @@ export async function generateFixSuggestion(
   pages: WikiPage[],
   aiPrompts: AIPromptPrefs,
   userDirection: string,
+  preferredTargetPageId?: string,
   signal?: AbortSignal,
 ): Promise<LlmFixSuggestion> {
-  const wikiTarget = issue.targets.find((t) => t.kind === 'wikiPage');
+  const wikiTargets = issue.targets.filter((t) => t.kind === 'wikiPage');
+  const wikiTarget = wikiTargets.find((t) => t.id === preferredTargetPageId) ?? wikiTargets[0];
   if (!wikiTarget) throw new Error('Issue 沒有 wikiPage target，無法產生修改建議');
   const page = pages.find((p) => p.id === wikiTarget.id);
   if (!page) throw new Error(`找不到對應 wiki page id=${wikiTarget.id}`);
@@ -43,6 +46,7 @@ export async function generateFixSuggestion(
     newMarkdown,
     originalMarkdown: page.contentMd,
     targetPageId: page.id,
+    targetLabel: `${page.type}/${page.slug}`,
   };
 }
 
@@ -118,6 +122,7 @@ export async function applyRemoveRelatedSlug(args: {
     relatedSlugs: page.relatedSlugs.filter(
       (r) => !(r.type === removeTarget.type && r.slug === removeTarget.slug),
     ),
+    contentMd: removeMarkdownLinksToTarget(page.contentMd, removeTarget),
     updatedAt: now,
   };
 
@@ -146,4 +151,29 @@ export async function applyRemoveRelatedSlug(args: {
     await storage.wikiLog.updateStatus(okLog.id, 'failed', (e as Error).message);
     return { status: 'failed', error: (e as Error).message };
   }
+}
+
+function removeMarkdownLinksToTarget(
+  markdown: string,
+  target: { type: WikiPageType; slug: string },
+): string {
+  const linkRe = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const cleaned = markdown.replace(linkRe, (full, _label: string, href: string) => {
+    return hrefTargetsPage(href, target) ? '' : full;
+  });
+  return cleaned
+    .replace(/[ \t]*,[ \t]*,[ \t]*/g, ', ')
+    .replace(/([（(>]\s*)[,，]\s*/g, '$1')
+    .replace(/[ \t]*[,，][ \t]*(\r?\n|$)/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
+function hrefTargetsPage(href: string, target: { type: WikiPageType; slug: string }): boolean {
+  const normalized = href
+    .replace(/\\/g, '/')
+    .replace(/^\.?\//, '')
+    .replace(/^\.\.\//, '')
+    .replace(/[#?].*$/, '')
+    .toLowerCase();
+  return normalized === `${target.type}/${target.slug}`.toLowerCase();
 }

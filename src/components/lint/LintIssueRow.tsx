@@ -17,6 +17,7 @@ interface Props {
 export function LintIssueRow({ issue }: Props) {
   const {
     userDirections, setUserDirection,
+    fixTargetPageIds, setFixTargetPageId,
     busyIssueIds, fixSuggestions,
     applyAutoFix, generateFix, dismiss,
   } = useLintStore();
@@ -26,6 +27,8 @@ export function LintIssueRow({ issue }: Props) {
   const busy = busyIssueIds.has(issue.id);
   const direction = userDirections[issue.id] ?? '';
   const previewOpen = !!fixSuggestions[issue.id];
+  const wikiTargets = issue.targets.filter((target) => target.kind === 'wikiPage');
+  const selectedFixTargetId = fixTargetPageIds[issue.id] ?? wikiTargets[0]?.id ?? '';
 
   const isApplied = issue.status === 'applied';
   const isDismissed = issue.status === 'dismissed';
@@ -59,6 +62,11 @@ export function LintIssueRow({ issue }: Props) {
               🔧 一鍵移除
             </Button>
           )}
+          {!isStruck && issue.fix?.kind === 'renameWikiSlug' && (
+            <Button variant="secondary" size="sm" onClick={() => applyAutoFix(issue)} disabled={busy}>
+              重命名 slug
+            </Button>
+          )}
           {!isStruck && issue.fix?.kind === 'llm' && (
             <Button variant="secondary" size="sm" onClick={() => setExpanded((v) => !v)}>
               ✏️ 修改 {expanded ? '▴' : '▾'}
@@ -77,6 +85,29 @@ export function LintIssueRow({ issue }: Props) {
           <div style={{ fontSize: 12, marginBottom: 4 }}>
             修改方向（可留白，留白則由 AI 自行判斷）：
           </div>
+          {wikiTargets.length > 1 && (
+            <label style={{ display: 'block', fontSize: 12, marginBottom: 6 }}>
+              套用到
+              <select
+                className="form-input"
+                value={selectedFixTargetId}
+                onChange={(e) => setFixTargetPageId(issue.id, e.target.value)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  marginTop: 4,
+                  padding: 6,
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                {wikiTargets.map((target) => (
+                  <option key={target.id} value={target.id}>{target.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
           <textarea
             className="form-textarea"
             value={direction}

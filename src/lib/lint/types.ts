@@ -16,6 +16,10 @@ export type AutoFix = {
   kind: 'removeRelatedSlug';
   pageId: string;
   target: { type: WikiPageType; slug: string };
+} | {
+  kind: 'renameWikiSlug';
+  pageId: string;
+  newSlug: string;
 };
 
 export interface LlmFixHint {
