@@ -53,9 +53,10 @@ const PROVIDER_LABELS: Record<LLMProvider, string> = {
 };
 
 /** 偏好設定 Modal 的分頁 */
-type PrefsTab = 'llm' | 'inline' | 'ai-prompts' | 'wiki';
+type PrefsTab = 'llm' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
 const PREFS_TABS: { key: PrefsTab; label: string }[] = [
   { key: 'llm',        label: '🔑 LLM API' },
+  { key: 'image',      label: '🖼 圖片生成' },
   { key: 'inline',     label: '✨ 選取調整' },
   { key: 'ai-prompts', label: '📜 AI 提示詞' },
   { key: 'wiki',       label: '📚 Wiki 設定' },
@@ -65,8 +66,8 @@ export function Toolbar() {
   const { project } = useProjectStore();
   const { view, setView } = useUIStore();
   const {
-    llmConfig, inlineEdit, aiPrompts, wikiPrefs, lintPrefs,
-    setLlmConfig, setInlineEdit, setAiPrompts, setWikiPrefs, setLintPrefs,
+    llmConfig, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs,
+    setLlmConfig, setInlineEdit, setAiPrompts, setWikiPrefs, setImageGenerationPrefs, setLintPrefs,
   } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -76,6 +77,7 @@ export function Toolbar() {
   const [draftInline, setDraftInline] = useState(inlineEdit);
   const [draftPrompts, setDraftPrompts] = useState(aiPrompts);
   const [draftWiki, setDraftWiki] = useState(wikiPrefs);
+  const [draftImage, setDraftImage] = useState(imageGenerationPrefs);
   const [draftLint, setDraftLint] = useState(lintPrefs);
   const [activePromptKey, setActivePromptKey] = useState<keyof AIPromptPrefs>('chapterDraftsTemplate');
   const [promptViewMode, setPromptViewMode] = useState<EditPreviewMode>('edit');
@@ -88,6 +90,7 @@ export function Toolbar() {
     setDraftInline(inlineEdit);
     setDraftPrompts(aiPrompts);
     setDraftWiki(wikiPrefs);
+    setDraftImage(imageGenerationPrefs);
     setDraftLint(lintPrefs);
     setActivePrefsTab('llm');
     setActivePromptKey('chapterDraftsTemplate');
@@ -101,6 +104,7 @@ export function Toolbar() {
     setInlineEdit(draftInline);
     setAiPrompts(draftPrompts);
     setWikiPrefs(draftWiki);
+    setImageGenerationPrefs(draftImage);
     setLintPrefs(draftLint);
     setShowPrefsModal(false);
   };
@@ -145,7 +149,7 @@ export function Toolbar() {
         open={showPrefsModal}
         onClose={() => setShowPrefsModal(false)}
         title="⚙️ 偏好設定"
-        width={580}
+        width={720}
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowPrefsModal(false)}>取消</Button>
@@ -234,6 +238,179 @@ export function Toolbar() {
                 ? '從 console.x.ai 取得 API Key。常用模型：grok-2-latest、grok-2-1212、grok-beta。Grok 走 OpenAI-compatible 介面。'
                 : '支援 OpenAI-compatible API（OpenAI、NVIDIA、本機 Ollama 等）。'}
             </p>
+          </div>
+        )}
+
+        {/* —— 圖片生成 —— */}
+        {activePrefsTab === 'image' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div>
+              <label className="form-label">圖片 Provider</label>
+              <select
+                className="form-input"
+                value={draftImage.providerId}
+                onChange={(e) => setDraftImage({
+                  ...draftImage,
+                  providerId: e.target.value as 'comfyui' | 'openai-compatible-image',
+                })}
+              >
+                <option value="comfyui">ComfyUI HTTP API</option>
+                <option value="openai-compatible-image">OpenAI-compatible Image</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <Input
+                label="預設寬度"
+                type="number"
+                value={String(draftImage.width)}
+                onChange={(e) => setDraftImage({ ...draftImage, width: Number(e.target.value) || 1024 })}
+              />
+              <Input
+                label="預設高度"
+                type="number"
+                value={String(draftImage.height)}
+                onChange={(e) => setDraftImage({ ...draftImage, height: Number(e.target.value) || 1024 })}
+              />
+            </div>
+
+            <Input
+              label="預設漫畫風格"
+              value={draftImage.stylePreset}
+              onChange={(e) => setDraftImage({ ...draftImage, stylePreset: e.target.value })}
+            />
+
+            <Input
+              label="預設分鏡格數"
+              type="number"
+              value={String(draftImage.targetPanelCount)}
+              onChange={(e) => setDraftImage({ ...draftImage, targetPanelCount: Number(e.target.value) || 8 })}
+            />
+
+            {draftImage.providerId === 'comfyui' ? (
+              <>
+                <Input
+                  label="ComfyUI Base URL"
+                  value={draftImage.comfyui.baseUrl}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    comfyui: { ...draftImage.comfyui, baseUrl: e.target.value },
+                  })}
+                />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <Input
+                    label="Prompt node"
+                    value={draftImage.comfyui.promptNodeId}
+                    onChange={(e) => setDraftImage({
+                      ...draftImage,
+                      comfyui: { ...draftImage.comfyui, promptNodeId: e.target.value },
+                    })}
+                  />
+                  <Input
+                    label="Negative node"
+                    value={draftImage.comfyui.negativePromptNodeId}
+                    onChange={(e) => setDraftImage({
+                      ...draftImage,
+                      comfyui: { ...draftImage.comfyui, negativePromptNodeId: e.target.value },
+                    })}
+                  />
+                  <Input
+                    label="Seed node"
+                    value={draftImage.comfyui.seedNodeId}
+                    onChange={(e) => setDraftImage({
+                      ...draftImage,
+                      comfyui: { ...draftImage.comfyui, seedNodeId: e.target.value },
+                    })}
+                  />
+                  <Input
+                    label="Width node"
+                    value={draftImage.comfyui.widthNodeId}
+                    onChange={(e) => setDraftImage({
+                      ...draftImage,
+                      comfyui: { ...draftImage.comfyui, widthNodeId: e.target.value },
+                    })}
+                  />
+                  <Input
+                    label="Height node"
+                    value={draftImage.comfyui.heightNodeId}
+                    onChange={(e) => setDraftImage({
+                      ...draftImage,
+                      comfyui: { ...draftImage.comfyui, heightNodeId: e.target.value },
+                    })}
+                  />
+                  <Input
+                    label="Output node"
+                    value={draftImage.comfyui.outputNodeId}
+                    onChange={(e) => setDraftImage({
+                      ...draftImage,
+                      comfyui: { ...draftImage.comfyui, outputNodeId: e.target.value },
+                    })}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">ComfyUI workflow JSON</label>
+                  <textarea
+                    className="form-textarea"
+                    style={{ minHeight: 140, fontFamily: '"Cascadia Code", Consolas, monospace', fontSize: 12 }}
+                    value={draftImage.comfyui.workflowJson}
+                    onChange={(e) => setDraftImage({
+                      ...draftImage,
+                      comfyui: { ...draftImage.comfyui, workflowJson: e.target.value },
+                    })}
+                    placeholder="貼上 ComfyUI Save (API Format) 匯出的 workflow JSON"
+                    spellCheck={false}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setDraftImage({
+                      ...draftImage,
+                      openaiCompatible: {
+                        ...draftImage.openaiCompatible,
+                        baseUrl: draftLlm.baseUrl,
+                        apiKey: draftLlm.apiKey,
+                      },
+                    })}
+                  >
+                    從 LLM 設定複製 Base URL / API Key
+                  </Button>
+                </div>
+                <Input
+                  label="Image API Base URL"
+                  placeholder="https://api.example.com/v1"
+                  value={draftImage.openaiCompatible.baseUrl}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    openaiCompatible: { ...draftImage.openaiCompatible, baseUrl: e.target.value },
+                  })}
+                />
+                <Input
+                  label="Image Model"
+                  placeholder="gpt-image-1 / gemini-2.5-flash-image"
+                  value={draftImage.openaiCompatible.model}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    openaiCompatible: { ...draftImage.openaiCompatible, model: e.target.value },
+                  })}
+                />
+                <Input
+                  label="Image API Key"
+                  type="password"
+                  value={draftImage.openaiCompatible.apiKey}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    openaiCompatible: { ...draftImage.openaiCompatible, apiKey: e.target.value },
+                  })}
+                />
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.6 }}>
+                  圖片模型設定和 LLM 文字模型分開保存。可複製相同 Base URL / API Key，但圖片模型名稱仍獨立設定。
+                </p>
+              </>
+            )}
           </div>
         )}
 

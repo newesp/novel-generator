@@ -948,13 +948,24 @@ input:focus, select:focus, textarea:focus {
   align-items: end;
 }
 .comic-settings label,
-.comic-field {
+.comic-field,
+.comic-provider-summary {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
   color: var(--text-tertiary);
   min-width: 0;
+}
+.comic-provider-summary strong {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 0 10px;
 }
 .comic-settings label > *,
 .comic-field > * {
