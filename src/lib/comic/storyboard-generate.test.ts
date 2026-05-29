@@ -78,4 +78,32 @@ describe('parseJsonFromLLM', () => {
     const parsed = parseJsonFromLLM('result:\n{"chapterTitle":"B","panels":[]}');
     expect(parsed).toEqual({ chapterTitle: 'B', panels: [] });
   });
+
+  it('repairs missing commas between array objects from LLM output', () => {
+    const parsed = parseJsonFromLLM(`{
+      "chapterTitle": "C",
+      "panels": [
+        {"panelNumber": 1, "beat": "first"}
+        {"panelNumber": 2, "beat": "second"}
+      ]
+    }`);
+
+    expect(parsed).toEqual({
+      chapterTitle: 'C',
+      panels: [
+        { panelNumber: 1, beat: 'first' },
+        { panelNumber: 2, beat: 'second' },
+      ],
+    });
+  });
+
+  it('repairs missing commas between array strings from LLM output', () => {
+    const parsed = parseJsonFromLLM('{"panels":[{"characters":["阿飛" "居民"],"beat":"crowd"}]}');
+
+    expect(parsed).toEqual({
+      panels: [
+        { characters: ['阿飛', '居民'], beat: 'crowd' },
+      ],
+    });
+  });
 });

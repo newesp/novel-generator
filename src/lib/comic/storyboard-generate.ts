@@ -107,13 +107,36 @@ export async function generateStoryboardDraft(
 export function parseJsonFromLLM(raw: string): unknown {
   const trimmed = raw.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) return JSON.parse(fenced[1].trim());
+  if (fenced?.[1]) return parseLooseJson(fenced[1].trim());
 
   const start = trimmed.indexOf('{');
   const end = trimmed.lastIndexOf('}');
   if (start >= 0 && end > start) {
-    return JSON.parse(trimmed.slice(start, end + 1));
+    return parseLooseJson(trimmed.slice(start, end + 1));
   }
 
-  return JSON.parse(trimmed);
+  return parseLooseJson(trimmed);
+}
+
+function parseLooseJson(json: string): unknown {
+  try {
+    return JSON.parse(json);
+  } catch (originalError) {
+    const repaired = repairCommonLLMJson(json);
+    try {
+      return JSON.parse(repaired);
+    } catch {
+      throw originalError;
+    }
+  }
+}
+
+function repairCommonLLMJson(json: string): string {
+  return json
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/}\s*{/g, '},{')
+    .replace(/]\s*\[/g, '],[')
+    .replace(/"\s+"/g, '","')
+    .replace(/(\d)\s+"/g, '$1,"')
+    .replace(/"\s+([[{])/g, '",$1');
 }
