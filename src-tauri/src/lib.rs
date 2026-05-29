@@ -21,6 +21,12 @@ pub fn run() {
       sql: include_str!("../migrations/003_fts.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 4,
+      description: "comic image metadata",
+      sql: include_str!("../migrations/004_comics.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

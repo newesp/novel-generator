@@ -17,6 +17,7 @@ import {
   pushSnapshotNow,
   pullSnapshotNow,
 } from '../lib/fs-sync';
+import { errorMessage } from '../lib/error-message';
 import { useProjectStore } from '../stores/projectStore';
 
 interface Props {
@@ -51,7 +52,7 @@ export function BackupModal({ open, onClose }: Props) {
       downloadSnapshotAsJson(snap, `novel-generator-backup-${ts}.json`);
       flash('ok', `已下載：${describeSnapshot(snap)}`);
     } catch (err) {
-      flash('err', `匯出失敗：${(err as Error).message}`);
+      flash('err', `匯出失敗：${errorMessage(err)}`);
     } finally {
       setBusy(false);
     }
@@ -72,7 +73,7 @@ export function BackupModal({ open, onClose }: Props) {
       await loadAllBooks();
       flash('ok', `匯入完成：${describeSnapshot(snap)}`);
     } catch (err) {
-      flash('err', `匯入失敗：${(err as Error).message}`);
+      flash('err', `匯入失敗：${errorMessage(err)}`);
     } finally {
       setBusy(false);
     }
@@ -89,7 +90,7 @@ export function BackupModal({ open, onClose }: Props) {
       await pushSnapshotNow();
       flash('ok', `已連結資料夾「${handle.name}」並寫入備份檔`);
     } catch (err) {
-      flash('err', `連結失敗：${(err as Error).message}`);
+      flash('err', `連結失敗：${errorMessage(err)}`);
     } finally {
       setBusy(false);
     }
@@ -112,7 +113,7 @@ export function BackupModal({ open, onClose }: Props) {
       const ok = await pushSnapshotNow();
       flash(ok ? 'ok' : 'err', ok ? '已寫入同步資料夾' : '寫入失敗 — 請確認資料夾連結');
     } catch (err) {
-      flash('err', `寫入失敗：${(err as Error).message}`);
+      flash('err', `寫入失敗：${errorMessage(err)}`);
     } finally {
       setBusy(false);
     }
@@ -130,7 +131,7 @@ export function BackupModal({ open, onClose }: Props) {
         flash('err', '同步資料夾沒有備份檔，無法還原');
       }
     } catch (err) {
-      flash('err', `還原失敗：${(err as Error).message}`);
+      flash('err', `還原失敗：${errorMessage(err)}`);
     } finally {
       setBusy(false);
     }
