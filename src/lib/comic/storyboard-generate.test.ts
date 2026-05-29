@@ -50,6 +50,7 @@ describe('buildStoryboardPrompt', () => {
     expect(prompt).toContain('黑白漫畫');
     expect(prompt).toContain('只輸出 JSON');
   });
+
 });
 
 describe('generateStoryboardDraft', () => {
@@ -103,6 +104,33 @@ describe('parseJsonFromLLM', () => {
     expect(parsed).toEqual({
       panels: [
         { characters: ['阿飛', '居民'], beat: 'crowd' },
+      ],
+    });
+  });
+
+  it('repairs an unclosed extraGroups array before the next panel field', () => {
+    const parsed = parseJsonFromLLM(`{
+      "panels": [
+        {
+          "panelNumber": 1,
+          "extraGroups": [
+            {"label": "residents", "role": "civilians", "prompt": "background crowd", "visualPriority": "low"}
+          "narration": "crowd watches",
+          "durationSec": 4
+        }
+      ]
+    }`);
+
+    expect(parsed).toEqual({
+      panels: [
+        {
+          panelNumber: 1,
+          extraGroups: [
+            { label: 'residents', role: 'civilians', prompt: 'background crowd', visualPriority: 'low' },
+          ],
+          narration: 'crowd watches',
+          durationSec: 4,
+        },
       ],
     });
   });

@@ -58,6 +58,7 @@ ${input.chapter.content}
 - visualPrompt 必須包含畫風、角色穩定外觀、場景、動作、構圖、光線。
 - one-off background extras 可直接寫在 visualPrompt，例如「周圍站著十幾個居民」。
 - 會跨多格出現的群體請放入 extraGroups；不要把群體龍套塞進 characters。
+- extraGroups 必須永遠是合法 JSON array；沒有 recurring groups 時請輸出空陣列 []。
 - 不要捏造正文沒有支撐的重大事件。
 
 JSON schema:
@@ -133,6 +134,7 @@ function parseLooseJson(json: string): unknown {
 
 function repairCommonLLMJson(json: string): string {
   return json
+    .replace(/("extraGroups"\s*:\s*\[[\s\S]*?})\s*("(?:narration|dialogue|durationSec|visualPrompt|negativePrompt|shotType|cameraAngle|emotion|action|setting|characters|beat|panelNumber)")/g, '$1],$2')
     .replace(/,\s*([}\]])/g, '$1')
     .replace(/}\s*{/g, '},{')
     .replace(/]\s*\[/g, '],[')
