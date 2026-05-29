@@ -109,21 +109,30 @@ StorageAdapter / MediaAdapter (interface)
 
 ---
 
-## Phase 6 — 漫畫圖片 MVP（⏳ 設計完成，前置：Phase 5 ✅）
+## Phase 6 — 漫畫圖片 MVP（🟡 MVP foundation implemented；Visual Bible 進行中）
 
 > 目標：選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片。  
 > 設計：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`  
+> Phase 6.1 Visual Bible：`docs/superpowers/specs/2026-05-29-phase-6-visual-bible-design.md`  
 > TTS / 影片合成留後續獨立 spec，先只保留資料結構擴充點。
 
 ### 任務
 
-1. ❌ **Comic / Media 資料模型**：ChapterComic、ComicPanel、MediaAsset metadata；binary 不進 DB
-2. ❌ **ImageGenerationProvider interface**：Provider Adapter First，pipeline 不直接依賴單一模型
-3. ❌ **本地圖片模型**：ComfyUI HTTP API（workflow JSON + node mapping + submit/poll/download）
-4. ❌ **線上圖片模型**：OpenAI-compatible image provider（endpoint/model/API key）
-5. ❌ **漫畫分鏡 pipeline**：章節文本 + 角色卡 + Wiki → 可編輯 storyboard
-6. ❌ **UI 整合**：章節工具列「轉漫畫」→ storyboard editor → batch progress → comic preview
+1. ✅ **Comic / Media 資料模型**：ChapterComic、ComicPanel、MediaAsset metadata；binary 不進 DB
+2. ✅ **ImageGenerationProvider interface**：Provider Adapter First，pipeline 不直接依賴單一模型
+3. ✅ **本地圖片模型**：ComfyUI HTTP API（workflow JSON + node mapping + submit/poll/download）
+4. ✅ **線上圖片模型**：OpenAI-compatible image provider（endpoint/model/API key）
+5. ✅ **漫畫分鏡 pipeline**：章節文本 + 角色卡 + Wiki → 可編輯 storyboard
+6. ✅ **UI 整合**：章節工具列「轉漫畫」→ storyboard editor → batch progress → comic preview
 7. ❌ **單格重生 / 失敗重試 / 圖片包下載**
+8. 🟡 **Visual Bible / Prompt Composer**：角色/場景跨章節資產規劃完成；Prompt Composer 與 `extraGroupsJson` MVP 已接入，完整 Visual Bible store/UI 待實作
+
+### Phase 6.1 Visual Bible 重點
+
+- 角色與場景提示詞獨立成 Project 層級 Visual Bible entries，跨章節引用。
+- 每次漫畫生成保存 visual bible / final prompt snapshot，舊漫畫可追蹤與重生。
+- 龍套採混合策略：Named characters 進 Visual Bible；跨多格 recurring groups 進 `extraGroupsJson`；一次性背景龍套留在 panel `visualPrompt`。
+- ComfyUI reference image / IP-Adapter workflow 先保留 capability 與資料流，MVP 可 prompt-only 降級。
 
 > 前置工作：`skills/novel-to-storyboard/` 已建立（分鏡 skill 骨架：SKILL.md + openai.yaml + 參考文件），可作為 Phase 6 設計起點。
 

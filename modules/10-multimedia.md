@@ -24,6 +24,7 @@
 ## 漫畫圖片 MVP（Phase 6）
 
 > 設計：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`  
+> Visual Bible：`docs/superpowers/specs/2026-05-29-phase-6-visual-bible-design.md`  
 > MVP 先做「選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片」。TTS / 影片合成保留擴充點，後續獨立 spec。
 
 ```
@@ -46,6 +47,8 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - **本地 MVP**：ComfyUI HTTP API，支援 workflow JSON、prompt / negative / seed / size node mapping、submit / poll / download。
 - **線上 MVP**：OpenAI-compatible image provider，支援自訂 endpoint / model / API key，回傳 image URL 或 base64 後 normalize。
 - **角色一致性**：必做 visual continuity bible；可選 reference image。provider 不支援 reference image 時降級為 prompt-only。
+- **Prompt Composer**：生圖前集中組合 style、active characters、active scene、panel visual prompt、extras、continuity notes，並保存 final prompt snapshot。
+- **龍套/群眾策略**：Named characters 進 Visual Bible；跨多格 recurring groups 進 `extraGroupsJson`；一次性背景龍套直接留在 panel `visualPrompt`。
 
 ### 儲存規則
 

@@ -1,5 +1,20 @@
 # 開發日誌
 
+## 2026-05-29 — Phase 6.1 Visual Bible / Extras 規劃與 MVP 切片
+
+> Phase 6.1 Visual Bible 設計已新增：`docs/superpowers/specs/2026-05-29-phase-6-visual-bible-design.md`。核心決策是角色與場景提示詞作為 Project 層級資產、跨章節引用，漫畫生成時保存 snapshot。
+
+**新增 / 更新**
+- 新增 Prompt Composer MVP：生圖前集中組合 final image prompt，並保存 `finalPromptSnapshot` / `finalNegativePromptSnapshot`。
+- 新增龍套/群眾混合策略：Named characters 進 Visual Bible；跨多格 recurring groups 進 `extraGroupsJson`；一次性背景龍套留在 panel `visualPrompt`。
+- Storyboard prompt schema 增加 `extraGroups`，避免把 100 個龍套塞進 active characters。
+- ComicModal 每格可編輯 extras JSON，Final prompt 可展開檢查。
+
+**驗證**
+- `vitest run`：108 tests passed
+- `tsc -b`：passed
+- `vite build`：passed（保留既有 chunk size warning）
+
 ## 2026-05-28 — Phase 2: SQLite FTS5 全文檢索
 
 > Phase 2.5 已標記為 **MVP Complete / Advanced polish remaining**。主幹可用，剩餘 LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表、Graph 進階事件抽取與 Lint 整批 undo UI 作為後續 polish。

@@ -397,6 +397,9 @@ Context Budget Manager 計算可用 token 上限
 **整合方式：**
 - 章節工具列增加「轉漫畫」入口
 - 先生成可編輯分鏡，使用者確認後才批次生圖
+- 生圖前由 Prompt Composer 組合最終 prompt，避免 UI 與 provider 各自拼接提示詞
+- 角色與場景提示詞規劃為 Project 層級 Visual Bible，跨章節引用；每次漫畫生成保存 snapshot
+- 龍套/群眾採混合策略：重要角色進 Visual Bible，跨多格群體進 `extraGroupsJson`，一次性背景龍套留在 panel `visualPrompt`
 - 生成後可預覽連續漫畫圖片，支援單格重生 / 失敗重試 / 圖片包下載
 - EPUB 輸出時可選擇嵌入封面與插圖
 
