@@ -1,5 +1,8 @@
 import Dexie, { type Table } from 'dexie';
-import type { Project, Chapter, ChapterVersion, Character, LLMConfig, WikiPage, WikiLogEntry } from '../types';
+import type {
+  Project, Chapter, ChapterVersion, Character, LLMConfig, WikiPage, WikiLogEntry,
+  ChapterComic, ComicPanel, MediaAsset,
+} from '../types';
 
 /** appMeta：存放跨 app 共用的小型 key-value（同步資料夾 handle 等） */
 export interface AppMetaRow {
@@ -16,6 +19,9 @@ export class NovelDB extends Dexie {
   appMeta!: Table<AppMetaRow, string>;
   wikiPages!: Table<WikiPage>;
   wikiLog!: Table<WikiLogEntry>;
+  comics!: Table<ChapterComic>;
+  comicPanels!: Table<ComicPanel>;
+  mediaAssets!: Table<MediaAsset>;
 
   constructor() {
     super('NovelGenerator');
@@ -91,6 +97,21 @@ export class NovelDB extends Dexie {
           }
         });
       });
+
+    // v6 — Phase 6 comic image MVP metadata tables
+    this.version(6).stores({
+      projects: 'id, createdAt, updatedAt',
+      chapters: 'id, projectId, order, wikiSyncStatus',
+      versions: 'id, chapterId, createdAt',
+      characters: 'id, projectId, name',
+      settings: 'id',
+      appMeta: 'key',
+      wikiPages: 'id, bookId, [bookId+type+slug]',
+      wikiLog: 'id, bookId, batchId, appliedAt',
+      comics: 'id, projectId, chapterId, updatedAt',
+      comicPanels: 'id, comicId, order, status',
+      mediaAssets: 'id, projectId, chapterId, kind, createdAt',
+    });
   }
 }
 

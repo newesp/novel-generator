@@ -66,10 +66,56 @@ export interface WikiPrefs {
   enablePickPages: boolean;
 }
 
+export interface ImageGenerationPrefs {
+  providerId: 'comfyui' | 'openai-compatible-image';
+  width: number;
+  height: number;
+  stylePreset: string;
+  targetPanelCount: number;
+  comfyui: {
+    baseUrl: string;
+    workflowJson: string;
+    promptNodeId: string;
+    negativePromptNodeId: string;
+    seedNodeId: string;
+    widthNodeId: string;
+    heightNodeId: string;
+    outputNodeId: string;
+  };
+  openaiCompatible: {
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+  };
+}
+
 const DEFAULT_WIKI_PREFS: WikiPrefs = {
   budgetRatio: 0.25,
   overflowWarnThreshold: 3,
   enablePickPages: false,
+};
+
+const DEFAULT_IMAGE_GENERATION_PREFS: ImageGenerationPrefs = {
+  providerId: 'comfyui',
+  width: 1024,
+  height: 1024,
+  stylePreset: 'cinematic black and white manga, consistent character designs',
+  targetPanelCount: 8,
+  comfyui: {
+    baseUrl: 'http://127.0.0.1:8188',
+    workflowJson: '',
+    promptNodeId: '',
+    negativePromptNodeId: '',
+    seedNodeId: '',
+    widthNodeId: '',
+    heightNodeId: '',
+    outputNodeId: '',
+  },
+  openaiCompatible: {
+    baseUrl: '',
+    apiKey: '',
+    model: 'gpt-image-1',
+  },
 };
 
 type DeepPartial<T> = {
@@ -81,11 +127,13 @@ interface SettingsState {
   inlineEdit: InlineEditPrefs;
   aiPrompts: AIPromptPrefs;
   wikiPrefs: WikiPrefs;
+  imageGenerationPrefs: ImageGenerationPrefs;
   lintPrefs: LintPrefs;
   setLlmConfig: (config: Partial<LLMConfig>) => void;
   setInlineEdit: (prefs: Partial<InlineEditPrefs>) => void;
   setAiPrompts: (prefs: Partial<AIPromptPrefs>) => void;
   setWikiPrefs: (prefs: Partial<WikiPrefs>) => void;
+  setImageGenerationPrefs: (prefs: DeepPartial<ImageGenerationPrefs>) => void;
   setLintPrefs: (prefs: DeepPartial<LintPrefs>) => void;
 }
 
@@ -132,6 +180,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       aiPrompts: { ...DEFAULT_AI_PROMPTS },
       wikiPrefs: { ...DEFAULT_WIKI_PREFS },
+      imageGenerationPrefs: { ...DEFAULT_IMAGE_GENERATION_PREFS },
       lintPrefs: { ...DEFAULT_LINT_PREFS },
       setLlmConfig: (config) =>
         set((state) => ({ llmConfig: { ...state.llmConfig, ...config } })),
@@ -141,6 +190,15 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({ aiPrompts: { ...state.aiPrompts, ...prefs } })),
       setWikiPrefs: (prefs) =>
         set((state) => ({ wikiPrefs: { ...state.wikiPrefs, ...prefs } })),
+      setImageGenerationPrefs: (patch) =>
+        set((state) => ({
+          imageGenerationPrefs: {
+            ...state.imageGenerationPrefs,
+            ...patch,
+            comfyui: { ...state.imageGenerationPrefs.comfyui, ...(patch.comfyui ?? {}) },
+            openaiCompatible: { ...state.imageGenerationPrefs.openaiCompatible, ...(patch.openaiCompatible ?? {}) },
+          },
+        })),
       setLintPrefs: (patch) =>
         set((state) => ({ lintPrefs: deepMergeLintPrefs(state.lintPrefs, patch) })),
     }),
@@ -153,6 +211,18 @@ export const useSettingsStore = create<SettingsState>()(
           ...current,
           ...p,
           wikiPrefs: { ...DEFAULT_WIKI_PREFS, ...(p.wikiPrefs ?? {}) },
+          imageGenerationPrefs: {
+            ...DEFAULT_IMAGE_GENERATION_PREFS,
+            ...(p.imageGenerationPrefs ?? {}),
+            comfyui: {
+              ...DEFAULT_IMAGE_GENERATION_PREFS.comfyui,
+              ...(p.imageGenerationPrefs?.comfyui ?? {}),
+            },
+            openaiCompatible: {
+              ...DEFAULT_IMAGE_GENERATION_PREFS.openaiCompatible,
+              ...(p.imageGenerationPrefs?.openaiCompatible ?? {}),
+            },
+          },
           lintPrefs: deepMergeLintPrefs(DEFAULT_LINT_PREFS, p.lintPrefs ?? {}),
           aiPrompts: {
             ...DEFAULT_AI_PROMPTS,

@@ -13,6 +13,7 @@
 import type {
   Project, Chapter, ChapterVersion, Character,
   WikiPage, WikiLogEntry, WikiPageType,
+  ChapterComic, ComicPanel, MediaAsset,
 } from '../../types';
 import type { SearchStore } from '../search/types';
 
@@ -95,6 +96,33 @@ export interface WikiLogStore {
   deleteByBook(bookId: string): Promise<void>;
 }
 
+export interface ChapterComicStore {
+  listByChapter(chapterId: string): Promise<ChapterComic[]>;
+  get(id: string): Promise<ChapterComic | undefined>;
+  add(comic: ChapterComic): Promise<void>;
+  update(id: string, data: Partial<ChapterComic>): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByProject(projectId: string): Promise<void>;
+}
+
+export interface ComicPanelStore {
+  listByComic(comicId: string): Promise<ComicPanel[]>;
+  get(id: string): Promise<ComicPanel | undefined>;
+  add(panel: ComicPanel): Promise<void>;
+  bulkAdd(panels: ComicPanel[]): Promise<void>;
+  update(id: string, data: Partial<ComicPanel>): Promise<void>;
+  deleteByComic(comicId: string): Promise<void>;
+}
+
+export interface MediaAssetStore {
+  listByChapter(chapterId: string): Promise<MediaAsset[]>;
+  get(id: string): Promise<MediaAsset | undefined>;
+  add(asset: MediaAsset): Promise<void>;
+  update(id: string, data: Partial<MediaAsset>): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByProject(projectId: string): Promise<void>;
+}
+
 /** 整體匯出/匯入用的資料束（與 backup.ts BackupSnapshot 對齊但去掉 metadata） */
 export interface StorageBundle {
   projects: Project[];
@@ -103,6 +131,9 @@ export interface StorageBundle {
   characters: Character[];
   wikiPages?: WikiPage[];
   wikiLog?: WikiLogEntry[];
+  comics?: ChapterComic[];
+  comicPanels?: ComicPanel[];
+  mediaAssets?: MediaAsset[];
 }
 
 export interface StorageAdapter {
@@ -113,6 +144,9 @@ export interface StorageAdapter {
   appMeta: AppMetaStore;
   wikiPages: WikiPagesStore;
   wikiLog: WikiLogStore;
+  comics: ChapterComicStore;
+  comicPanels: ComicPanelStore;
+  mediaAssets: MediaAssetStore;
   /** Tauri-only FTS5 search store. Browser/Dexie adapter leaves this undefined. */
   search?: SearchStore;
 

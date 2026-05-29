@@ -6,7 +6,10 @@
  *  - data TEXT 欄位的 JSON.parse / stringify
  *  - 部分更新時的「讀-merge-寫」邏輯
  */
-import type { Project, Chapter, ChapterVersion, Character, WikiPage, WikiLogEntry } from '../../types';
+import type {
+  Project, Chapter, ChapterVersion, Character, WikiPage, WikiLogEntry,
+  ChapterComic, ComicPanel, MediaAsset,
+} from '../../types';
 
 export interface ProjectRow {
   id: string;
@@ -205,4 +208,76 @@ export function rowToWikiLog(r: WikiLogRow): WikiLogEntry {
     summary: r.summary,
     errorMessage: r.error_message ?? undefined,
   };
+}
+
+// ---------- Comic rows ----------
+
+export interface ChapterComicRow {
+  id: string;
+  project_id: string;
+  chapter_id: string;
+  updated_at: number;
+  data: string;
+}
+
+export interface ComicPanelRow {
+  id: string;
+  comic_id: string;
+  ord: number;
+  status: string;
+  data: string;
+}
+
+export interface MediaAssetRow {
+  id: string;
+  project_id: string;
+  chapter_id: string | null;
+  kind: string;
+  file_path: string;
+  data: string;
+  created_at: number;
+}
+
+export function chapterComicToRow(comic: ChapterComic): ChapterComicRow {
+  return {
+    id: comic.id,
+    project_id: comic.projectId,
+    chapter_id: comic.chapterId,
+    updated_at: comic.updatedAt,
+    data: JSON.stringify(comic),
+  };
+}
+
+export function rowToChapterComic(row: ChapterComicRow): ChapterComic {
+  return JSON.parse(row.data) as ChapterComic;
+}
+
+export function comicPanelToRow(panel: ComicPanel): ComicPanelRow {
+  return {
+    id: panel.id,
+    comic_id: panel.comicId,
+    ord: panel.order,
+    status: panel.status,
+    data: JSON.stringify(panel),
+  };
+}
+
+export function rowToComicPanel(row: ComicPanelRow): ComicPanel {
+  return JSON.parse(row.data) as ComicPanel;
+}
+
+export function mediaAssetToRow(asset: MediaAsset): MediaAssetRow {
+  return {
+    id: asset.id,
+    project_id: asset.projectId,
+    chapter_id: asset.chapterId ?? null,
+    kind: asset.kind,
+    file_path: asset.path ?? asset.url ?? '',
+    data: JSON.stringify(asset),
+    created_at: asset.createdAt,
+  };
+}
+
+export function rowToMediaAsset(row: MediaAssetRow): MediaAsset {
+  return JSON.parse(row.data) as MediaAsset;
 }

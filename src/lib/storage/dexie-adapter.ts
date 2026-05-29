@@ -14,6 +14,9 @@ import type {
   AppMetaStore,
   WikiPagesStore,
   WikiLogStore,
+  ChapterComicStore,
+  ComicPanelStore,
+  MediaAssetStore,
   StorageBundle,
 } from './types';
 
@@ -130,10 +133,47 @@ const appMeta: AppMetaStore = {
   delete: async (key) => { await db.appMeta.delete(key); },
 };
 
+const comics: ChapterComicStore = {
+  listByChapter: (chapterId) => db.comics.where('chapterId').equals(chapterId).reverse().sortBy('updatedAt'),
+  get: (id) => db.comics.get(id),
+  add: async (comic) => { await db.comics.add(comic); },
+  update: async (id, data) => { await db.comics.update(id, data); },
+  delete: (id) => db.comics.delete(id),
+  deleteByProject: async (projectId) => {
+    await db.comics.where('projectId').equals(projectId).delete();
+  },
+};
+
+const comicPanels: ComicPanelStore = {
+  listByComic: (comicId) => db.comicPanels.where('comicId').equals(comicId).sortBy('order'),
+  get: (id) => db.comicPanels.get(id),
+  add: async (panel) => { await db.comicPanels.add(panel); },
+  bulkAdd: async (panels) => { await db.comicPanels.bulkAdd(panels); },
+  update: async (id, data) => { await db.comicPanels.update(id, data); },
+  deleteByComic: async (comicId) => {
+    await db.comicPanels.where('comicId').equals(comicId).delete();
+  },
+};
+
+const mediaAssets: MediaAssetStore = {
+  listByChapter: (chapterId) => db.mediaAssets.where('chapterId').equals(chapterId).sortBy('createdAt'),
+  get: (id) => db.mediaAssets.get(id),
+  add: async (asset) => { await db.mediaAssets.add(asset); },
+  update: async (id, data) => { await db.mediaAssets.update(id, data); },
+  delete: (id) => db.mediaAssets.delete(id),
+  deleteByProject: async (projectId) => {
+    await db.mediaAssets.where('projectId').equals(projectId).delete();
+  },
+};
+
 async function replaceAll(bundle: StorageBundle): Promise<void> {
   await db.transaction('rw',
-    [db.projects, db.chapters, db.versions, db.characters, db.wikiPages, db.wikiLog],
+    [db.projects, db.chapters, db.versions, db.characters, db.wikiPages, db.wikiLog,
+      db.comics, db.comicPanels, db.mediaAssets],
     async () => {
+      await db.mediaAssets.clear();
+      await db.comicPanels.clear();
+      await db.comics.clear();
       await db.projects.clear();
       await db.chapters.clear();
       await db.versions.clear();
@@ -147,12 +187,15 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
       // pages → log 順序（spec §3.4）
       await db.wikiPages.bulkAdd(bundle.wikiPages ?? []);
       await db.wikiLog.bulkAdd(bundle.wikiLog ?? []);
+      await db.comics.bulkAdd(bundle.comics ?? []);
+      await db.comicPanels.bulkAdd(bundle.comicPanels ?? []);
+      await db.mediaAssets.bulkAdd(bundle.mediaAssets ?? []);
     },
   );
 }
 
 export const dexieAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
-  wikiPages, wikiLog,
+  wikiPages, wikiLog, comics, comicPanels, mediaAssets,
   replaceAll,
 };

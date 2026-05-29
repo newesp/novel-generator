@@ -111,6 +111,89 @@ export interface WikiLogEntry {
 
 export type WikiSyncStatus = 'unsynced' | 'synced' | 'stale' | 'partial' | 'partial_stale';
 
+// ─────────────────────────────────────────────────────────────
+//  Comic images（Phase 6 — 漫畫圖片 MVP）
+// ─────────────────────────────────────────────────────────────
+
+export type ChapterComicStatus = 'draft' | 'storyboard_ready' | 'generating' | 'ready' | 'partial' | 'failed';
+export type ComicPanelStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'failed';
+export type MediaAssetKind = 'comic_panel_image' | 'tts_audio' | 'video';
+
+export interface ChapterComic {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  title: string;
+  status: ChapterComicStatus;
+  stylePreset: string;
+  providerId: string;
+  targetPanelCount?: number;
+  visualContinuityBibleJson: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ComicPanel {
+  id: string;
+  comicId: string;
+  order: number;
+  beat: string;
+  characters: string[];
+  location: string;
+  shotType: string;
+  cameraAngle: string;
+  visualPrompt: string;
+  negativePrompt: string;
+  dialogue: string;
+  narration: string;
+  durationSec: number;
+  seed?: number;
+  assetId?: string;
+  status: ComicPanelStatus;
+  errorMessage?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface MediaAsset {
+  id: string;
+  projectId: string;
+  chapterId?: string;
+  kind: MediaAssetKind;
+  path?: string;
+  url?: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  sizeBytes?: number;
+  providerId?: string;
+  generationParamsJson?: string;
+  createdAt: number;
+}
+
+export type ImageProviderId = 'comfyui' | 'openai-compatible-image';
+
+export interface ComfyUIImageProviderConfig {
+  providerId: 'comfyui';
+  baseUrl: string;
+  workflowJson: string;
+  promptNodeId: string;
+  negativePromptNodeId: string;
+  seedNodeId: string;
+  widthNodeId: string;
+  heightNodeId: string;
+  outputNodeId: string;
+}
+
+export interface OpenAICompatibleImageProviderConfig {
+  providerId: 'openai-compatible-image';
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+export type ImageProviderConfig = ComfyUIImageProviderConfig | OpenAICompatibleImageProviderConfig;
+
 export type LLMProvider = 'custom' | 'google' | 'grok';
 
 export interface LLMConfig {
