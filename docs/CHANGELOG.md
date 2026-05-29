@@ -1,5 +1,18 @@
 # 開發日誌
 
+## 2026-05-29 — LLM Provider 設定切換 Hotfix
+
+**修正**
+- 修正「偏好設定 → LLM API」切換提供商時，Base URL / 模型名稱仍沿用最後一次儲存值的問題。
+- 將 LLM provider 預設值集中到 `src/lib/llm-provider-defaults.ts`，切換 provider 時會套用該 provider 的預設顯示名稱、Base URL 與模型。
+- API Key 目前仍維持單一 active LLM 設定共用；若未來要每個 provider 各自保存 key，需再升級為 provider profile 架構。
+
+**驗證**
+- `vitest run`：113 tests passed
+- `tsc -b`：passed
+- `eslint`：passed
+- `vite build`：passed（保留既有 chunk size warning）
+
 ## 2026-05-29 — Phase 6.1 Visual Bible / Extras 規劃與 MVP 切片
 
 > Phase 6.1 Visual Bible 設計已新增：`docs/superpowers/specs/2026-05-29-phase-6-visual-bible-design.md`。核心決策是角色與場景提示詞作為 Project 層級資產、跨章節引用，漫畫生成時保存 snapshot。

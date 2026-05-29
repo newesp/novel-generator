@@ -51,6 +51,8 @@ export const openAICompatibleImageProvider: ImageGenerationProvider = {
         model: config.model,
         prompt: request.prompt,
         size: `${request.width}x${request.height}`,
+        n: 1,
+        response_format: 'b64_json',
       }),
     });
     if (!response.ok) throw new Error(`圖片 API error ${response.status}: ${await response.text()}`);

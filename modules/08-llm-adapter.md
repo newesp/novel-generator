@@ -31,6 +31,12 @@ interface LLMConfig {
 }
 ```
 
+### Provider 預設值與切換行為
+
+- LLM provider 預設值集中在 `src/lib/llm-provider-defaults.ts`。
+- 使用者在「偏好設定 → LLM API」切換 provider 時，UI 會套用該 provider 的預設 `name` / `baseUrl` / `model`，避免上一個 provider 的 endpoint 或模型殘留。
+- `apiKey` 目前仍是單一 active LLM 設定欄位，切換 provider 時會保留。若未來要記住每個 provider 各自的 API key / model，需把 `LLMConfig` 升級成 provider profiles。
+
 ---
 
 ## Provider 分支邏輯
