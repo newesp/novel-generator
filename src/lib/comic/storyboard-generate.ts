@@ -93,8 +93,16 @@ export async function generateStoryboardDraft(
   return normalizeStoryboardDraft(parseJsonFromLLM(raw));
 }
 
-function parseJsonFromLLM(raw: string): unknown {
+export function parseJsonFromLLM(raw: string): unknown {
   const trimmed = raw.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  return JSON.parse(fenced ? fenced[1] : trimmed);
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenced?.[1]) return JSON.parse(fenced[1].trim());
+
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    return JSON.parse(trimmed.slice(start, end + 1));
+  }
+
+  return JSON.parse(trimmed);
 }

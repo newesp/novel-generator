@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { v4 as uuid } from 'uuid';
 import type { Chapter, ChapterComic, Character, ComicPanel, ImageProviderConfig, MediaAsset, Project } from '../../types';
 import { storage } from '../../lib/storage';
 import { generateStoryboardDraft } from '../../lib/comic/storyboard-generate';
 import { getImageProvider } from '../../lib/comic/providers';
 import { runImageJobQueue } from '../../lib/comic/image-job-queue';
+import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -66,7 +67,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       setPanels(nextPanels);
       setMessage(`已產生 ${nextPanels.length} 格分鏡，請確認後開始生圖。`);
     } catch (error) {
-      setMessage((error as Error).message);
+      setMessage(errorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -125,7 +126,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       setPanels(results);
       setMessage(failed ? `完成，但 ${failed} 格失敗，可修改後重試。` : '漫畫圖片已生成。');
     } catch (error) {
-      setMessage((error as Error).message);
+      setMessage(errorMessage(error));
     } finally {
       setBusy(false);
     }
@@ -136,6 +137,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       open={open}
       onClose={() => !busy && onClose()}
       title={`轉漫畫：${chapter.title}`}
+      width={760}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>關閉</Button>
@@ -151,35 +153,58 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
     >
       <div className="comic-modal">
         <section className="comic-settings">
-          <label>Provider
+          <label>
+            <FieldLabel label="Provider" help="選擇圖片生成後端。本地 ComfyUI 適合工作流與角色一致性；OpenAI-compatible 適合線上 API。" />
             <select className="toolbar-select" value={imageGenerationPrefs.providerId} onChange={(event) => setImageGenerationPrefs({ providerId: event.target.value as 'comfyui' | 'openai-compatible-image' })}>
               <option value="comfyui">ComfyUI HTTP API</option>
               <option value="openai-compatible-image">OpenAI-compatible Image</option>
             </select>
           </label>
-          <label>Style
+          <label>
+            <FieldLabel label="Style" help="整批分鏡與圖片 prompt 的畫風描述，例如黑白漫畫、賽博龐克、吉卜力風等。" />
             <input className="toolbar-input" value={imageGenerationPrefs.stylePreset} onChange={(event) => setImageGenerationPrefs({ stylePreset: event.target.value })} />
           </label>
-          <label>Panels
+          <label>
+            <FieldLabel label="Panels" help="希望 LLM 拆成幾格分鏡。短場景可用 4-6，完整章節建議 8-20。" />
             <input className="toolbar-input" type="number" value={imageGenerationPrefs.targetPanelCount} onChange={(event) => setImageGenerationPrefs({ targetPanelCount: Number(event.target.value) || 8 })} />
           </label>
         </section>
 
         {imageGenerationPrefs.providerId === 'comfyui' ? (
           <section className="comic-provider-grid">
-            <input className="toolbar-input" placeholder="ComfyUI Base URL" value={imageGenerationPrefs.comfyui.baseUrl} onChange={(event) => setImageGenerationPrefs({ comfyui: { baseUrl: event.target.value } })} />
-            <input className="toolbar-input" placeholder="prompt node" value={imageGenerationPrefs.comfyui.promptNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { promptNodeId: event.target.value } })} />
-            <input className="toolbar-input" placeholder="negative node" value={imageGenerationPrefs.comfyui.negativePromptNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { negativePromptNodeId: event.target.value } })} />
-            <input className="toolbar-input" placeholder="seed node" value={imageGenerationPrefs.comfyui.seedNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { seedNodeId: event.target.value } })} />
-            <input className="toolbar-input" placeholder="width node" value={imageGenerationPrefs.comfyui.widthNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { widthNodeId: event.target.value } })} />
-            <input className="toolbar-input" placeholder="height node" value={imageGenerationPrefs.comfyui.heightNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { heightNodeId: event.target.value } })} />
-            <textarea className="form-textarea" placeholder="ComfyUI workflow JSON" value={imageGenerationPrefs.comfyui.workflowJson} onChange={(event) => setImageGenerationPrefs({ comfyui: { workflowJson: event.target.value } })} />
+            <Field label="Base URL" help="ComfyUI 服務網址。預設通常是 http://127.0.0.1:8188。">
+              <input className="toolbar-input" value={imageGenerationPrefs.comfyui.baseUrl} onChange={(event) => setImageGenerationPrefs({ comfyui: { baseUrl: event.target.value } })} />
+            </Field>
+            <Field label="Prompt node" help="ComfyUI workflow 中負責正向 prompt 的節點 ID。">
+              <input className="toolbar-input" placeholder="例如 6" value={imageGenerationPrefs.comfyui.promptNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { promptNodeId: event.target.value } })} />
+            </Field>
+            <Field label="Negative node" help="ComfyUI workflow 中負責 negative prompt 的節點 ID。">
+              <input className="toolbar-input" placeholder="例如 7" value={imageGenerationPrefs.comfyui.negativePromptNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { negativePromptNodeId: event.target.value } })} />
+            </Field>
+            <Field label="Seed node" help="ComfyUI workflow 中存放 seed 的節點 ID；用來重現或微調同一格圖片。">
+              <input className="toolbar-input" placeholder="例如 3" value={imageGenerationPrefs.comfyui.seedNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { seedNodeId: event.target.value } })} />
+            </Field>
+            <Field label="Width node" help="ComfyUI workflow 中控制圖片寬度的節點 ID。">
+              <input className="toolbar-input" placeholder="例如 5" value={imageGenerationPrefs.comfyui.widthNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { widthNodeId: event.target.value } })} />
+            </Field>
+            <Field label="Height node" help="ComfyUI workflow 中控制圖片高度的節點 ID。">
+              <input className="toolbar-input" placeholder="例如 5" value={imageGenerationPrefs.comfyui.heightNodeId} onChange={(event) => setImageGenerationPrefs({ comfyui: { heightNodeId: event.target.value } })} />
+            </Field>
+            <Field label="Workflow JSON" help="從 ComfyUI 匯出的 workflow JSON。系統會把 prompt、negative、seed、尺寸填入上方指定節點。" wide>
+              <textarea className="form-textarea" placeholder="貼上 ComfyUI workflow JSON" value={imageGenerationPrefs.comfyui.workflowJson} onChange={(event) => setImageGenerationPrefs({ comfyui: { workflowJson: event.target.value } })} />
+            </Field>
           </section>
         ) : (
           <section className="comic-provider-grid">
-            <input className="toolbar-input" placeholder="Base URL" value={imageGenerationPrefs.openaiCompatible.baseUrl} onChange={(event) => setImageGenerationPrefs({ openaiCompatible: { baseUrl: event.target.value } })} />
-            <input className="toolbar-input" placeholder="Model" value={imageGenerationPrefs.openaiCompatible.model} onChange={(event) => setImageGenerationPrefs({ openaiCompatible: { model: event.target.value } })} />
-            <input className="toolbar-input" placeholder="API Key" type="password" value={imageGenerationPrefs.openaiCompatible.apiKey} onChange={(event) => setImageGenerationPrefs({ openaiCompatible: { apiKey: event.target.value } })} />
+            <Field label="Base URL" help="OpenAI-compatible 圖片 API 的 base URL，例如 https://api.example.com/v1。">
+              <input className="toolbar-input" value={imageGenerationPrefs.openaiCompatible.baseUrl} onChange={(event) => setImageGenerationPrefs({ openaiCompatible: { baseUrl: event.target.value } })} />
+            </Field>
+            <Field label="Model" help="圖片模型名稱。不同 provider 的名稱不同，請填該服務文件中的 image model。">
+              <input className="toolbar-input" value={imageGenerationPrefs.openaiCompatible.model} onChange={(event) => setImageGenerationPrefs({ openaiCompatible: { model: event.target.value } })} />
+            </Field>
+            <Field label="API Key" help="線上圖片 API key，只存在本機偏好設定中。">
+              <input className="toolbar-input" type="password" value={imageGenerationPrefs.openaiCompatible.apiKey} onChange={(event) => setImageGenerationPrefs({ openaiCompatible: { apiKey: event.target.value } })} />
+            </Field>
           </section>
         )}
 
@@ -198,5 +223,28 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
         </div>
       </div>
     </Modal>
+  );
+}
+
+function Field({ label, help, children, wide = false }: {
+  label: string;
+  help: string;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <label className={`comic-field${wide ? ' wide' : ''}`}>
+      <FieldLabel label={label} help={help} />
+      {children}
+    </label>
+  );
+}
+
+function FieldLabel({ label, help }: { label: string; help: string }) {
+  return (
+    <span className="comic-field-label">
+      {label}
+      <span className="comic-help" title={help} aria-label={help}>?</span>
+    </span>
   );
 }

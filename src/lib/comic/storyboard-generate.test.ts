@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildStoryboardPrompt, generateStoryboardDraft } from './storyboard-generate';
+import { buildStoryboardPrompt, generateStoryboardDraft, parseJsonFromLLM } from './storyboard-generate';
 import type { Character, Chapter, Project, WikiPage } from '../../types';
 
 const chapter: Chapter = {
@@ -63,5 +63,17 @@ describe('generateStoryboardDraft', () => {
 
     expect(draft.panels).toHaveLength(1);
     expect(draft.panels[0].visualPrompt).toContain('阿飛走入霧中');
+  });
+});
+
+describe('parseJsonFromLLM', () => {
+  it('extracts fenced json even when the model adds prose around it', () => {
+    const parsed = parseJsonFromLLM('好的，以下是分鏡：\n```json\n{"chapterTitle":"A","panels":[]}\n```\n請確認。');
+    expect(parsed).toEqual({ chapterTitle: 'A', panels: [] });
+  });
+
+  it('extracts the first json object when no fence exists', () => {
+    const parsed = parseJsonFromLLM('result:\n{"chapterTitle":"B","panels":[]}');
+    expect(parsed).toEqual({ chapterTitle: 'B', panels: [] });
   });
 });
