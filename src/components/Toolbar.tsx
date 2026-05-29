@@ -22,6 +22,11 @@ import {
 import { renderTemplate } from '../lib/prompt-template';
 import { buildLivePromptVars } from '../lib/prompt-preview';
 import { storage } from '../lib/storage';
+import {
+  applyLlmProviderDefaults,
+  LLM_PROVIDER_DEFAULTS,
+  LLM_PROVIDER_LABELS,
+} from '../lib/llm-provider-defaults';
 import { Button } from './common/Button';
 import { Modal } from './common/Modal';
 import { Input } from './common/Input';
@@ -30,27 +35,6 @@ import { MarkdownView } from './common/MarkdownView';
 import { BackupModal } from './BackupModal';
 import { GlobalSearchModal } from './search/GlobalSearchModal';
 import type { LLMProvider } from '../types';
-
-/** 各 provider 的預設值，切換 provider 時自動套用（若使用者未填） */
-const PROVIDER_DEFAULTS: Record<LLMProvider, { name: string; baseUrl: string; model: string }> = {
-  custom: { name: 'My API', baseUrl: '', model: 'gpt-4o' },
-  google: {
-    name: 'Google Gemini',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    model: 'gemini-2.0-flash',
-  },
-  grok: {
-    name: 'Grok (xAI)',
-    baseUrl: 'https://api.x.ai/v1',
-    model: 'grok-2-latest',
-  },
-};
-
-const PROVIDER_LABELS: Record<LLMProvider, string> = {
-  custom: '自定義（OpenAI-compatible）',
-  google: 'Google Gemini',
-  grok: 'Grok (xAI)',
-};
 
 /** 偏好設定 Modal 的分頁 */
 type PrefsTab = 'llm' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
@@ -181,23 +165,11 @@ export function Toolbar() {
                 value={draftLlm.provider}
                 onChange={(e) => {
                   const next = e.target.value as LLMProvider;
-                  const defs = PROVIDER_DEFAULTS[next];
-                  // 切換 provider 時：若使用者的目前值是任何 provider 的預設值（或空白），就套上新預設
-                  const allDefaultNames = Object.values(PROVIDER_DEFAULTS).map((d) => d.name);
-                  const allDefaultModels = Object.values(PROVIDER_DEFAULTS).map((d) => d.model);
-                  setDraftLlm({
-                    ...draftLlm,
-                    provider: next,
-                    name: !draftLlm.name || allDefaultNames.includes(draftLlm.name) ? defs.name : draftLlm.name,
-                    baseUrl: !draftLlm.baseUrl
-                      ? defs.baseUrl
-                      : next === 'custom' ? draftLlm.baseUrl : (draftLlm.baseUrl || defs.baseUrl),
-                    model: !draftLlm.model || allDefaultModels.includes(draftLlm.model) ? defs.model : draftLlm.model,
-                  });
+                  setDraftLlm(applyLlmProviderDefaults(draftLlm, next));
                 }}
               >
                 {(['custom', 'google', 'grok'] as LLMProvider[]).map((p) => (
-                  <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
+                  <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
                 ))}
               </select>
             </div>
@@ -214,7 +186,7 @@ export function Toolbar() {
                   ? 'API 端點 (Base URL)'
                   : 'API 端點 (Base URL，選填)'
               }
-              placeholder={PROVIDER_DEFAULTS[draftLlm.provider].baseUrl || 'https://api.openai.com/v1'}
+              placeholder={LLM_PROVIDER_DEFAULTS[draftLlm.provider].baseUrl || 'https://api.openai.com/v1'}
               value={draftLlm.baseUrl}
               onChange={(e) => setDraftLlm({ ...draftLlm, baseUrl: e.target.value })}
             />
@@ -227,7 +199,7 @@ export function Toolbar() {
             />
             <Input
               label="模型名稱"
-              placeholder={PROVIDER_DEFAULTS[draftLlm.provider].model}
+              placeholder={LLM_PROVIDER_DEFAULTS[draftLlm.provider].model}
               value={draftLlm.model}
               onChange={(e) => setDraftLlm({ ...draftLlm, model: e.target.value })}
             />
