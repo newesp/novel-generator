@@ -190,6 +190,7 @@ interface ComicPanel {
   cameraAngle: string;
   visualPrompt: string;
   negativePrompt: string;
+  extraGroupsJson: string;
   finalPromptSnapshot: string;
   finalNegativePromptSnapshot: string;
   dialogue: string;
@@ -203,6 +204,26 @@ interface ComicPanel {
   updatedAt: number;
 }
 ```
+
+### 4.4 Extras / Crowd Groups
+
+龍套不全部進 `active characters`。系統採混合策略：
+
+- **Named characters：** 有名字、會被追蹤外觀一致性的角色，使用 active characters + Visual Bible。
+- **Recurring groups：** 會跨多格出現的群體，使用 `extraGroupsJson`。
+- **One-off background extras：** 單格背景描述直接留在 `visualPrompt`，例如「周圍站著十幾個居民」。
+
+```ts
+interface ComicPanelExtraGroup {
+  label: string;
+  count?: number;
+  role: 'crowd' | 'guards' | 'civilians' | 'creatures' | 'vehicles' | 'background';
+  prompt: string;
+  visualPriority: 'low' | 'medium';
+}
+```
+
+Prompt Composer 必須把 `extraGroupsJson` 放在低優先度群眾段落，並加入「不要讓 extras 搶主角焦點」的約束。
 
 ---
 
@@ -318,6 +339,7 @@ Reference assets 選取規則：
 
 - active characters multi-select
 - scene select
+- extras / crowd JSON editor for recurring groups
 - referenceMode select
 - continuity notes textarea
 - final prompt preview
@@ -406,9 +428,10 @@ OpenAI-compatible provider 預設視為 prompt-only。若特定 provider 支援 
 2. 從 Wiki entity/location 與角色卡建立 draft entries。
 3. ComicModal 新增 Visual Bible 編輯區。
 4. ComicPanel 增加 active character/scene/referenceMode 欄位。
-5. 實作 Prompt Composer。
-6. 生圖前保存 `visualBibleSnapshotJson`。
-7. 生圖時保存 `finalPromptSnapshot` 與 `finalNegativePromptSnapshot`。
+5. ComicPanel 增加 `extraGroupsJson`，用於跨多格出現的龍套群體。
+6. 實作 Prompt Composer。
+7. 生圖前保存 `visualBibleSnapshotJson`。
+8. 生圖時保存 `finalPromptSnapshot` 與 `finalNegativePromptSnapshot`。
 
 ### 11.2 Advanced Polish
 
@@ -440,6 +463,7 @@ SQLite / Dexie migration 需新增：
 - `comic_panels.scene_variant`
 - `comic_panels.reference_mode`
 - `comic_panels.continuity_notes`
+- `comic_panels.extra_groups_json`
 - `comic_panels.final_prompt_snapshot`
 - `comic_panels.final_negative_prompt_snapshot`
 
@@ -455,4 +479,4 @@ SQLite / Dexie migration 需新增：
 | 是否一開始做 reference image | 資料流與 capability 先設計；MVP 可 prompt-only |
 | 舊漫畫如何處理 | 優先讀 snapshot，沒有就從 `visualContinuityBibleJson` fallback |
 | Prompt 組合位置 | 集中在 Prompt Composer，不放在 UI |
-
+| 龍套角色如何處理 | 一次性背景龍套留在 `visualPrompt`；跨多格群體放入 `extraGroupsJson`；重要角色升級為 Visual Bible |

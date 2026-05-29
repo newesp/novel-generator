@@ -51,4 +51,36 @@ describe('normalizeStoryboardDraft', () => {
     expect(result.panels[0].visualPrompt).toContain('主角看見城市');
     expect(result.visualContinuityBibleJson).toContain('測試章');
   });
+
+  it('normalizes recurring extra groups separately from named characters', () => {
+    const result = normalizeStoryboardDraft({
+      panels: [
+        {
+          panelNumber: 1,
+          beat: 'market crowd',
+          characters: ['A Fei'],
+          extraGroups: [
+            {
+              label: 'dock residents',
+              count: 16,
+              role: 'civilians',
+              prompt: 'worn city clothes, anxious faces, middle ground',
+              visualPriority: 'low',
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(result.panels[0].characters).toEqual(['A Fei']);
+    expect(result.panels[0].extraGroupsJson).toBe(JSON.stringify([
+      {
+        label: 'dock residents',
+        count: 16,
+        role: 'civilians',
+        prompt: 'worn city clothes, anxious faces, middle ground',
+        visualPriority: 'low',
+      },
+    ]));
+  });
 });

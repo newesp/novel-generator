@@ -118,6 +118,16 @@ export type WikiSyncStatus = 'unsynced' | 'synced' | 'stale' | 'partial' | 'part
 export type ChapterComicStatus = 'draft' | 'storyboard_ready' | 'generating' | 'ready' | 'partial' | 'failed';
 export type ComicPanelStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'failed';
 export type MediaAssetKind = 'comic_panel_image' | 'tts_audio' | 'video';
+export type ComicPanelExtraRole = 'crowd' | 'guards' | 'civilians' | 'creatures' | 'vehicles' | 'background';
+export type ComicPanelExtraPriority = 'low' | 'medium';
+
+export interface ComicPanelExtraGroup {
+  label: string;
+  count?: number;
+  role: ComicPanelExtraRole;
+  prompt: string;
+  visualPriority: ComicPanelExtraPriority;
+}
 
 export interface ChapterComic {
   id: string;
@@ -144,6 +154,9 @@ export interface ComicPanel {
   cameraAngle: string;
   visualPrompt: string;
   negativePrompt: string;
+  extraGroupsJson?: string;
+  finalPromptSnapshot?: string;
+  finalNegativePromptSnapshot?: string;
   dialogue: string;
   narration: string;
   durationSec: number;

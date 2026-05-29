@@ -56,6 +56,8 @@ ${input.chapter.content}
 - panels 必須按故事時間順序排列。
 - 每格都要有可直接送圖片模型的 visualPrompt。
 - visualPrompt 必須包含畫風、角色穩定外觀、場景、動作、構圖、光線。
+- one-off background extras 可直接寫在 visualPrompt，例如「周圍站著十幾個居民」。
+- 會跨多格出現的群體請放入 extraGroups；不要把群體龍套塞進 characters。
 - 不要捏造正文沒有支撐的重大事件。
 
 JSON schema:
@@ -75,6 +77,15 @@ JSON schema:
       "cameraAngle": "string",
       "visualPrompt": "string",
       "negativePrompt": "string",
+      "extraGroups": [
+        {
+          "label": "string",
+          "count": 12,
+          "role": "crowd | guards | civilians | creatures | vehicles | background",
+          "prompt": "string",
+          "visualPriority": "low | medium"
+        }
+      ],
       "narration": "string",
       "dialogue": [{"character":"string","text":"string"}],
       "durationSec": 4

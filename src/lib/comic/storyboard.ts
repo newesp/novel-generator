@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid';
-import type { ComicPanel } from '../../types';
+import type { ComicPanel, ComicPanelExtraGroup, ComicPanelExtraPriority, ComicPanelExtraRole } from '../../types';
 
 interface StoryboardNormalizeResult {
   chapterTitle: string;
@@ -43,6 +43,7 @@ export function normalizeStoryboardDraft(raw: unknown): StoryboardNormalizeResul
       cameraAngle: stringValue(panel.cameraAngle, ''),
       visualPrompt,
       negativePrompt: stringValue(panel.negativePrompt, 'extra fingers, extra limbs, inconsistent face, unreadable text'),
+      extraGroupsJson: normalizeExtraGroups(panel.extraGroups),
       dialogue: dialogueToText(panel.dialogue),
       narration: stringValue(panel.narration, ''),
       durationSec: clamp(numberValue(panel.durationSec, 4), 2, 12),
@@ -59,6 +60,42 @@ export function normalizeStoryboardDraft(raw: unknown): StoryboardNormalizeResul
     panels,
     qualityNotes: stringArray(asRecord(input.qualityChecks).notes),
   };
+}
+
+function normalizeExtraGroups(value: unknown): string | undefined {
+  const groups = arrayValue(value)
+    .map(asRecord)
+    .map((group): ComicPanelExtraGroup | null => {
+      const label = stringValue(group.label, '');
+      const prompt = stringValue(group.prompt, '');
+      if (!label && !prompt) return null;
+
+      return {
+        label: label || prompt,
+        count: optionalPositiveNumber(group.count),
+        role: extraRole(group.role),
+        prompt,
+        visualPriority: extraPriority(group.visualPriority),
+      };
+    })
+    .filter((group): group is ComicPanelExtraGroup => Boolean(group));
+
+  return groups.length ? JSON.stringify(groups) : undefined;
+}
+
+function optionalPositiveNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined;
+}
+
+function extraRole(value: unknown): ComicPanelExtraRole {
+  const role = stringValue(value, 'background');
+  return ['crowd', 'guards', 'civilians', 'creatures', 'vehicles', 'background'].includes(role)
+    ? role as ComicPanelExtraRole
+    : 'background';
+}
+
+function extraPriority(value: unknown): ComicPanelExtraPriority {
+  return stringValue(value, 'low') === 'medium' ? 'medium' : 'low';
 }
 
 function asRecord(value: unknown): UnknownRecord {

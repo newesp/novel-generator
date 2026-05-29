@@ -45,6 +45,8 @@ describe('buildStoryboardPrompt', () => {
     expect(prompt).toContain('迷霧中的平衡點');
     expect(prompt).toContain('黑髮少年');
     expect(prompt).toContain('entity/a-fei');
+    expect(prompt).toContain('"extraGroups"');
+    expect(prompt).toContain('one-off background extras');
     expect(prompt).toContain('黑白漫畫');
     expect(prompt).toContain('只輸出 JSON');
   });

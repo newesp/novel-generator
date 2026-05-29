@@ -5,6 +5,7 @@ import { storage } from '../../lib/storage';
 import { generateStoryboardDraft } from '../../lib/comic/storyboard-generate';
 import { getImageProvider } from '../../lib/comic/providers';
 import { runImageJobQueue } from '../../lib/comic/image-job-queue';
+import { composeComicImagePrompt } from '../../lib/comic/prompt-composer';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Modal } from '../common/Modal';
@@ -88,8 +89,20 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       const health = await provider.validateConfig(config);
       if (!health.ok) throw new Error(health.message);
       await storage.comics.update(comic.id, { status: 'generating', updatedAt: Date.now() });
+      const queuedPanels = panels.map((panel) => {
+        const composed = composeComicImagePrompt({
+          panel,
+          stylePreset: comic.stylePreset || imageGenerationPrefs.stylePreset,
+        });
+        return {
+          ...panel,
+          finalPromptSnapshot: composed.prompt,
+          finalNegativePromptSnapshot: composed.negativePrompt,
+          errorMessage: composed.warnings.length ? composed.warnings.join('\n') : panel.errorMessage,
+        };
+      });
       const results = await runImageJobQueue({
-        panels,
+        panels: queuedPanels,
         onPanelUpdate: async (panel) => {
           setPanels((current) => current.map((item) => item.id === panel.id ? panel : item));
           await storage.comicPanels.update(panel.id, panel);
@@ -97,8 +110,8 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
         generate: async (panel) => {
           const output = await provider.generateImage({
             panelId: panel.id,
-            prompt: panel.visualPrompt,
-            negativePrompt: panel.negativePrompt,
+            prompt: panel.finalPromptSnapshot || panel.visualPrompt,
+            negativePrompt: panel.finalNegativePromptSnapshot || panel.negativePrompt,
             width: imageGenerationPrefs.width,
             height: imageGenerationPrefs.height,
             seed: panel.seed,
@@ -216,6 +229,18 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
               <header><strong>#{panel.order} {panel.beat}</strong><span>{panel.status}</span></header>
               <textarea value={panel.visualPrompt} onChange={(event) => updatePanel(panel, { visualPrompt: event.target.value })} />
               <input value={panel.negativePrompt} onChange={(event) => updatePanel(panel, { negativePrompt: event.target.value })} />
+              <textarea
+                className="comic-extras-input"
+                placeholder='extraGroups JSON，例如 [{"label":"居民","count":12,"role":"civilians","prompt":"穿著舊布衣，站在背景","visualPriority":"low"}]'
+                value={panel.extraGroupsJson ?? ''}
+                onChange={(event) => updatePanel(panel, { extraGroupsJson: event.target.value })}
+              />
+              {panel.finalPromptSnapshot && (
+                <details className="comic-prompt-preview">
+                  <summary>Final prompt</summary>
+                  <pre>{panel.finalPromptSnapshot}</pre>
+                </details>
+              )}
               {panel.errorMessage && <p className="comic-error">{panel.errorMessage}</p>}
               {panel.assetId && <p className="comic-message">asset: {panel.assetId}</p>}
             </article>
