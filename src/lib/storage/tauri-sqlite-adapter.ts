@@ -493,6 +493,11 @@ const COMIC_PANEL_COLS = 'id, comic_id, ord, status, data';
 const MEDIA_ASSET_COLS = 'id, project_id, chapter_id, kind, file_path, data, created_at';
 
 const comics: ChapterComicStore = {
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<ChapterComicRow[]>(`SELECT ${CHAPTER_COMIC_COLS} FROM chapter_comics`);
+    return rows.map(rowToChapterComic);
+  },
   listByChapter: async (chapterId) => {
     const db = await getDb();
     const rows = await db.select<ChapterComicRow[]>(
@@ -538,6 +543,11 @@ const comics: ChapterComicStore = {
 };
 
 const comicPanels: ComicPanelStore = {
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<ComicPanelRow[]>(`SELECT ${COMIC_PANEL_COLS} FROM comic_panels`);
+    return rows.map(rowToComicPanel);
+  },
   listByComic: async (comicId) => {
     const db = await getDb();
     const rows = await db.select<ComicPanelRow[]>(
@@ -579,6 +589,11 @@ const comicPanels: ComicPanelStore = {
 };
 
 const mediaAssets: MediaAssetStore = {
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<MediaAssetRow[]>(`SELECT ${MEDIA_ASSET_COLS} FROM media_assets`);
+    return rows.map(rowToMediaAsset);
+  },
   listByChapter: async (chapterId) => {
     const db = await getDb();
     const rows = await db.select<MediaAssetRow[]>(

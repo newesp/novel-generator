@@ -6,7 +6,9 @@ import {
   DEFAULT_CHAPTER_CONTINUATION_RULES,
   DEFAULT_CHAPTER_CONTENT_TEMPLATE,
   DEFAULT_CHAPTER_POINTS_TEMPLATE,
+  DEFAULT_CHARACTER_DRAFTS_TEMPLATE,
   DEFAULT_INLINE_ADJUST_TEMPLATE,
+  DEFAULT_COMIC_STORYBOARD_TEMPLATE,
   DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
   DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
   DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
@@ -37,8 +39,12 @@ export interface AIPromptPrefs {
   chapterContentTemplate: string;
   /** #3 重新生成章節要點 prompt 模板 */
   chapterPointsTemplate: string;
+  /** #3.5 角色生成 prompt 模板 */
+  characterDraftsTemplate: string;
   /** #4 局部段落改寫 prompt 模板 */
   inlineAdjustTemplate: string;
+  /** #4.5 漫畫分鏡 prompt 模板 */
+  comicStoryboardTemplate: string;
   /** #5 Wiki ingest — Plan pass */
   wikiIngestPlanTemplate: string;
   /** #6 Wiki ingest — Apply create */
@@ -142,7 +148,9 @@ const DEFAULT_AI_PROMPTS: AIPromptPrefs = {
   chapterContinuationRules: DEFAULT_CHAPTER_CONTINUATION_RULES,
   chapterContentTemplate: DEFAULT_CHAPTER_CONTENT_TEMPLATE,
   chapterPointsTemplate: DEFAULT_CHAPTER_POINTS_TEMPLATE,
+  characterDraftsTemplate: DEFAULT_CHARACTER_DRAFTS_TEMPLATE,
   inlineAdjustTemplate: DEFAULT_INLINE_ADJUST_TEMPLATE,
+  comicStoryboardTemplate: DEFAULT_COMIC_STORYBOARD_TEMPLATE,
   wikiIngestPlanTemplate: DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
   wikiIngestCreateTemplate: DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
   wikiIngestUpdateTemplate: DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,

@@ -79,6 +79,46 @@ export const DEFAULT_CHAPTER_POINTS_TEMPLATE = `你是中文小說的章節規�
 
 只輸出要點本身，不要任何前言、標題、引號或結尾說明。`;
 
+// ─── #3.5 角色生成 ────────────────────────────────────────────────
+export const DEFAULT_CHARACTER_DRAFTS_TEMPLATE = `你是一位中文小說的角色設定師。請根據世界觀與主線劇情，為小說設計角色卡。
+
+## 世界觀
+{{worldSetting}}
+
+## 主線劇情
+{{mainPlot}}{{existingNamesSection}}
+
+# 強制規則（必須遵守）
+
+1. **凡是主線劇情中以「名字」明確提到的人物，都必須建立角色卡** —— 不可遺漏任何被點名的人物（主角、反派、關鍵配角皆然）。即使是只提到一兩次的名字也要建立。
+2. 從主線劇情提取出來的角色「必須擺在輸出的最前面」，越關鍵的角色越前面，**第一個輸出的就是主角**。
+3. 若主線劇情提取出的角色少於 {{count}}，請補滿其他配角；若已達到或超過 {{count}}，仍須輸出全部提取出來的角色（最終數量可大於 {{count}}）。
+4. **主角（第一個角色）的「成長弧線」必須與主線劇情各階段（開頭→中段→高潮→結局）相呼應**，明確說出主角從什麼狀態轉變為什麼狀態，與主線劇情的關鍵節點如何對應。
+5. 其他角色的成長弧線可較簡略，但仍需反映其在主線劇情中的功能。
+
+# 輸出格式
+
+每個角色嚴格使用以下格式（不可省略任何欄位）：
+
+##CHAR_START##
+NAME: <角色姓名>
+GENDER: <性別>
+AGE: <年齡，數字或描述>
+RACE: <種族>
+PERSONALITY: <性格特徵，1-2 句>
+BACKGROUND: <背景故事，2-3 句>
+APPEARANCE: <外貌描述，1-2 句>
+ABILITIES: <能力或技能，1-2 句>
+RELATIONS: <與其他角色或勢力的關係，1-2 句>
+ARC: <成長弧線。主角必須詳細描述從開頭→中段→高潮→結局的內在轉變，並對應主線劇情的關鍵節點；其他角色可較簡略>
+VISUAL_NEGATIVE_PROMPT: <漫畫/插圖生成時要避免的錯誤外觀，必須遵守下方角色 Negative Prompt 規則>
+##CHAR_END##
+
+# 角色 Negative Prompt 規則
+{{visualNegativePromptGuidance}}
+
+直接輸出多段 ##CHAR_START##...##CHAR_END##，不要任何前言、編號或結尾總結。至少輸出 {{count}} 段，但主線劇情提到的角色不可遺漏（即使因此超出 {{count}} 段）。`;
+
 // ─── #4. 局部段落改寫（右鍵 → 調整內容） ───────────────────────────
 export const DEFAULT_INLINE_ADJUST_TEMPLATE = `你是中文小說作者，需要重寫一段被選取的文字。
 
@@ -107,6 +147,68 @@ export const DEFAULT_INLINE_ADJUST_TEMPLATE = `你是中文小說作者，需要
 3. 風格、人稱、時態必須與上下文一致
 4. 結果與上文末句、下文首句必須能順暢銜接
 5. 嚴格遵守「用戶調整指令」`;
+
+// ─── #4.5 漫畫分鏡 ────────────────────────────────────────────────
+export const DEFAULT_COMIC_STORYBOARD_TEMPLATE = `你是小說轉漫畫分鏡師。請把指定章節拆成連續漫畫圖片分鏡。
+
+## 書籍
+{{projectSection}}
+
+## 章節
+{{chapterSection}}
+
+## 角色卡
+{{characterCardsSection}}
+
+## 相關 Wiki
+{{wikiSection}}{{regenerationSection}}
+
+## 章節正文
+{{chapterContent}}
+
+## 輸出規則
+- 只輸出 JSON，不要 markdown 說明。
+- panels 必須按故事時間順序排列。
+- 每格都要有可直接送圖片模型的 visualPrompt。
+- visualPrompt 必須包含畫風、角色穩定外觀、場景、動作、構圖、光線。
+- one-off background extras 可直接寫在 visualPrompt，例如「周圍站著十幾個居民」。
+- 會跨多格出現的群體請放入 extraGroups；不要把群體龍套塞進 characters。
+- extraGroups 必須永遠是合法 JSON array；沒有 recurring groups 時請輸出空陣列 []。
+- 不要捏造正文沒有支撐的重大事件。
+
+JSON schema:
+{
+  "chapterTitle": "string",
+  "storyboardStyle": "string",
+  "visualContinuityBible": {},
+  "panels": [
+    {
+      "panelNumber": 1,
+      "beat": "string",
+      "characters": ["string"],
+      "setting": "string",
+      "action": "string",
+      "emotion": "string",
+      "shotType": "string",
+      "cameraAngle": "string",
+      "visualPrompt": "string",
+      "negativePrompt": "string",
+      "extraGroups": [
+        {
+          "label": "string",
+          "count": 12,
+          "role": "crowd | guards | civilians | creatures | vehicles | background",
+          "prompt": "string",
+          "visualPriority": "low | medium"
+        }
+      ],
+      "narration": "string",
+      "dialogue": [{"character":"string","text":"string"}],
+      "durationSec": 4
+    }
+  ],
+  "qualityChecks": { "notes": [] }
+}`;
 
 // ─── #5. Wiki Ingest — Plan pass ─────────────────────────────────
 export const DEFAULT_WIKI_INGEST_PLAN_TEMPLATE = `你是這本中文小說 Wiki 的維護者。請根據新加入的章節內容，提出 Wiki 更新計畫（**只輸出嚴格 JSON，不要 markdown fence、不要註解**）。
@@ -396,6 +498,13 @@ export const PROMPT_TEMPLATE_SAMPLES: Record<string, Record<string, string>> = {
     referenceSection: '\n\n## 參考章節（浮光鎮）\n（前略...）\n艾莉望著海平面，第一次感受到那種不屬於自己的、淡淡的孤獨...',
     currentPointsSection: '\n\n## 目前的要點（僅供參考，請寫出更貼合節拍/參考章節的新版本）\n艾莉到咖啡館後遇見老闆。',
   },
+  characterDraftsTemplate: {
+    worldSetting: '星塵市的底層居民長期生活在迷霧潮汐與廢料機械之間。',
+    mainPlot: '阿飛在迷霧潮汐中發現城市真相，艾莉亞作為創星者追捕他，鐵臂則掌握舊城線索。',
+    existingNamesSection: '\n\n已存在的角色（請避免重複，但若主線劇情仍提到他們，請略過此名字並改補其他角色）：阿飛、艾莉亞',
+    count: '3',
+    visualNegativePromptGuidance: '角色 Negative Prompt 是「生圖時要排除的錯誤外觀」，不是角色描述。不要填入角色應該保留的正向外貌特徵。',
+  },
   inlineAdjustTemplate: {
     chapterTitle: '咖啡香與書頁的微風',
     beat: '衝突升級 (Rising Action)',
@@ -404,6 +513,14 @@ export const PROMPT_TEMPLATE_SAMPLES: Record<string, Record<string, string>> = {
     selectedText: '蘇沐陽抬起頭，眼神平靜地看著她。',
     afterContext: '「歡迎光臨。」他說。',
     adjustInstruction: '加強蘇沐陽眼神中的警戒感與壓抑的情緒波動',
+  },
+  comicStoryboardTemplate: {
+    projectSection: '書名：霧潮\n類型：奇幻\n風格：冷峻\n世界觀：星塵市被迷霧潮汐包圍。\n主線：阿飛尋找失落真相。',
+    chapterSection: '標題：迷霧中的平衡點\n節拍：中點轉折\n要點：阿飛遇見老趙\n目標格數：8\n漫畫風格：黑白漫畫',
+    characterCardsSection: '- 阿飛；外貌：黑髮少年；性格：衝動但善良\n- 老趙；外貌：粗壯鐵匠；背景：掌握舊城線索',
+    wikiSection: '- entity/a-fei｜阿飛：主角\n- concept/mist-tide｜迷霧潮汐：週期性災害',
+    regenerationSection: '\n\n## 重新生成要求\n這是重新生成分鏡，不要沿用上一版的格子拆法、beat 或 visualPrompt。\n\n上一版分鏡摘要（避免照抄）：\n- #1 舊開場｜old panel prompt',
+    chapterContent: '阿飛走入迷霧潮汐，老趙在鐵匠鋪門前等待。',
   },
 };
 
@@ -446,6 +563,13 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'referenceSection', desc: '參考章節區段（取尾段 1500 字）' },
     { var: 'currentPointsSection', desc: '目前要點區段（提供 AI 知道目前的方向）' },
   ],
+  characterDraftsTemplate: [
+    { var: 'worldSetting', desc: '世界觀（來自大綱）' },
+    { var: 'mainPlot', desc: '主線劇情（來自大綱）' },
+    { var: 'existingNamesSection', desc: '已存在角色名單區段（避免重複建立）' },
+    { var: 'count', desc: '希望至少生成的角色數' },
+    { var: 'visualNegativePromptGuidance', desc: '角色 Negative Prompt 的安全規則，由系統注入' },
+  ],
   inlineAdjustTemplate: [
     { var: 'chapterTitle', desc: '本章標題' },
     { var: 'beat', desc: '本章節拍' },
@@ -454,6 +578,14 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'selectedText', desc: '被選取要重寫的段落' },
     { var: 'afterContext', desc: '選取段落的下文' },
     { var: 'adjustInstruction', desc: '使用者填寫的調整方向' },
+  ],
+  comicStoryboardTemplate: [
+    { var: 'projectSection', desc: '書籍基本資料區段' },
+    { var: 'chapterSection', desc: '章節標題、節拍、要點、目標格數、漫畫風格' },
+    { var: 'characterCardsSection', desc: '角色卡精簡列表' },
+    { var: 'wikiSection', desc: '相關 Wiki 精簡列表' },
+    { var: 'regenerationSection', desc: '重新生成時插入上一版分鏡摘要；首次生成時為空' },
+    { var: 'chapterContent', desc: '章節正文' },
   ],
   wikiIngestPlanTemplate: [
     { var: 'indexCount', desc: '當前 wiki 頁數' },

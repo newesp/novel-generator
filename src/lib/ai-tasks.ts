@@ -27,7 +27,15 @@ export interface AICharacterDraft {
   relations: string;
   /** 成長弧線（主角必填，且需與主線劇情相呼應） */
   arc: string;
+  /** 漫畫/插圖生成時避免此角色跑偏的 negative prompt。 */
+  visualNegativePrompt: string;
 }
+
+export const VISUAL_NEGATIVE_PROMPT_GUIDANCE = `角色 Negative Prompt 是「生圖時要排除的錯誤外觀」，不是角色描述。
+- 不要填入角色應該保留的正向外貌特徵、服裝、道具或氣質。
+- 請根據外貌欄位，寫出「相反或常見跑偏」的錯誤特徵。
+- 若外貌是 young / slender / dirty apron，negative 可寫 old, overweight, clean elegant dress，但不要寫 dirty apron，也不要寫 no young。
+- 用英文逗號分隔，避免整句中文敘述。`;
 
 const BEAT_LIST = '引入 (Inciting Incident) / 衝突升級 (Rising Action) / 中點轉折 (Midpoint Twist) / 高潮 (Climax) / 結局 (Resolution) / 鋪墊/過渡';
 
@@ -219,46 +227,7 @@ export async function generateCharacterDrafts(args: {
   mainPlot: string;
   existingNames: string[];
 }): Promise<AICharacterDraft[]> {
-  const { count, worldSetting, mainPlot, existingNames } = args;
-
-  const existingPart = existingNames.length
-    ? `\n\n已存在的角色（請避免重複，但若主線劇情仍提到他們，請略過此名字並改補其他角色）：${existingNames.join('、')}`
-    : '';
-
-  const prompt = `你是一位中文小說的角色設定師。請根據世界觀與主線劇情，為小說設計角色卡。
-
-## 世界觀
-${worldSetting || '(未指定)'}
-
-## 主線劇情
-${mainPlot || '(未指定)'}${existingPart}
-
-# 強制規則（必須遵守）
-
-1. **凡是主線劇情中以「名字」明確提到的人物，都必須建立角色卡** —— 不可遺漏任何被點名的人物（主角、反派、關鍵配角皆然）。即使是只提到一兩次的名字也要建立。
-2. 從主線劇情提取出來的角色「必須擺在輸出的最前面」，越關鍵的角色越前面，**第一個輸出的就是主角**。
-3. 若主線劇情提取出的角色少於 ${count}，請補滿其他配角；若已達到或超過 ${count}，仍須輸出全部提取出來的角色（最終數量可大於 ${count}）。
-4. **主角（第一個角色）的「成長弧線」必須與主線劇情各階段（開頭→中段→高潮→結局）相呼應**，明確說出主角從什麼狀態轉變為什麼狀態，與主線劇情的關鍵節點如何對應。
-5. 其他角色的成長弧線可較簡略，但仍需反映其在主線劇情中的功能。
-
-# 輸出格式
-
-每個角色嚴格使用以下格式（不可省略任何欄位）：
-
-##CHAR_START##
-NAME: <角色姓名>
-GENDER: <性別>
-AGE: <年齡，數字或描述>
-RACE: <種族>
-PERSONALITY: <性格特徵，1-2 句>
-BACKGROUND: <背景故事，2-3 句>
-APPEARANCE: <外貌描述，1-2 句>
-ABILITIES: <能力或技能，1-2 句>
-RELATIONS: <與其他角色或勢力的關係，1-2 句>
-ARC: <成長弧線。主角必須詳細描述從開頭→中段→高潮→結局的內在轉變，並對應主線劇情的關鍵節點；其他角色可較簡略>
-##CHAR_END##
-
-直接輸出多段 ##CHAR_START##...##CHAR_END##，不要任何前言、編號或結尾總結。至少輸出 ${count} 段，但主線劇情提到的角色不可遺漏（即使因此超出 ${count} 段）。`;
+  const prompt = buildCharacterDraftsPrompt(args);
 
   const result = await complete(prompt, { maxTokens: 6144 });
 
@@ -280,10 +249,49 @@ ARC: <成長弧線。主角必須詳細描述從開頭→中段→高潮→結�
       abilities: fieldOf(b, 'ABILITIES'),
       relations: fieldOf(b, 'RELATIONS'),
       arc: fieldOf(b, 'ARC'),
+      visualNegativePrompt: fieldOf(b, 'VISUAL_NEGATIVE_PROMPT'),
     };
     if (draft.name) drafts.push(draft);
   }
   return drafts;
+}
+
+export function buildCharacterDraftsPrompt(args: {
+  count: number;
+  worldSetting: string;
+  mainPlot: string;
+  existingNames: string[];
+}): string {
+  const { count, worldSetting, mainPlot, existingNames } = args;
+  const { aiPrompts } = useSettingsStore.getState();
+
+  const existingNamesSection = existingNames.length
+    ? `\n\n已存在的角色（請避免重複，但若主線劇情仍提到他們，請略過此名字並改補其他角色）：${existingNames.join('、')}`
+    : '';
+
+  return renderTemplate(aiPrompts.characterDraftsTemplate, {
+    worldSetting: worldSetting || '(未指定)',
+    mainPlot: mainPlot || '(未指定)',
+    existingNamesSection,
+    count,
+    visualNegativePromptGuidance: VISUAL_NEGATIVE_PROMPT_GUIDANCE,
+  });
+}
+
+export function filterNewCharacterDrafts(drafts: AICharacterDraft[], existingNames: string[]): AICharacterDraft[] {
+  const seen = new Set(existingNames.map(normalizeCharacterName).filter(Boolean));
+  const out: AICharacterDraft[] = [];
+  for (const draft of drafts) {
+    const key = normalizeCharacterName(draft.name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ...draft, name: draft.name.trim() });
+  }
+  return out;
+}
+
+function normalizeCharacterName(name: string): string {
+  return name.trim().replace(/\s+/g, '').toLocaleLowerCase();
 }
 
 /**
@@ -309,8 +317,11 @@ export async function completeCharacterFields(args: {
     abilities: '能力',
     relations: '關係',
     arc: '成長弧線',
+    visualNegativePrompt: '角色 Negative Prompt',
   };
-  const KEYS: (keyof AICharacterDraft)[] = ['name','gender','age','race','personality','background','appearance','abilities','relations','arc'];
+  const KEYS: (keyof AICharacterDraft)[] = [
+    'name','gender','age','race','personality','background','appearance','abilities','relations','arc','visualNegativePrompt',
+  ];
 
   const filled = KEYS.filter((k) => (current[k] ?? '').trim().length > 0);
   const empty = KEYS.filter((k) => (current[k] ?? '').trim().length === 0);
@@ -340,7 +351,9 @@ ${filledPart || '(目前所有欄位都空白，請自由發想一個能融入�
 1. 只輸出「未填欄位」：${emptyKeys}。已填欄位請勿輸出。
 2. 內容必須與已填欄位一致（不可與已填內容衝突）。
 3. 性格 1-2 句；背景 2-3 句；外貌、能力、關係各 1-2 句；成長弧線可較長，主角應對應主線劇情各階段轉變。
-4. 「關係」欄位若有其他角色，請優先引用其名字。
+4. 角色 Negative Prompt 必須遵守：
+${VISUAL_NEGATIVE_PROMPT_GUIDANCE}
+5. 「關係」欄位若有其他角色，請優先引用其名字。
 
 # 輸出格式（嚴格遵守，不可有前言或結尾）
 ##FIELDS_START##

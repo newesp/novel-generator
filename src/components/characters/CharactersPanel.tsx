@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { v4 as uuid } from 'uuid';
 import { useProjectStore } from '../../stores/projectStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { storage } from '../../lib/storage';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 import { Textarea } from '../common/Textarea';
 import { CharacterGraphView } from './CharacterGraphView';
-import { generateCharacterDrafts, completeCharacterFields } from '../../lib/ai-tasks';
+import { generateCharacterDrafts, completeCharacterFields, filterNewCharacterDrafts } from '../../lib/ai-tasks';
 import { isLLMReady } from '../../lib/llm';
-import type { Character } from '../../types';
+import type { Character, MediaAsset } from '../../types';
 
 const EMPTY_CHARACTER = (projectId: string): Character => ({
   id: '',
@@ -23,6 +25,8 @@ const EMPTY_CHARACTER = (projectId: string): Character => ({
   abilities: '',
   relations: '',
   arc: '',
+  visualNegativePrompt: '',
+  referenceAssetIds: [],
   createdAt: 0,
 });
 
@@ -112,7 +116,13 @@ export function CharactersPanel() {
         return;
       }
 
-      for (const draft of drafts) {
+      const newDrafts = filterNewCharacterDrafts(drafts, characters.map((c) => c.name));
+      if (newDrafts.length === 0) {
+        alert('AI 產出的角色都已存在，沒有新增角色。');
+        return;
+      }
+
+      for (const draft of newDrafts) {
         await createCharacter(project.id, draft);
       }
       setShowAIModal(false);
@@ -328,14 +338,71 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete, worldSetti
     race: character.race,
     personality: character.personality,
     background: character.background,
-    appearance: character.appearance,
+    appearance: character.appearance || legacyVisualPrompt(character),
     abilities: character.abilities,
     relations: character.relations,
     arc: character.arc ?? '',
+    visualNegativePrompt: character.visualNegativePrompt ?? '',
+    referenceAssetIds: character.referenceAssetIds ?? [],
   });
+  const [referenceAssets, setReferenceAssets] = useState<MediaAsset[]>([]);
 
   const update = <K extends keyof typeof form>(key: K, val: string) =>
     setForm((f) => ({ ...f, [key]: val }));
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = form.referenceAssetIds ?? [];
+    if (!ids.length) {
+      queueMicrotask(() => {
+        if (!cancelled) setReferenceAssets([]);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    void Promise.all(ids.map((id) => storage.mediaAssets.get(id))).then((assets) => {
+      if (cancelled) return;
+      setReferenceAssets(assets.filter((asset): asset is MediaAsset => Boolean(asset)));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.referenceAssetIds]);
+
+  const handleReferenceUpload = async (files: FileList | null) => {
+    if (!files?.length || !character.id) return;
+    const uploaded: MediaAsset[] = [];
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+      const url = await readFileAsDataUrl(file);
+      const asset: MediaAsset = {
+        id: uuid(),
+        projectId: character.projectId,
+        kind: 'character_reference_image',
+        url,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        createdAt: Date.now(),
+      };
+      await storage.mediaAssets.add(asset);
+      uploaded.push(asset);
+    }
+    if (!uploaded.length) return;
+    setReferenceAssets((current) => [...current, ...uploaded]);
+    setForm((current) => ({
+      ...current,
+      referenceAssetIds: [...(current.referenceAssetIds ?? []), ...uploaded.map((asset) => asset.id)],
+    }));
+  };
+
+  const removeReferenceAsset = (assetId: string) => {
+    setReferenceAssets((current) => current.filter((asset) => asset.id !== assetId));
+    setForm((current) => ({
+      ...current,
+      referenceAssetIds: (current.referenceAssetIds ?? []).filter((id) => id !== assetId),
+    }));
+  };
 
   const handleAIFill = async () => {
     setAiError(null);
@@ -353,9 +420,11 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete, worldSetti
       }
       setForm((f) => {
         const next = { ...f };
+        const textFields = next as unknown as Record<keyof typeof filled, string>;
         for (const [k, v] of Object.entries(filled)) {
-          if (v && !(next as Record<string, string>)[k]?.trim()) {
-            (next as Record<string, string>)[k] = v;
+          const key = k as keyof typeof filled;
+          if (v && !textFields[key]?.trim()) {
+            textFields[key] = v;
           }
         }
         return next;
@@ -407,7 +476,6 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete, worldSetti
         <Input label="種族" value={form.race} onChange={(e) => update('race', e.target.value)} />
         <Input label="性格" value={form.personality} onChange={(e) => update('personality', e.target.value)} />
         <Textarea label="背景" value={form.background} onChange={(e) => update('background', e.target.value)} />
-        <Textarea label="外貌" value={form.appearance} onChange={(e) => update('appearance', e.target.value)} />
         <Textarea label="能力" value={form.abilities} onChange={(e) => update('abilities', e.target.value)} />
         <Textarea label="關係" value={form.relations} onChange={(e) => update('relations', e.target.value)} />
         <Textarea
@@ -416,7 +484,66 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete, worldSetti
           onChange={(e) => update('arc', e.target.value)}
           placeholder="從故事開頭到結局，此角色的內在轉變（與主線劇情相呼應）..."
         />
+        <div className="character-visual-section">
+          <div className="section-title">漫畫視覺設定</div>
+          <Textarea
+            label="外貌"
+            value={form.appearance}
+            onChange={(e) => update('appearance', e.target.value)}
+            placeholder="固定髮型、臉部特徵、體型、服裝、標誌物；例如：阿飛，年輕男性，短黑髮，藍灰色舊工作服..."
+          />
+          <p className="character-visual-note">故事生成與漫畫生圖都會使用這個外貌欄位；漫畫生圖會把它作為角色視覺 prompt。</p>
+          <Textarea
+            label="角色 Negative Prompt"
+            value={form.visualNegativePrompt}
+            onChange={(e) => update('visualNegativePrompt', e.target.value)}
+            placeholder="只填要排除的錯誤外觀，不要填角色應保留的特徵；例如：old, overweight, clean elegant dress, male, soft delicate hands"
+          />
+          <div>
+            <label className="form-label">角色參考圖</label>
+            {character.id ? (
+              <>
+                <input
+                  className="form-input"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => void handleReferenceUpload(event.target.files)}
+                />
+                <div className="character-reference-grid">
+                  {referenceAssets.map((asset, index) => (
+                    <figure className="character-reference-card" key={asset.id}>
+                      {asset.url && <img src={asset.url} alt={`${form.name || '角色'}參考圖 ${index + 1}`} />}
+                      <figcaption>
+                        <span>{index === 0 ? '主參考' : `參考 ${index + 1}`}</span>
+                        <button type="button" onClick={() => removeReferenceAsset(asset.id)}>移除</button>
+                      </figcaption>
+                    </figure>
+                  ))}
+                </div>
+                <p className="character-visual-note">儲存角色後，轉漫畫會自動把視覺 prompt 注入對應角色的分鏡；參考圖會先保存，待 provider 支援 reference image 時使用。</p>
+              </>
+            ) : (
+              <p className="character-visual-note">先儲存新角色，再重新打開即可上傳多張角色參考圖。</p>
+            )}
+          </div>
+        </div>
       </div>
     </Modal>
   );
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('讀取圖片失敗'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function legacyVisualPrompt(character: Character): string {
+  return typeof (character as { visualPrompt?: unknown }).visualPrompt === 'string'
+    ? ((character as { visualPrompt?: string }).visualPrompt ?? '')
+    : '';
 }

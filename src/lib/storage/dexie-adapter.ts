@@ -134,7 +134,11 @@ const appMeta: AppMetaStore = {
 };
 
 const comics: ChapterComicStore = {
-  listByChapter: (chapterId) => db.comics.where('chapterId').equals(chapterId).reverse().sortBy('updatedAt'),
+  listAll: () => db.comics.toArray(),
+  listByChapter: async (chapterId) => {
+    const arr = await db.comics.where('chapterId').equals(chapterId).sortBy('updatedAt');
+    return arr.reverse();
+  },
   get: (id) => db.comics.get(id),
   add: async (comic) => { await db.comics.add(comic); },
   update: async (id, data) => { await db.comics.update(id, data); },
@@ -145,6 +149,7 @@ const comics: ChapterComicStore = {
 };
 
 const comicPanels: ComicPanelStore = {
+  listAll: () => db.comicPanels.toArray(),
   listByComic: (comicId) => db.comicPanels.where('comicId').equals(comicId).sortBy('order'),
   get: (id) => db.comicPanels.get(id),
   add: async (panel) => { await db.comicPanels.add(panel); },
@@ -156,6 +161,7 @@ const comicPanels: ComicPanelStore = {
 };
 
 const mediaAssets: MediaAssetStore = {
+  listAll: () => db.mediaAssets.toArray(),
   listByChapter: (chapterId) => db.mediaAssets.where('chapterId').equals(chapterId).sortBy('createdAt'),
   get: (id) => db.mediaAssets.get(id),
   add: async (asset) => { await db.mediaAssets.add(asset); },

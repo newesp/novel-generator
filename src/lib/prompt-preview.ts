@@ -133,6 +133,18 @@ export function buildLivePromptVars(
       };
     }
 
+    case 'characterDraftsTemplate': {
+      return {
+        worldSetting: project.worldSetting || '(未指定)',
+        mainPlot: project.mainPlot || '(未指定)',
+        existingNamesSection: characters.length
+          ? `\n\n已存在的角色（請避免重複，但若主線劇情仍提到他們，請略過此名字並改補其他角色）：${characters.map((c) => c.name).filter(Boolean).join('、')}`
+          : '',
+        count: '3',
+        visualNegativePromptGuidance: '角色 Negative Prompt 是「生圖時要排除的錯誤外觀」，不是角色描述。不要填入角色應該保留的正向外貌特徵。',
+      };
+    }
+
     case 'inlineAdjustTemplate': {
       const ch = getCurrentChapter();
       if (!ch) return null;
@@ -163,6 +175,40 @@ export function buildLivePromptVars(
         selectedText: selectedText || '(章節中段示意)',
         afterContext: afterContext || '(無)',
         // adjustInstruction 沒辦法從專案抓 → 留給 SAMPLES 補
+      };
+    }
+
+    case 'comicStoryboardTemplate': {
+      const ch = getCurrentChapter();
+      if (!ch) return null;
+
+      const characterCardsSection = characters.map((character) => [
+        `- ${character.name}`,
+        character.appearance && `外貌：${character.appearance}`,
+        character.personality && `性格：${character.personality}`,
+        character.background && `背景：${character.background}`,
+        character.relations && `關係：${character.relations}`,
+      ].filter(Boolean).join('；')).join('\n') || '(無)';
+
+      return {
+        projectSection: [
+          `書名：${project.title}`,
+          `類型：${project.genre}`,
+          `風格：${project.style}`,
+          `世界觀：${project.worldSetting}`,
+          `主線：${project.mainPlot}`,
+        ].join('\n'),
+        chapterSection: [
+          `標題：${ch.title}`,
+          `節拍：${ch.beat}`,
+          `要點：${ch.points}`,
+          '目標格數：8',
+          '漫畫風格：cinematic black and white manga',
+        ].join('\n'),
+        characterCardsSection,
+        wikiSection: '(預覽不讀取 Wiki；實際生成時由系統注入相關 Wiki)',
+        regenerationSection: '\n\n## 重新生成要求\n這是重新生成分鏡，不要沿用上一版的格子拆法、beat 或 visualPrompt。',
+        chapterContent: ch.content || '(章節正文)',
       };
     }
 

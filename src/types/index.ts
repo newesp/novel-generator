@@ -58,6 +58,10 @@ export interface Character {
   relations: string;
   /** 成長弧線：角色從開頭到結局的內在轉變（與主線劇情相呼應） */
   arc: string;
+  /** 漫畫/插圖生成用的角色專屬 negative prompt。 */
+  visualNegativePrompt?: string;
+  /** Project-level media asset ids for uploaded/generated character reference images. */
+  referenceAssetIds?: string[];
   createdAt: number;
 }
 
@@ -117,7 +121,7 @@ export type WikiSyncStatus = 'unsynced' | 'synced' | 'stale' | 'partial' | 'part
 
 export type ChapterComicStatus = 'draft' | 'storyboard_ready' | 'generating' | 'ready' | 'partial' | 'failed';
 export type ComicPanelStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'failed';
-export type MediaAssetKind = 'comic_panel_image' | 'tts_audio' | 'video';
+export type MediaAssetKind = 'comic_panel_image' | 'character_reference_image' | 'tts_audio' | 'video';
 export type ComicPanelExtraRole = 'crowd' | 'guards' | 'civilians' | 'creatures' | 'vehicles' | 'background';
 export type ComicPanelExtraPriority = 'low' | 'medium';
 

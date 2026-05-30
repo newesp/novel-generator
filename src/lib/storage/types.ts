@@ -97,6 +97,7 @@ export interface WikiLogStore {
 }
 
 export interface ChapterComicStore {
+  listAll(): Promise<ChapterComic[]>;
   listByChapter(chapterId: string): Promise<ChapterComic[]>;
   get(id: string): Promise<ChapterComic | undefined>;
   add(comic: ChapterComic): Promise<void>;
@@ -106,6 +107,7 @@ export interface ChapterComicStore {
 }
 
 export interface ComicPanelStore {
+  listAll(): Promise<ComicPanel[]>;
   listByComic(comicId: string): Promise<ComicPanel[]>;
   get(id: string): Promise<ComicPanel | undefined>;
   add(panel: ComicPanel): Promise<void>;
@@ -115,6 +117,7 @@ export interface ComicPanelStore {
 }
 
 export interface MediaAssetStore {
+  listAll(): Promise<MediaAsset[]>;
   listByChapter(chapterId: string): Promise<MediaAsset[]>;
   get(id: string): Promise<MediaAsset | undefined>;
   add(asset: MediaAsset): Promise<void>;

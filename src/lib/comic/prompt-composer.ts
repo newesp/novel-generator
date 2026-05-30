@@ -1,8 +1,9 @@
-import type { ComicPanel, ComicPanelExtraGroup } from '../../types';
+import type { Character, ComicPanel, ComicPanelExtraGroup } from '../../types';
 
 export interface ComposeComicImagePromptInput {
   panel: ComicPanel;
   stylePreset: string;
+  characters?: Character[];
 }
 
 export interface ComposedComicPrompt {
@@ -15,18 +16,39 @@ export interface ComposedComicPrompt {
 export function composeComicImagePrompt(input: ComposeComicImagePromptInput): ComposedComicPrompt {
   const warnings: string[] = [];
   const extras = parseExtraGroups(input.panel, warnings);
+  const activeCharacters = selectActiveCharacters(input.panel, input.characters ?? []);
+  const characterPrompts = activeCharacters.map(characterVisualPrompt).filter(Boolean);
+  const characterNegativePrompts = activeCharacters.map((character) => character.visualNegativePrompt?.trim()).filter(Boolean);
+  const referenceAssetIds = Array.from(new Set(activeCharacters.flatMap((character) => character.referenceAssetIds ?? [])));
   const promptParts = [
     input.stylePreset,
+    characterPrompts.length ? `Character visual references:\n${characterPrompts.join('\n')}` : '',
     input.panel.visualPrompt,
     extras.length ? `Extras / crowd: ${extras.map(extraGroupPrompt).join('; ')}. Keep extras secondary; do not make extras look like main characters.` : '',
   ].filter(Boolean);
 
   return {
     prompt: promptParts.join('\n'),
-    negativePrompt: input.panel.negativePrompt,
-    referenceAssetIds: [],
+    negativePrompt: [input.panel.negativePrompt, ...characterNegativePrompts].filter(Boolean).join('\n'),
+    referenceAssetIds,
     warnings,
   };
+}
+
+function selectActiveCharacters(panel: ComicPanel, characters: Character[]): Character[] {
+  if (!panel.characters.length || !characters.length) return [];
+  const activeNames = new Set(panel.characters.map(normalizeName).filter(Boolean));
+  return characters.filter((character) => activeNames.has(normalizeName(character.name)));
+}
+
+function normalizeName(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
+function characterVisualPrompt(character: Character): string {
+  const appearance = character.appearance?.trim();
+  if (appearance) return `${character.name}: ${appearance}`;
+  return '';
 }
 
 function parseExtraGroups(panel: ComicPanel, warnings: string[]): ComicPanelExtraGroup[] {

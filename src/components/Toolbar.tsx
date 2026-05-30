@@ -7,7 +7,9 @@ import {
   DEFAULT_CHAPTER_CONTINUATION_RULES,
   DEFAULT_CHAPTER_CONTENT_TEMPLATE,
   DEFAULT_CHAPTER_POINTS_TEMPLATE,
+  DEFAULT_CHARACTER_DRAFTS_TEMPLATE,
   DEFAULT_INLINE_ADJUST_TEMPLATE,
+  DEFAULT_COMIC_STORYBOARD_TEMPLATE,
   DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
   DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
   DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
@@ -629,10 +631,22 @@ const PROMPT_ENTRIES: PromptEntry[] = [
     defaultValue: DEFAULT_CHAPTER_POINTS_TEMPLATE,
   },
   {
+    key: 'characterDraftsTemplate',
+    label: '#3.5 角色生成',
+    desc: '角色面板「✨ AI 生成角色」使用。大型角色名單/世界觀由系統注入。',
+    defaultValue: DEFAULT_CHARACTER_DRAFTS_TEMPLATE,
+  },
+  {
     key: 'inlineAdjustTemplate',
     label: '#4 局部段落改寫',
     desc: '正文選取後右鍵「✨ 調整內容」使用。',
     defaultValue: DEFAULT_INLINE_ADJUST_TEMPLATE,
+  },
+  {
+    key: 'comicStoryboardTemplate',
+    label: '#4.5 漫畫分鏡',
+    desc: '章節「轉漫畫」的生成/重新生成分鏡使用。章節正文與上一版分鏡摘要由系統注入。',
+    defaultValue: DEFAULT_COMIC_STORYBOARD_TEMPLATE,
   },
   {
     key: 'wikiIngestPlanTemplate',

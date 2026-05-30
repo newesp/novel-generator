@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildStoryboardPrompt, generateStoryboardDraft, parseJsonFromLLM } from './storyboard-generate';
 import type { Character, Chapter, Project, WikiPage } from '../../types';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 const chapter: Chapter = {
   id: 'ch1',
@@ -49,6 +50,53 @@ describe('buildStoryboardPrompt', () => {
     expect(prompt).toContain('one-off background extras');
     expect(prompt).toContain('黑白漫畫');
     expect(prompt).toContain('只輸出 JSON');
+  });
+
+  it('includes previous panels as avoid-copy context when regenerating', () => {
+    const prompt = buildStoryboardPrompt({
+      project,
+      chapter,
+      characters: [],
+      wikiPages: [],
+      stylePreset: '黑白漫畫',
+      targetPanelCount: 8,
+      previousPanels: [
+        { order: 1, beat: '舊開場', visualPrompt: 'old panel prompt' },
+      ],
+    });
+
+    expect(prompt).toContain('重新生成分鏡');
+    expect(prompt).toContain('不要沿用上一版');
+    expect(prompt).toContain('old panel prompt');
+  });
+
+  it('renders the configurable comic storyboard template', () => {
+    const original = useSettingsStore.getState().aiPrompts.comicStoryboardTemplate;
+    useSettingsStore.getState().setAiPrompts({
+      comicStoryboardTemplate: '漫畫模板 {{projectSection}} / {{chapterSection}} / {{characterCardsSection}} / {{wikiSection}} / {{regenerationSection}} / {{chapterContent}}',
+    });
+
+    try {
+      const prompt = buildStoryboardPrompt({
+        project,
+        chapter,
+        characters: [{ name: '阿飛', appearance: '黑髮少年' } as Character],
+        wikiPages: [{ type: 'entity', slug: 'a-fei', title: '阿飛', description: '主角' } as WikiPage],
+        stylePreset: '黑白漫畫',
+        targetPanelCount: 8,
+        previousPanels: [{ order: 1, beat: '舊開場', visualPrompt: 'old panel prompt' }],
+      });
+
+      expect(prompt).toContain('漫畫模板');
+      expect(prompt).toContain('書名：霧潮');
+      expect(prompt).toContain('標題：迷霧中的平衡點');
+      expect(prompt).toContain('黑髮少年');
+      expect(prompt).toContain('entity/a-fei');
+      expect(prompt).toContain('old panel prompt');
+      expect(prompt).toContain('阿飛走入迷霧潮汐');
+    } finally {
+      useSettingsStore.getState().setAiPrompts({ comicStoryboardTemplate: original });
+    }
   });
 
 });
@@ -129,6 +177,32 @@ describe('parseJsonFromLLM', () => {
             { label: 'residents', role: 'civilians', prompt: 'background crowd', visualPriority: 'low' },
           ],
           narration: 'crowd watches',
+          durationSec: 4,
+        },
+      ],
+    });
+  });
+
+  it('repairs missing commas after array-valued panel fields', () => {
+    const parsed = parseJsonFromLLM(`{
+      "panels": [
+        {
+          "panelNumber": 1,
+          "characters": ["阿飛", "老趙"]
+          "setting": "鐵匠鋪",
+          "dialogue": [{"character":"老趙","text":"跟我來"}]
+          "durationSec": 4
+        }
+      ]
+    }`);
+
+    expect(parsed).toEqual({
+      panels: [
+        {
+          panelNumber: 1,
+          characters: ['阿飛', '老趙'],
+          setting: '鐵匠鋪',
+          dialogue: [{ character: '老趙', text: '跟我來' }],
           durationSec: 4,
         },
       ],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ComicPanel } from '../../types';
+import type { Character, ComicPanel } from '../../types';
 import { composeComicImagePrompt } from './prompt-composer';
 
 const basePanel: ComicPanel = {
@@ -22,6 +22,40 @@ const basePanel: ComicPanel = {
 };
 
 describe('composeComicImagePrompt', () => {
+  it('uses character appearance as the visual prompt for active characters', () => {
+    const characters: Character[] = [
+      {
+        id: 'char-a-fei',
+        projectId: 'project-1',
+        name: 'A Fei',
+        gender: '',
+        age: '',
+        race: '',
+        personality: '',
+        background: '',
+        appearance: 'young man, consistent short black hair, worn blue-gray work clothes.',
+        abilities: '',
+        relations: '',
+        arc: '',
+        visualNegativePrompt: 'no glasses, no beard',
+        referenceAssetIds: ['asset-a-fei-front'],
+        createdAt: 1,
+      },
+    ];
+
+    const result = composeComicImagePrompt({
+      panel: basePanel,
+      stylePreset: 'black and white manga',
+      characters,
+    });
+
+    expect(result.prompt).toContain('Character visual references');
+    expect(result.prompt).toContain('A Fei: young man, consistent short black hair');
+    expect(result.negativePrompt).toContain('bad hands');
+    expect(result.negativePrompt).toContain('no glasses, no beard');
+    expect(result.referenceAssetIds).toEqual(['asset-a-fei-front']);
+  });
+
   it('adds recurring extra groups without treating them as named characters', () => {
     const result = composeComicImagePrompt({
       panel: {
