@@ -78,6 +78,7 @@ export interface GenerationOptions {
   maxTokens?: number;
   temperature?: number;
   systemPrompt?: string;
+  responseFormat?: 'json_object';
 }
 
 /** Google Gemini 預設 API 端點 */
@@ -141,7 +142,7 @@ async function completeOpenAICompat(
   }
   const targetUrl = `${cfg.baseUrl.replace(/\/$/, '')}/chat/completions`;
 
-  const response = await postToLLMWithRetry(targetUrl, cfg.apiKey, {
+  const body: Record<string, unknown> = {
     model: cfg.model,
     messages: [
       ...(options?.systemPrompt ? [{ role: 'system' as const, content: options.systemPrompt }] : []),
@@ -149,7 +150,12 @@ async function completeOpenAICompat(
     ],
     max_tokens: options?.maxTokens ?? 4096,
     temperature: options?.temperature ?? 0.7,
-  }, true, signal);
+  };
+  if (options?.responseFormat === 'json_object') {
+    body.response_format = { type: 'json_object' };
+  }
+
+  const response = await postToLLMWithRetry(targetUrl, cfg.apiKey, body, true, signal);
 
   if (!response.ok) {
     const err = await response.text();
@@ -181,6 +187,7 @@ async function completeGoogle(
     generationConfig: {
       temperature: options?.temperature ?? 0.7,
       maxOutputTokens: options?.maxTokens ?? 4096,
+      ...(options?.responseFormat === 'json_object' ? { responseMimeType: 'application/json' } : {}),
     },
   };
   if (options?.systemPrompt) {
@@ -200,7 +207,7 @@ async function completeGoogle(
   if (!candidate) {
     throw new Error(`Gemini 沒有回傳內容：${JSON.stringify(data).slice(0, 300)}`);
   }
-  if (candidate.finishReason && candidate.finishReason !== 'STOP' && !candidate.content) {
+  if (candidate.finishReason && candidate.finishReason !== 'STOP') {
     throw new Error(`Gemini 被中止：${candidate.finishReason}`);
   }
   const parts = candidate.content?.parts ?? [];

@@ -115,6 +115,27 @@ describe('generateStoryboardDraft', () => {
     expect(draft.panels).toHaveLength(1);
     expect(draft.panels[0].visualPrompt).toContain('阿飛走入霧中');
   });
+  it('requests JSON mode and a larger output budget for storyboard generation', async () => {
+    const calls: unknown[] = [];
+    await generateStoryboardDraft({
+      project,
+      chapter,
+      characters: [],
+      wikiPages: [],
+      stylePreset: 'manga',
+      targetPanelCount: 10,
+      previousPanels: [{ order: 1, beat: 'old beat', visualPrompt: 'old prompt' }],
+    }, async (_prompt, options) => {
+      calls.push(options);
+      return '{"chapterTitle":"A","panels":[]}';
+    });
+
+    expect(calls[0]).toMatchObject({
+      maxTokens: 8192,
+      temperature: 0.2,
+      responseFormat: 'json_object',
+    });
+  });
 });
 
 describe('parseJsonFromLLM', () => {
@@ -203,6 +224,101 @@ describe('parseJsonFromLLM', () => {
           characters: ['阿飛', '老趙'],
           setting: '鐵匠鋪',
           dialogue: [{ character: '老趙', text: '跟我來' }],
+          durationSec: 4,
+        },
+      ],
+    });
+  });
+
+  it('repairs missing commas after string-valued panel fields', () => {
+    const parsed = parseJsonFromLLM(`{
+      "chapterTitle": "C"
+      "panels": [
+        {
+          "panelNumber": 1,
+          "beat": "Afei notices the signal"
+          "action": "Afei turns toward the alley"
+          "emotion": "tense"
+          "visualPrompt": "Afei in a misty alley"
+          "negativePrompt": "modern city"
+          "durationSec": 4
+        }
+      ]
+    }`);
+
+    expect(parsed).toEqual({
+      chapterTitle: 'C',
+      panels: [
+        {
+          panelNumber: 1,
+          beat: 'Afei notices the signal',
+          action: 'Afei turns toward the alley',
+          emotion: 'tense',
+          visualPrompt: 'Afei in a misty alley',
+          negativePrompt: 'modern city',
+          durationSec: 4,
+        },
+      ],
+    });
+  });
+
+  it('strips an opening markdown json fence even when the closing fence is missing', () => {
+    const parsed = parseJsonFromLLM('```json\n{"chapterTitle":"D","panels":[]}');
+    expect(parsed).toEqual({ chapterTitle: 'D', panels: [] });
+  });
+
+  it('repairs adjacent values without whitespace between them', () => {
+    const parsed = parseJsonFromLLM('{"panels":[{"panelNumber":1,"beat":"first""action":"next"}{"panelNumber":2,"beat":"second"}]}');
+
+    expect(parsed).toEqual({
+      panels: [
+        { panelNumber: 1, beat: 'first', action: 'next' },
+        { panelNumber: 2, beat: 'second' },
+      ],
+    });
+  });
+
+  it('repairs an unterminated string before the next property key', () => {
+    const parsed = parseJsonFromLLM(`{
+      "panels": [
+        {
+          "panelNumber": 1,
+          "beat": "Afei notices the signal
+          "action": "Afei turns toward the alley",
+          "durationSec": 4
+        }
+      ]
+    }`);
+
+    expect(parsed).toEqual({
+      panels: [
+        {
+          panelNumber: 1,
+          beat: 'Afei notices the signal',
+          action: 'Afei turns toward the alley',
+          durationSec: 4,
+        },
+      ],
+    });
+  });
+
+  it('escapes raw newlines inside a continued string value', () => {
+    const parsed = parseJsonFromLLM(`{
+      "panels": [
+        {
+          "panelNumber": 1,
+          "visualPrompt": "Afei in a misty alley
+low angle shot, blue lantern light",
+          "durationSec": 4
+        }
+      ]
+    }`);
+
+    expect(parsed).toEqual({
+      panels: [
+        {
+          panelNumber: 1,
+          visualPrompt: 'Afei in a misty alley\nlow angle shot, blue lantern light',
           durationSec: 4,
         },
       ],

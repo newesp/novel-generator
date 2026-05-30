@@ -14,7 +14,9 @@ export interface StoryboardGenerationInput {
   previousPanels?: Array<{ order: number; beat: string; visualPrompt: string }>;
 }
 
-type CompleteFn = (prompt: string, options?: { maxTokens?: number; temperature?: number }) => Promise<string>;
+type CompleteFn = (prompt: string, options?: { maxTokens?: number; temperature?: number; responseFormat?: 'json_object' }) => Promise<string>;
+
+const STORYBOARD_JSON_KEY_PATTERN = /^(?:chapterTitle|storyboardStyle|visualContinuityBible|panels|qualityChecks|notes|panelNumber|beat|characters|setting|location|action|emotion|shotType|cameraAngle|visualPrompt|negativePrompt|extraGroups|label|count|role|prompt|visualPriority|narration|dialogue|character|text|durationSec)$/;
 
 export function buildStoryboardPrompt(input: StoryboardGenerationInput): string {
   const characterText = input.characters.map((character) => [
@@ -61,22 +63,24 @@ export async function generateStoryboardDraft(
   completeFn: CompleteFn = complete,
 ): Promise<ReturnType<typeof normalizeStoryboardDraft>> {
   const prompt = buildStoryboardPrompt(input);
-  const raw = await completeFn(prompt, { maxTokens: 4096, temperature: 0.4 });
+  const raw = await completeFn(prompt, { maxTokens: 8192, temperature: 0.2, responseFormat: 'json_object' });
   return normalizeStoryboardDraft(parseJsonFromLLM(raw));
 }
 
 export function parseJsonFromLLM(raw: string): unknown {
-  const trimmed = raw.trim();
+  const trimmed = raw.replace(/^\uFEFF/, '').trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) return parseLooseJson(fenced[1].trim());
+  if (fenced?.[1]) return parseLooseJson(extractJsonObject(fenced[1].trim()));
 
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
+  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+
+  const start = unfenced.indexOf('{');
+  const end = unfenced.lastIndexOf('}');
   if (start >= 0 && end > start) {
-    return parseLooseJson(trimmed.slice(start, end + 1));
+    return parseLooseJson(extractJsonObject(unfenced.slice(start, end + 1)));
   }
 
-  return parseLooseJson(trimmed);
+  return parseLooseJson(extractJsonObject(unfenced));
 }
 
 function parseLooseJson(json: string): unknown {
@@ -93,14 +97,158 @@ function parseLooseJson(json: string): unknown {
 }
 
 function repairCommonLLMJson(json: string): string {
-  return json
+  const repairedArrays = json
     .replace(/("extraGroups"\s*:\s*\[[\s\S]*?})\s*("(?:narration|dialogue|durationSec|visualPrompt|negativePrompt|shotType|cameraAngle|emotion|action|setting|characters|beat|panelNumber)")/g, '$1],$2')
-    .replace(/,\s*([}\]])/g, '$1')
-    .replace(/]\s*("[A-Za-z_][A-Za-z0-9_]*"\s*:)/g, '],$1')
-    .replace(/}\s*("[A-Za-z_][A-Za-z0-9_]*"\s*:)/g, '},$1')
-    .replace(/}\s*{/g, '},{')
-    .replace(/]\s*\[/g, '],[')
-    .replace(/"\s+"/g, '","')
-    .replace(/(\d)\s+"/g, '$1,"')
-    .replace(/"\s+([[{])/g, '",$1');
+    .replace(/,\s*([}\]])/g, '$1');
+
+  return insertMissingCommasBetweenAdjacentTokens(repairRawNewlinesInStrings(repairedArrays))
+    .replace(/,\s*([}\]])/g, '$1');
+}
+
+function extractJsonObject(text: string): string {
+  const start = text.indexOf('{');
+  if (start < 0) return text.trim();
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i += 1) {
+    const char = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === '{') depth += 1;
+    if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1).trim();
+    }
+  }
+
+  return text.slice(start).trim();
+}
+
+function insertMissingCommasBetweenAdjacentTokens(json: string): string {
+  let output = '';
+  let pendingWhitespace = '';
+  let previousSignificant = '';
+  let inString = false;
+  let escaped = false;
+
+  for (const char of json) {
+    if (inString) {
+      output += char;
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+        previousSignificant = char;
+      }
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      pendingWhitespace += char;
+      continue;
+    }
+
+    if (shouldInsertMissingComma(previousSignificant, char)) {
+      output += ',';
+    }
+
+    output += pendingWhitespace;
+    pendingWhitespace = '';
+    output += char;
+
+    if (char === '"') {
+      inString = true;
+    } else {
+      previousSignificant = char;
+    }
+  }
+
+  return output + pendingWhitespace;
+}
+
+function repairRawNewlinesInStrings(json: string): string {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < json.length; i += 1) {
+    const char = json[i];
+    if (!inString) {
+      output += char;
+      if (char === '"') inString = true;
+      continue;
+    }
+
+    if (escaped) {
+      output += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      output += char;
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      output += char;
+      inString = false;
+      continue;
+    }
+
+    if (char === '\n' || char === '\r') {
+      const newline = char === '\r' && json[i + 1] === '\n' ? '\r\n' : char;
+      if (newline.length === 2) i += 1;
+
+      if (nextLineStartsProperty(json, i + 1)) {
+        output += '"';
+        output += newline;
+        inString = false;
+      } else {
+        output += '\\n';
+      }
+      continue;
+    }
+
+    output += char;
+  }
+
+  if (inString) output += '"';
+  return output;
+}
+
+function nextLineStartsProperty(json: string, index: number): boolean {
+  const rest = json.slice(index);
+  const match = rest.match(/^\s*"([^"]+)"\s*:/);
+  return Boolean(match?.[1] && STORYBOARD_JSON_KEY_PATTERN.test(match[1]));
+}
+
+function shouldInsertMissingComma(previous: string, next: string): boolean {
+  return endsJsonValue(previous) && startsJsonValueOrProperty(next);
+}
+
+function endsJsonValue(char: string): boolean {
+  return char === '"' || char === ']' || char === '}' || /[0-9el]/.test(char);
+}
+
+function startsJsonValueOrProperty(char: string): boolean {
+  return char === '"' || char === '{' || char === '[' || char === '-' || /[0-9tfn]/.test(char);
 }
