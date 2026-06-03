@@ -1,5 +1,21 @@
 # 開發日誌
 
+## 2026-06-03 - Phase 6 reference images, scene visuals, and continuity references
+
+**Changed**
+- Added project-level scene visual settings for comic generation. Panels can select a reusable scene, and scene prompt / negative prompt / reference images are composed into final image generation.
+- Added provider reference-image plumbing. Character, scene, and continuity reference assets are resolved before image generation and skipped with warnings when the selected provider does not support image references.
+- Added DeepInfra FLUX-2-pro image provider support with `input_image`, `input_image_2`, ... request fields.
+- Added panel-level `useContinuityReference` so a panel can use the previous generated panel image; chapter first panels can fall back to the previous chapter's latest final comic panel.
+- Added ComfyUI reference image node mapping.
+- Added per-panel character multi-select dropdown in the comic UI so selected characters automatically contribute their visual prompts and uploaded reference images.
+- Fixed generated panel prompt snapshots / warnings being overwritten after successful batch generation.
+- Aligned Dexie and SQLite uniqueness for scene slugs.
+
+**Verification**
+- `tsc -b` passed.
+- Focused Vitest coverage passed for providers, prompt composer, scene visuals, storage rows, and Tauri migration registration.
+
 ## 2026-05-29 — LLM Provider 設定切換 Hotfix
 
 **修正**

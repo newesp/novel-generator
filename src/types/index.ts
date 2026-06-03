@@ -121,7 +121,7 @@ export type WikiSyncStatus = 'unsynced' | 'synced' | 'stale' | 'partial' | 'part
 
 export type ChapterComicStatus = 'draft' | 'storyboard_ready' | 'generating' | 'ready' | 'partial' | 'failed';
 export type ComicPanelStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'failed';
-export type MediaAssetKind = 'comic_panel_image' | 'character_reference_image' | 'tts_audio' | 'video';
+export type MediaAssetKind = 'comic_panel_image' | 'character_reference_image' | 'scene_reference_image' | 'tts_audio' | 'video';
 export type ComicPanelExtraRole = 'crowd' | 'guards' | 'civilians' | 'creatures' | 'vehicles' | 'background';
 export type ComicPanelExtraPriority = 'low' | 'medium';
 
@@ -154,6 +154,7 @@ export interface ComicPanel {
   beat: string;
   characters: string[];
   location: string;
+  sceneSlug?: string;
   shotType: string;
   cameraAngle: string;
   visualPrompt: string;
@@ -161,6 +162,7 @@ export interface ComicPanel {
   extraGroupsJson?: string;
   finalPromptSnapshot?: string;
   finalNegativePromptSnapshot?: string;
+  useContinuityReference?: boolean;
   dialogue: string;
   narration: string;
   durationSec: number;
@@ -188,7 +190,19 @@ export interface MediaAsset {
   createdAt: number;
 }
 
-export type ImageProviderId = 'comfyui' | 'openai-compatible-image';
+export interface SceneVisual {
+  id: string;
+  projectId: string;
+  slug: string;
+  title: string;
+  prompt: string;
+  negativePrompt: string;
+  referenceAssetIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type ImageProviderId = 'comfyui' | 'openai-compatible-image' | 'deepinfra-flux';
 
 export interface ComfyUIImageProviderConfig {
   providerId: 'comfyui';
@@ -200,6 +214,7 @@ export interface ComfyUIImageProviderConfig {
   widthNodeId: string;
   heightNodeId: string;
   outputNodeId: string;
+  referenceImageNodeIds?: string[];
 }
 
 export interface OpenAICompatibleImageProviderConfig {
@@ -209,7 +224,14 @@ export interface OpenAICompatibleImageProviderConfig {
   model: string;
 }
 
-export type ImageProviderConfig = ComfyUIImageProviderConfig | OpenAICompatibleImageProviderConfig;
+export interface DeepInfraFluxProviderConfig {
+  providerId: 'deepinfra-flux';
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+export type ImageProviderConfig = ComfyUIImageProviderConfig | OpenAICompatibleImageProviderConfig | DeepInfraFluxProviderConfig;
 
 export type LLMProvider = 'custom' | 'google' | 'grok';
 

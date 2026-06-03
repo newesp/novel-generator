@@ -19,6 +19,17 @@ Phase 6.1 的目標是把「角色與場景提示詞」升級為 Project 層級�
 - 單格圖片 prompt 由集中式 Prompt Composer 組合，不由 UI 零散拼接。
 - Provider 若支援 reference image，能使用角色/場景 anchor；不支援時自動降級為 prompt-only。
 
+### 2026-06-03 MVP implementation note
+
+The first implementation uses a Visual Bible-lite path rather than the full `VisualBibleEntry` schema:
+
+- Character visual prompt / negative prompt / reference image ids stay on `Character`.
+- Reusable scene settings are stored as `SceneVisual`.
+- `ComicPanel.sceneSlug` selects a reusable scene.
+- `ComicPanel.useContinuityReference` is a panel-level toggle, not a global image preference.
+- Continuity reference resolves to the previous panel image, or to the previous chapter latest comic's final ready panel for chapter-opening panels.
+- Provider adapters receive resolved `MediaAsset[]` through `ImageGenerationRequest.referenceImages`.
+
 ---
 
 ## 2. 核心原則

@@ -30,6 +30,35 @@ describe('buildComfyWorkflow', () => {
     expect(next['3']?.inputs?.width).toBe(768);
     expect(next['3']?.inputs?.height).toBe(1024);
   });
+
+  it('injects reference images into configured reference nodes', () => {
+    const workflow = {
+      '1': { inputs: { text: '' } },
+      '2': { inputs: { image: '' } },
+      '3': { inputs: { image: '' } },
+    };
+
+    const next = buildComfyWorkflow(workflow, {
+      promptNodeId: '1',
+      negativePromptNodeId: '',
+      seedNodeId: '',
+      widthNodeId: '',
+      heightNodeId: '',
+      outputNodeId: '9',
+      referenceImageNodeIds: ['2', '3'],
+    }, {
+      prompt: 'A Fei in workshop',
+      width: 1024,
+      height: 1024,
+      referenceImages: [
+        { id: 'asset-1', projectId: 'p1', kind: 'character_reference_image', url: 'data:image/png;base64,aaa', mimeType: 'image/png', createdAt: 1 },
+        { id: 'asset-2', projectId: 'p1', kind: 'scene_reference_image', url: 'data:image/png;base64,bbb', mimeType: 'image/png', createdAt: 1 },
+      ],
+    });
+
+    expect(next['2']?.inputs?.image).toBe('data:image/png;base64,aaa');
+    expect(next['3']?.inputs?.image).toBe('data:image/png;base64,bbb');
+  });
 });
 
 describe('extractComfyOutputImages', () => {

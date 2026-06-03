@@ -27,6 +27,12 @@ pub fn run() {
       sql: include_str!("../migrations/004_comics.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 5,
+      description: "scene visual settings",
+      sql: include_str!("../migrations/005_scene_visuals.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

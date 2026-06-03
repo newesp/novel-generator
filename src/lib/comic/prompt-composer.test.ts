@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Character, ComicPanel } from '../../types';
+import type { Character, ComicPanel, SceneVisual } from '../../types';
 import { composeComicImagePrompt } from './prompt-composer';
 
 const basePanel: ComicPanel = {
@@ -91,5 +91,32 @@ describe('composeComicImagePrompt', () => {
 
     expect(result.prompt).not.toContain('Extras / crowd');
     expect(result.warnings).toContain('Panel 1 has invalid extraGroupsJson');
+  });
+
+  it('adds selected scene prompt, negative prompt, and reference assets', () => {
+    const scenes: SceneVisual[] = [
+      {
+        id: 'scene-1',
+        projectId: 'project-1',
+        slug: 'mist-market',
+        title: 'Mist Market',
+        prompt: 'wet stone street, hanging lanterns, dense blue mist',
+        negativePrompt: 'modern mall, clean supermarket',
+        referenceAssetIds: ['asset-scene-1'],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+
+    const result = composeComicImagePrompt({
+      panel: { ...basePanel, sceneSlug: 'mist-market' },
+      stylePreset: 'manga',
+      scenes,
+    });
+
+    expect(result.prompt).toContain('Scene visual reference (Mist Market)');
+    expect(result.prompt).toContain('wet stone street');
+    expect(result.negativePrompt).toContain('modern mall');
+    expect(result.referenceAssetIds).toEqual(['asset-scene-1']);
   });
 });

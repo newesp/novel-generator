@@ -13,7 +13,7 @@
 import type {
   Project, Chapter, ChapterVersion, Character,
   WikiPage, WikiLogEntry, WikiPageType,
-  ChapterComic, ComicPanel, MediaAsset,
+  ChapterComic, ComicPanel, MediaAsset, SceneVisual,
 } from '../../types';
 import type { SearchStore } from '../search/types';
 
@@ -127,6 +127,17 @@ export interface MediaAssetStore {
 }
 
 /** 整體匯出/匯入用的資料束（與 backup.ts BackupSnapshot 對齊但去掉 metadata） */
+export interface SceneVisualStore {
+  listAll(): Promise<SceneVisual[]>;
+  listByProject(projectId: string): Promise<SceneVisual[]>;
+  get(id: string): Promise<SceneVisual | undefined>;
+  findBySlug(projectId: string, slug: string): Promise<SceneVisual | undefined>;
+  add(scene: SceneVisual): Promise<void>;
+  update(id: string, data: Partial<SceneVisual>): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByProject(projectId: string): Promise<void>;
+}
+
 export interface StorageBundle {
   projects: Project[];
   chapters: Chapter[];
@@ -137,6 +148,7 @@ export interface StorageBundle {
   comics?: ChapterComic[];
   comicPanels?: ComicPanel[];
   mediaAssets?: MediaAsset[];
+  sceneVisuals?: SceneVisual[];
 }
 
 export interface StorageAdapter {
@@ -150,6 +162,7 @@ export interface StorageAdapter {
   comics: ChapterComicStore;
   comicPanels: ComicPanelStore;
   mediaAssets: MediaAssetStore;
+  sceneVisuals: SceneVisualStore;
   /** Tauri-only FTS5 search store. Browser/Dexie adapter leaves this undefined. */
   search?: SearchStore;
 

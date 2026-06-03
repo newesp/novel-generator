@@ -84,6 +84,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     await storage.characters.deleteByProject(id);
     await storage.wikiPages.deleteByBook(id);
     await storage.wikiLog.deleteByBook(id);
+    const comicsOfProject = (await storage.comics.listAll()).filter((comic) => comic.projectId === id);
+    for (const comic of comicsOfProject) {
+      await storage.comicPanels.deleteByComic(comic.id);
+    }
+    await storage.comics.deleteByProject(id);
+    await storage.mediaAssets.deleteByProject(id);
+    await storage.sceneVisuals.deleteByProject(id);
     await storage.projects.delete(id);
 
     // Update state

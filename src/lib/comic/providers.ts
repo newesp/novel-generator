@@ -1,11 +1,16 @@
-import type { ImageProviderConfig } from '../../types';
+import type { ImageProviderConfig, MediaAsset } from '../../types';
 import { comfyUIProvider } from './comfyui-provider';
+import { deepInfraFluxProvider } from './deepinfra-flux-provider';
 import { openAICompatibleImageProvider } from './openai-image-provider';
+
+export type ReferenceImageMode = 'none' | 'single-input-image' | 'multi-reference';
 
 export interface ImageProviderCapabilities {
   negativePrompt: boolean;
   seed: boolean;
   referenceImages: boolean;
+  referenceMode: ReferenceImageMode;
+  maxReferenceImages: number;
   batch: boolean;
   polling: boolean;
   outputFormats: Array<'png' | 'jpg' | 'webp'>;
@@ -26,6 +31,7 @@ export interface ImageGenerationRequest {
   seed?: number;
   panelId: string;
   providerConfig: ImageProviderConfig;
+  referenceImages?: MediaAsset[];
 }
 
 export interface ImageGenerationResult {
@@ -47,6 +53,7 @@ export interface ImageGenerationProvider {
 const PROVIDERS: ImageGenerationProvider[] = [
   comfyUIProvider,
   openAICompatibleImageProvider,
+  deepInfraFluxProvider,
 ];
 
 export function listImageProviders(): ImageGenerationProvider[] {

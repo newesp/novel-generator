@@ -52,4 +52,26 @@ describe('runImageJobQueue', () => {
       ['p2', 'ready', undefined],
     ]);
   });
+
+  it('preserves panel metadata returned by the generator', async () => {
+    const result = await runImageJobQueue({
+      panels: [panel('p1', 1)],
+      generate: async () => ({
+        assetId: 'asset-p1',
+        url: 'data:p1',
+        panel: {
+          finalPromptSnapshot: 'prepared prompt',
+          errorMessage: 'reference image warning',
+        },
+      }),
+      onPanelUpdate: () => undefined,
+    });
+
+    expect(result[0]).toMatchObject({
+      status: 'ready',
+      assetId: 'asset-p1',
+      finalPromptSnapshot: 'prepared prompt',
+      errorMessage: 'reference image warning',
+    });
+  });
 });

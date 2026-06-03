@@ -3,6 +3,7 @@ import type { ComicPanel } from '../../types';
 export interface ImageJobOutput {
   assetId: string;
   url: string;
+  panel?: Partial<ComicPanel>;
 }
 
 export async function runImageJobQueue(input: {
@@ -20,6 +21,7 @@ export async function runImageJobQueue(input: {
       const output = await input.generate(generating);
       const ready = {
         ...generating,
+        ...(output.panel ?? {}),
         status: 'ready' as const,
         assetId: output.assetId,
         updatedAt: Date.now(),

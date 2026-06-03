@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { LLMConfig } from '../types';
+import type { ImageProviderId, LLMConfig } from '../types';
 import {
   DEFAULT_CHAPTER_DRAFTS_TEMPLATE,
   DEFAULT_CHAPTER_CONTINUATION_RULES,
@@ -73,7 +73,7 @@ export interface WikiPrefs {
 }
 
 export interface ImageGenerationPrefs {
-  providerId: 'comfyui' | 'openai-compatible-image';
+  providerId: ImageProviderId;
   width: number;
   height: number;
   stylePreset: string;
@@ -87,8 +87,14 @@ export interface ImageGenerationPrefs {
     widthNodeId: string;
     heightNodeId: string;
     outputNodeId: string;
+    referenceImageNodeIds: string[];
   };
   openaiCompatible: {
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+  };
+  deepinfraFlux: {
     baseUrl: string;
     apiKey: string;
     model: string;
@@ -116,16 +122,22 @@ const DEFAULT_IMAGE_GENERATION_PREFS: ImageGenerationPrefs = {
     widthNodeId: '',
     heightNodeId: '',
     outputNodeId: '',
+    referenceImageNodeIds: [],
   },
   openaiCompatible: {
     baseUrl: '',
     apiKey: '',
     model: 'gpt-image-1',
   },
+  deepinfraFlux: {
+    baseUrl: 'https://api.deepinfra.com/v1',
+    apiKey: '',
+    model: 'black-forest-labs/FLUX-2-pro',
+  },
 };
 
 type DeepPartial<T> = {
-  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
+  [K in keyof T]?: T[K] extends unknown[] ? T[K] : T[K] extends object ? DeepPartial<T[K]> : T[K];
 };
 
 interface SettingsState {
@@ -205,6 +217,7 @@ export const useSettingsStore = create<SettingsState>()(
             ...patch,
             comfyui: { ...state.imageGenerationPrefs.comfyui, ...(patch.comfyui ?? {}) },
             openaiCompatible: { ...state.imageGenerationPrefs.openaiCompatible, ...(patch.openaiCompatible ?? {}) },
+            deepinfraFlux: { ...state.imageGenerationPrefs.deepinfraFlux, ...(patch.deepinfraFlux ?? {}) },
           },
         })),
       setLintPrefs: (patch) =>
@@ -229,6 +242,10 @@ export const useSettingsStore = create<SettingsState>()(
             openaiCompatible: {
               ...DEFAULT_IMAGE_GENERATION_PREFS.openaiCompatible,
               ...(p.imageGenerationPrefs?.openaiCompatible ?? {}),
+            },
+            deepinfraFlux: {
+              ...DEFAULT_IMAGE_GENERATION_PREFS.deepinfraFlux,
+              ...(p.imageGenerationPrefs?.deepinfraFlux ?? {}),
             },
           },
           lintPrefs: deepMergeLintPrefs(DEFAULT_LINT_PREFS, p.lintPrefs ?? {}),

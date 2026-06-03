@@ -50,6 +50,15 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - **Prompt Composer**：生圖前集中組合 style、active characters、active scene、panel visual prompt、extras、continuity notes，並保存 final prompt snapshot。
 - **龍套/群眾策略**：Named characters 進 Visual Bible；跨多格 recurring groups 進 `extraGroupsJson`；一次性背景龍套直接留在 panel `visualPrompt`。
 
+### 2026-06-03 Phase 6 reference-image update
+
+- `SceneVisual` provides project-level reusable scene prompt / negative prompt / reference image settings.
+- Comic panels can select a scene, create a scene from the panel location, and opt into `useContinuityReference`.
+- Character, scene, and continuity images are resolved into `referenceImages` before calling an image provider.
+- Providers advertise `referenceMode` and `maxReferenceImages`; unsupported providers degrade to prompt-only with panel warnings.
+- DeepInfra FLUX-2-pro is supported through provider-specific `input_image`, `input_image_2`, ... fields.
+- ComfyUI can map reference images into configured reference image nodes.
+
 ### 儲存規則
 
 - **metadata 進 SQLite**：ChapterComic、ComicPanel、MediaAsset、provider params、seed、錯誤狀態

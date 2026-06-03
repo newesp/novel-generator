@@ -17,6 +17,7 @@ import type {
   ChapterComicStore,
   ComicPanelStore,
   MediaAssetStore,
+  SceneVisualStore,
   StorageBundle,
 } from './types';
 
@@ -172,11 +173,26 @@ const mediaAssets: MediaAssetStore = {
   },
 };
 
+const sceneVisuals: SceneVisualStore = {
+  listAll: () => db.sceneVisuals.toArray(),
+  listByProject: (projectId) => db.sceneVisuals.where('projectId').equals(projectId).sortBy('title'),
+  get: (id) => db.sceneVisuals.get(id),
+  findBySlug: (projectId, slug) =>
+    db.sceneVisuals.where('[projectId+slug]').equals([projectId, slug]).first(),
+  add: async (scene) => { await db.sceneVisuals.add(scene); },
+  update: async (id, data) => { await db.sceneVisuals.update(id, data); },
+  delete: (id) => db.sceneVisuals.delete(id),
+  deleteByProject: async (projectId) => {
+    await db.sceneVisuals.where('projectId').equals(projectId).delete();
+  },
+};
+
 async function replaceAll(bundle: StorageBundle): Promise<void> {
   await db.transaction('rw',
     [db.projects, db.chapters, db.versions, db.characters, db.wikiPages, db.wikiLog,
-      db.comics, db.comicPanels, db.mediaAssets],
+      db.comics, db.comicPanels, db.mediaAssets, db.sceneVisuals],
     async () => {
+      await db.sceneVisuals.clear();
       await db.mediaAssets.clear();
       await db.comicPanels.clear();
       await db.comics.clear();
@@ -196,12 +212,13 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
       await db.comics.bulkAdd(bundle.comics ?? []);
       await db.comicPanels.bulkAdd(bundle.comicPanels ?? []);
       await db.mediaAssets.bulkAdd(bundle.mediaAssets ?? []);
+      await db.sceneVisuals.bulkAdd(bundle.sceneVisuals ?? []);
     },
   );
 }
 
 export const dexieAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
-  wikiPages, wikiLog, comics, comicPanels, mediaAssets,
+  wikiPages, wikiLog, comics, comicPanels, mediaAssets, sceneVisuals,
   replaceAll,
 };

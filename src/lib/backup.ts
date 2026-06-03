@@ -10,7 +10,7 @@
 import { storage } from './storage';
 import type {
   Project, Chapter, ChapterVersion, Character,
-  WikiPage, WikiLogEntry, ChapterComic, ComicPanel, MediaAsset,
+  WikiPage, WikiLogEntry, ChapterComic, ComicPanel, MediaAsset, SceneVisual,
 } from '../types';
 
 // v1: 無 wiki；v2: 含 wikiPages / wikiLog
@@ -30,10 +30,11 @@ export interface BackupSnapshot {
   comics?: ChapterComic[];
   comicPanels?: ComicPanel[];
   mediaAssets?: MediaAsset[];
+  sceneVisuals?: SceneVisual[];
 }
 
 export async function exportSnapshot(): Promise<BackupSnapshot> {
-  const [projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, mediaAssets] = await Promise.all([
+  const [projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, mediaAssets, sceneVisuals] = await Promise.all([
     storage.projects.list(),
     storage.chapters.list(),
     storage.versions.list(),
@@ -43,12 +44,13 @@ export async function exportSnapshot(): Promise<BackupSnapshot> {
     storage.comics.listAll(),
     storage.comicPanels.listAll(),
     storage.mediaAssets.listAll(),
+    storage.sceneVisuals.listAll(),
   ]);
   return {
     schema: 2,
     exportedAt: Date.now(),
     app: 'novel-generator',
-    projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, mediaAssets,
+    projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, mediaAssets, sceneVisuals,
   };
 }
 
@@ -76,6 +78,7 @@ export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' =
       comics: snapshot.comics ?? [],
       comicPanels: snapshot.comicPanels ?? [],
       mediaAssets: snapshot.mediaAssets ?? [],
+      sceneVisuals: snapshot.sceneVisuals ?? [],
     });
   }
 }
@@ -117,5 +120,6 @@ export function describeSnapshot(s: BackupSnapshot): string {
   const t = new Date(s.exportedAt).toLocaleString();
   const wiki = s.wikiPages?.length ?? 0;
   const media = s.mediaAssets?.length ?? 0;
-  return `${s.projects?.length ?? 0} 本書 · ${s.chapters?.length ?? 0} 章節 · ${s.characters?.length ?? 0} 角色 · ${wiki} Wiki 頁 · ${media} 媒體 · 匯出於 ${t}`;
+  const scenes = s.sceneVisuals?.length ?? 0;
+  return `${s.projects?.length ?? 0} 本書 · ${s.chapters?.length ?? 0} 章節 · ${s.characters?.length ?? 0} 角色 · ${wiki} Wiki 頁 · ${media} 媒體 · ${scenes} 場景 · 匯出於 ${t}`;
 }

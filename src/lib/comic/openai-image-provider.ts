@@ -26,6 +26,8 @@ export const openAICompatibleImageProvider: ImageGenerationProvider = {
     negativePrompt: false,
     seed: false,
     referenceImages: false,
+    referenceMode: 'none',
+    maxReferenceImages: 0,
     batch: false,
     polling: false,
     outputFormats: ['png', 'jpg', 'webp'],

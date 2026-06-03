@@ -225,11 +225,12 @@ export function Toolbar() {
                 value={draftImage.providerId}
                 onChange={(e) => setDraftImage({
                   ...draftImage,
-                  providerId: e.target.value as 'comfyui' | 'openai-compatible-image',
+                  providerId: e.target.value as typeof draftImage.providerId,
                 })}
               >
                 <option value="comfyui">ComfyUI HTTP API</option>
                 <option value="openai-compatible-image">OpenAI-compatible Image</option>
+                <option value="deepinfra-flux">DeepInfra FLUX-2-pro</option>
               </select>
             </div>
 
@@ -320,6 +321,18 @@ export function Toolbar() {
                       comfyui: { ...draftImage.comfyui, outputNodeId: e.target.value },
                     })}
                   />
+                  <Input
+                    label="Reference nodes"
+                    placeholder="node1,node2,node3"
+                    value={draftImage.comfyui.referenceImageNodeIds.join(',')}
+                    onChange={(e) => setDraftImage({
+                      ...draftImage,
+                      comfyui: {
+                        ...draftImage.comfyui,
+                        referenceImageNodeIds: e.target.value.split(',').map((value) => value.trim()).filter(Boolean),
+                      },
+                    })}
+                  />
                 </div>
                 <div>
                   <label className="form-label">ComfyUI workflow JSON</label>
@@ -335,6 +348,39 @@ export function Toolbar() {
                     spellCheck={false}
                   />
                 </div>
+              </>
+            ) : draftImage.providerId === 'deepinfra-flux' ? (
+              <>
+                <Input
+                  label="DeepInfra Base URL"
+                  placeholder="https://api.deepinfra.com/v1"
+                  value={draftImage.deepinfraFlux.baseUrl}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    deepinfraFlux: { ...draftImage.deepinfraFlux, baseUrl: e.target.value },
+                  })}
+                />
+                <Input
+                  label="DeepInfra Model"
+                  placeholder="black-forest-labs/FLUX-2-pro"
+                  value={draftImage.deepinfraFlux.model}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    deepinfraFlux: { ...draftImage.deepinfraFlux, model: e.target.value },
+                  })}
+                />
+                <Input
+                  label="DeepInfra API Key"
+                  type="password"
+                  value={draftImage.deepinfraFlux.apiKey}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    deepinfraFlux: { ...draftImage.deepinfraFlux, apiKey: e.target.value },
+                  })}
+                />
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.6 }}>
+                  FLUX-2-pro 會使用角色與場景參考圖，依序送到 input_image / input_image_2 等欄位。
+                </p>
               </>
             ) : (
               <>

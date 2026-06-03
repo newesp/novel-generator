@@ -1,9 +1,10 @@
-import type { Character, ComicPanel, ComicPanelExtraGroup } from '../../types';
+import type { Character, ComicPanel, ComicPanelExtraGroup, SceneVisual } from '../../types';
 
 export interface ComposeComicImagePromptInput {
   panel: ComicPanel;
   stylePreset: string;
   characters?: Character[];
+  scenes?: SceneVisual[];
 }
 
 export interface ComposedComicPrompt {
@@ -17,22 +18,37 @@ export function composeComicImagePrompt(input: ComposeComicImagePromptInput): Co
   const warnings: string[] = [];
   const extras = parseExtraGroups(input.panel, warnings);
   const activeCharacters = selectActiveCharacters(input.panel, input.characters ?? []);
+  const activeScene = selectActiveScene(input.panel, input.scenes ?? [], warnings);
   const characterPrompts = activeCharacters.map(characterVisualPrompt).filter(Boolean);
   const characterNegativePrompts = activeCharacters.map((character) => character.visualNegativePrompt?.trim()).filter(Boolean);
-  const referenceAssetIds = Array.from(new Set(activeCharacters.flatMap((character) => character.referenceAssetIds ?? [])));
+  const scenePrompt = activeScene?.prompt.trim() ?? '';
+  const sceneNegativePrompt = activeScene?.negativePrompt.trim() ?? '';
+  const referenceAssetIds = Array.from(new Set([
+    ...activeCharacters.flatMap((character) => character.referenceAssetIds ?? []),
+    ...(activeScene?.referenceAssetIds ?? []),
+  ]));
   const promptParts = [
     input.stylePreset,
     characterPrompts.length ? `Character visual references:\n${characterPrompts.join('\n')}` : '',
+    scenePrompt ? `Scene visual reference (${activeScene?.title ?? input.panel.location}): ${scenePrompt}` : '',
     input.panel.visualPrompt,
     extras.length ? `Extras / crowd: ${extras.map(extraGroupPrompt).join('; ')}. Keep extras secondary; do not make extras look like main characters.` : '',
   ].filter(Boolean);
 
   return {
     prompt: promptParts.join('\n'),
-    negativePrompt: [input.panel.negativePrompt, ...characterNegativePrompts].filter(Boolean).join('\n'),
+    negativePrompt: [input.panel.negativePrompt, ...characterNegativePrompts, sceneNegativePrompt].filter(Boolean).join('\n'),
     referenceAssetIds,
     warnings,
   };
+}
+
+function selectActiveScene(panel: ComicPanel, scenes: SceneVisual[], warnings: string[]): SceneVisual | undefined {
+  const slug = panel.sceneSlug?.trim();
+  if (!slug) return undefined;
+  const scene = scenes.find((item) => item.slug === slug);
+  if (!scene) warnings.push(`Panel ${panel.order} references missing scene ${slug}`);
+  return scene;
 }
 
 function selectActiveCharacters(panel: ComicPanel, characters: Character[]): Character[] {

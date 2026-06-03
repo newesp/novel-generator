@@ -1,4 +1,4 @@
-import type { ComfyUIImageProviderConfig, ImageProviderConfig } from '../../types';
+import type { ComfyUIImageProviderConfig, ImageProviderConfig, MediaAsset } from '../../types';
 import type { ImageGenerationProvider, ImageGenerationRequest, ImageGenerationResult } from './providers';
 
 type Workflow = Record<string, { inputs?: Record<string, unknown> }>;
@@ -9,12 +9,13 @@ interface ComfyBuildRequest {
   width: number;
   height: number;
   seed?: number;
+  referenceImages?: MediaAsset[];
 }
 
 export function buildComfyWorkflow(
   workflow: Workflow,
   config: Pick<ComfyUIImageProviderConfig,
-    'promptNodeId' | 'negativePromptNodeId' | 'seedNodeId' | 'widthNodeId' | 'heightNodeId' | 'outputNodeId'>,
+    'promptNodeId' | 'negativePromptNodeId' | 'seedNodeId' | 'widthNodeId' | 'heightNodeId' | 'outputNodeId' | 'referenceImageNodeIds'>,
   request: ComfyBuildRequest,
 ): Workflow {
   const next = structuredClone(workflow);
@@ -23,6 +24,10 @@ export function buildComfyWorkflow(
   if (config.seedNodeId && request.seed !== undefined) setInput(next, config.seedNodeId, 'seed', request.seed);
   if (config.widthNodeId) setInput(next, config.widthNodeId, 'width', request.width);
   if (config.heightNodeId) setInput(next, config.heightNodeId, 'height', request.height);
+  (config.referenceImageNodeIds ?? []).forEach((nodeId, index) => {
+    const image = request.referenceImages?.[index];
+    if (nodeId && image?.url) setInput(next, nodeId, 'image', image.url);
+  });
   return next;
 }
 
@@ -48,6 +53,8 @@ export const comfyUIProvider: ImageGenerationProvider = {
     negativePrompt: true,
     seed: true,
     referenceImages: true,
+    referenceMode: 'multi-reference',
+    maxReferenceImages: 8,
     batch: false,
     polling: true,
     outputFormats: ['png', 'jpg', 'webp'],

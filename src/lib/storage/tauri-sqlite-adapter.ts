@@ -21,6 +21,7 @@ import type {
   ChapterComicStore,
   ComicPanelStore,
   MediaAssetStore,
+  SceneVisualStore,
   StorageBundle,
 } from './types';
 import {
@@ -43,6 +44,8 @@ import {
   rowToComicPanel,
   mediaAssetToRow,
   rowToMediaAsset,
+  sceneVisualToRow,
+  rowToSceneVisual,
   type ProjectRow,
   type ChapterRow,
   type VersionRow,
@@ -53,6 +56,7 @@ import {
   type ChapterComicRow,
   type ComicPanelRow,
   type MediaAssetRow,
+  type SceneVisualRow,
 } from './sqlite-helpers';
 import { createFtsSearchStore } from '../search/fts-tauri';
 
@@ -491,6 +495,7 @@ const appMeta: AppMetaStore = {
 const CHAPTER_COMIC_COLS = 'id, project_id, chapter_id, updated_at, data';
 const COMIC_PANEL_COLS = 'id, comic_id, ord, status, data';
 const MEDIA_ASSET_COLS = 'id, project_id, chapter_id, kind, file_path, data, created_at';
+const SCENE_VISUAL_COLS = 'id, project_id, slug, title, updated_at, data';
 
 const comics: ChapterComicStore = {
   listAll: async () => {
@@ -635,6 +640,61 @@ const mediaAssets: MediaAssetStore = {
   },
 };
 
+const sceneVisuals: SceneVisualStore = {
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<SceneVisualRow[]>(`SELECT ${SCENE_VISUAL_COLS} FROM scene_visuals ORDER BY title ASC`);
+    return rows.map(rowToSceneVisual);
+  },
+  listByProject: async (projectId) => {
+    const db = await getDb();
+    const rows = await db.select<SceneVisualRow[]>(
+      `SELECT ${SCENE_VISUAL_COLS} FROM scene_visuals WHERE project_id=$1 ORDER BY title ASC`,
+      [projectId],
+    );
+    return rows.map(rowToSceneVisual);
+  },
+  get: async (id) => {
+    const db = await getDb();
+    const rows = await db.select<SceneVisualRow[]>(`SELECT ${SCENE_VISUAL_COLS} FROM scene_visuals WHERE id=$1`, [id]);
+    return rows[0] ? rowToSceneVisual(rows[0]) : undefined;
+  },
+  findBySlug: async (projectId, slug) => {
+    const db = await getDb();
+    const rows = await db.select<SceneVisualRow[]>(
+      `SELECT ${SCENE_VISUAL_COLS} FROM scene_visuals WHERE project_id=$1 AND slug=$2`,
+      [projectId, slug],
+    );
+    return rows[0] ? rowToSceneVisual(rows[0]) : undefined;
+  },
+  add: async (scene) => {
+    const db = await getDb();
+    const row = sceneVisualToRow(scene);
+    await db.execute(
+      `INSERT INTO scene_visuals (${SCENE_VISUAL_COLS}) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [row.id, row.project_id, row.slug, row.title, row.updated_at, row.data],
+    );
+  },
+  update: async (id, data) => {
+    const current = await sceneVisuals.get(id);
+    if (!current) return;
+    const db = await getDb();
+    const row = sceneVisualToRow(mergePartial(current, data));
+    await db.execute(
+      'UPDATE scene_visuals SET project_id=$1, slug=$2, title=$3, updated_at=$4, data=$5 WHERE id=$6',
+      [row.project_id, row.slug, row.title, row.updated_at, row.data, id],
+    );
+  },
+  delete: async (id) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM scene_visuals WHERE id=$1', [id]);
+  },
+  deleteByProject: async (projectId) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM scene_visuals WHERE project_id=$1', [projectId]);
+  },
+};
+
 // ============ replaceAll ============
 
 /**
@@ -645,6 +705,7 @@ const mediaAssets: MediaAssetStore = {
  */
 async function replaceAll(bundle: StorageBundle): Promise<void> {
   const db = await getDb();
+  await db.execute('DELETE FROM scene_visuals');
   await db.execute('DELETE FROM media_assets');
   await db.execute('DELETE FROM comic_panels');
   await db.execute('DELETE FROM chapter_comics');
@@ -663,11 +724,12 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
   for (const c of bundle.comics ?? []) await comics.add(c);
   for (const p of bundle.comicPanels ?? []) await comicPanels.add(p);
   for (const a of bundle.mediaAssets ?? []) await mediaAssets.add(a);
+  for (const s of bundle.sceneVisuals ?? []) await sceneVisuals.add(s);
 }
 
 export const tauriSqliteAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
-  wikiPages, wikiLog, comics, comicPanels, mediaAssets,
+  wikiPages, wikiLog, comics, comicPanels, mediaAssets, sceneVisuals,
   search: createFtsSearchStore(getDb),
   replaceAll,
 };

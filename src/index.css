@@ -984,6 +984,101 @@ input:focus, select:focus, textarea:focus {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.comic-scene-library {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.comic-scene-library > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.comic-scene-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+.comic-scene-card {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+.comic-scene-card summary {
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.comic-scene-card summary span {
+  margin-left: 6px;
+  color: var(--text-tertiary);
+}
+.comic-scene-card label,
+.comic-panel-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.comic-scene-card textarea,
+.comic-scene-card input,
+.comic-panel-controls select,
+.comic-character-picker {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  padding: 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.comic-character-picker {
+  position: relative;
+  padding: 0;
+}
+.comic-character-picker summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+.comic-character-picker-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.comic-character-picker-menu .comic-checkbox-row {
+  margin-top: 0;
+  justify-content: flex-start;
+}
+.comic-character-picker-menu small {
+  margin-left: auto;
+  color: var(--text-tertiary);
+}
+.comic-scene-card textarea {
+  min-height: 72px;
+  resize: vertical;
+}
 .comic-field-label {
   display: inline-flex;
   align-items: center;
@@ -1029,6 +1124,21 @@ input:focus, select:focus, textarea:focus {
   gap: 8px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+.comic-panel-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.comic-panel-controls .comic-checkbox-row {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  color: var(--text-secondary);
+}
+.comic-panel-controls .comic-checkbox-row input {
+  width: auto;
 }
 .comic-panel-card textarea,
 .comic-panel-card input {

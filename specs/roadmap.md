@@ -127,6 +127,14 @@ StorageAdapter / MediaAdapter (interface)
 7. ❌ **單格重生 / 失敗重試 / 圖片包下載**
 8. 🟡 **Visual Bible / Prompt Composer**：角色/場景跨章節資產規劃完成；Prompt Composer 與 `extraGroupsJson` MVP 已接入，完整 Visual Bible store/UI 待實作
 
+### 2026-06-03 Phase 6 progress
+
+- Added `SceneVisual` as a project-level scene visual setting store for reusable locations.
+- Added provider reference-image capability metadata and request plumbing.
+- Added DeepInfra FLUX-2-pro provider for image generation with reference images.
+- Added panel-level continuity reference control so a panel can use the previous panel image, including previous-chapter fallback for chapter-opening panels.
+- Remaining advanced polish: richer Visual Bible management UI, explicit panel/asset picker for continuity references, and provider-specific reference weighting controls.
+
 ### Phase 6.1 Visual Bible 重點
 
 - 角色與場景提示詞獨立成 Project 層級 Visual Bible entries，跨章節引用。
