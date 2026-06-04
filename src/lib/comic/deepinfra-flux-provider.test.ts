@@ -26,6 +26,29 @@ describe('DeepInfra FLUX provider helpers', () => {
     expect(payload.negative_prompt).toBe('bad hands');
   });
 
+  it('maps the first FLUX-2-klein reference image to input_image_1', () => {
+    const payload = buildDeepInfraFluxPayload({
+      panelId: 'panel-1',
+      prompt: 'A Fei meets Old Zhao',
+      width: 1024,
+      height: 1024,
+      providerConfig: {
+        providerId: 'deepinfra-flux',
+        baseUrl: 'https://api.deepinfra.com/v1',
+        apiKey: 'key',
+        model: 'black-forest-labs/FLUX-2-klein-9B',
+      },
+      referenceImages: [
+        { id: 'asset-1', projectId: 'p1', kind: 'character_reference_image', url: 'data:image/png;base64,aaa', mimeType: 'image/png', createdAt: 1 },
+        { id: 'asset-2', projectId: 'p1', kind: 'character_reference_image', url: 'data:image/png;base64,bbb', mimeType: 'image/png', createdAt: 1 },
+      ],
+    });
+
+    expect(payload.input_image).toBeUndefined();
+    expect(payload.input_image_1).toBe('aaa');
+    expect(payload.input_image_2).toBe('bbb');
+  });
+
   it('builds the model inference endpoint from the base API URL', () => {
     expect(deepInfraFluxEndpoint({
       providerId: 'deepinfra-flux',

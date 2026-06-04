@@ -36,7 +36,7 @@ export function buildStoryboardPrompt(input: StoryboardGenerationInput): string 
     : '';
 
   const { aiPrompts } = useSettingsStore.getState();
-  return renderTemplate(aiPrompts.comicStoryboardTemplate, {
+  const rendered = renderTemplate(aiPrompts.comicStoryboardTemplate, {
     projectSection: [
       `書名：${input.project.title}`,
       `類型：${input.project.genre}`,
@@ -56,6 +56,15 @@ export function buildStoryboardPrompt(input: StoryboardGenerationInput): string 
     regenerationSection,
     chapterContent: input.chapter.content,
   });
+  const exactNames = input.characters.map((character) => character.name.trim()).filter(Boolean);
+  return [
+    rendered,
+    '',
+    '## Character selection rules',
+    `panels[].characters must use these exact names only: ${exactNames.length ? exactNames.join(', ') : '(none)'}.`,
+    'Every named project character mentioned in a panel visualPrompt, action, dialogue, or narration must also appear in that panel characters array.',
+    'Do not translate, romanize, abbreviate, or rename character names in panels[].characters.',
+  ].join('\n');
 }
 
 export async function generateStoryboardDraft(

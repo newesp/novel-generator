@@ -1,5 +1,11 @@
 # 開發日誌
 
+## 2026-06-04 - Explicit comic panel reference picker
+
+- Replaced the continuity-only interaction with a broader per-panel reference workflow while retaining the automatic previous-panel option.
+- Added a reference image picker grouped by chapter and panel order. Explicit selections persist on each target panel and are sent as real provider image inputs.
+- Reference bindings now merge character, scene, selected panel, and automatic previous-panel images in deterministic order with duplicate assets removed.
+
 ## 2026-06-03 - Phase 6 reference images, scene visuals, and continuity references
 
 **Changed**
@@ -9,6 +15,7 @@
 - Added panel-level `useContinuityReference` so a panel can use the previous generated panel image; chapter first panels can fall back to the previous chapter's latest final comic panel.
 - Added ComfyUI reference image node mapping.
 - Added per-panel character multi-select dropdown in the comic UI so selected characters automatically contribute their visual prompts and uploaded reference images.
+
 - Fixed generated panel prompt snapshots / warnings being overwritten after successful batch generation.
 - Aligned Dexie and SQLite uniqueness for scene slugs.
 

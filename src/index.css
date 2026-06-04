@@ -1048,6 +1048,81 @@ input:focus, select:focus, textarea:focus {
   position: relative;
   padding: 0;
 }
+.comic-reference-control {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.comic-reference-picker {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+.comic-reference-picker summary {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  cursor: pointer;
+}
+.comic-reference-picker-menu {
+  max-height: 320px;
+  overflow: auto;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.comic-reference-chapter + .comic-reference-chapter {
+  margin-top: 12px;
+}
+.comic-reference-chapter > strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-secondary);
+}
+.comic-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 6px;
+}
+.comic-reference-grid .comic-reference-option {
+  position: relative;
+  min-width: 0;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-secondary);
+  cursor: pointer;
+}
+.comic-panel-card .comic-reference-option input {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 1;
+  width: auto;
+}
+.comic-reference-option img {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  object-fit: cover;
+  border-radius: 3px;
+}
+.comic-reference-option span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  text-align: center;
+}
 .comic-character-picker summary {
   min-height: 34px;
   display: flex;
@@ -1055,7 +1130,12 @@ input:focus, select:focus, textarea:focus {
   padding: 8px;
   cursor: pointer;
   color: var(--text-primary);
-  overflow-wrap: anywhere;
+}
+.comic-character-summary-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .comic-character-picker-menu {
   display: flex;
@@ -1131,6 +1211,13 @@ input:focus, select:focus, textarea:focus {
   gap: 8px;
   align-items: end;
 }
+.comic-panel-controls .comic-character-control {
+  grid-column: 1 / -1;
+}
+.comic-panel-controls > button {
+  white-space: nowrap;
+  align-self: end;
+}
 .comic-panel-controls .comic-checkbox-row {
   grid-column: 1 / -1;
   flex-direction: row;
@@ -1139,6 +1226,19 @@ input:focus, select:focus, textarea:focus {
 }
 .comic-panel-controls .comic-checkbox-row input {
   width: auto;
+}
+@media (max-width: 520px) {
+  .comic-panel-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .comic-panel-controls > button,
+  .comic-panel-controls .comic-checkbox-row {
+    grid-column: 1;
+  }
+  .comic-panel-controls > button {
+    width: 100%;
+    justify-content: center;
+  }
 }
 .comic-panel-card textarea,
 .comic-panel-card input {

@@ -32,6 +32,7 @@ export interface ImageGenerationRequest {
   panelId: string;
   providerConfig: ImageProviderConfig;
   referenceImages?: MediaAsset[];
+  referenceImageLabels?: string[];
 }
 
 export interface ImageGenerationResult {

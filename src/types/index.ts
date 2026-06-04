@@ -162,6 +162,8 @@ export interface ComicPanel {
   extraGroupsJson?: string;
   finalPromptSnapshot?: string;
   finalNegativePromptSnapshot?: string;
+  /** Explicitly selected generated panel images to send to reference-capable providers. */
+  referenceAssetIds?: string[];
   useContinuityReference?: boolean;
   dialogue: string;
   narration: string;

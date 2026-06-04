@@ -230,7 +230,7 @@ export function Toolbar() {
               >
                 <option value="comfyui">ComfyUI HTTP API</option>
                 <option value="openai-compatible-image">OpenAI-compatible Image</option>
-                <option value="deepinfra-flux">DeepInfra FLUX-2-pro</option>
+                <option value="deepinfra-flux">DeepInfra FLUX-2</option>
               </select>
             </div>
 
@@ -379,7 +379,7 @@ export function Toolbar() {
                   })}
                 />
                 <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.6 }}>
-                  FLUX-2-pro 會使用角色與場景參考圖，依序送到 input_image / input_image_2 等欄位。
+                  FLUX-2-pro 第一張參考圖使用 input_image；FLUX-2-klein 第一張使用 input_image_1，後續圖片依序編號。
                 </p>
               </>
             ) : (

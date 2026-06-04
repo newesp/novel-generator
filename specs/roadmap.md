@@ -133,7 +133,8 @@ StorageAdapter / MediaAdapter (interface)
 - Added provider reference-image capability metadata and request plumbing.
 - Added DeepInfra FLUX-2-pro provider for image generation with reference images.
 - Added panel-level continuity reference control so a panel can use the previous panel image, including previous-chapter fallback for chapter-opening panels.
-- Remaining advanced polish: richer Visual Bible management UI, explicit panel/asset picker for continuity references, and provider-specific reference weighting controls.
+- Added an explicit per-panel reference image picker grouped by chapter and panel order. Selected generated panels are persisted on the target panel, merged with character/scene/automatic previous-panel references, and sent as real image inputs to reference-capable providers.
+- Remaining advanced polish: richer Visual Bible management UI and provider-specific reference weighting controls.
 
 ### Phase 6.1 Visual Bible 重點
 

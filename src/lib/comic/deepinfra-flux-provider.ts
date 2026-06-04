@@ -24,10 +24,11 @@ export function buildDeepInfraFluxPayload(request: ImageGenerationRequest): Deep
     num_images: 1,
   };
   if (request.negativePrompt?.trim()) payload.negative_prompt = request.negativePrompt.trim();
+  const usesNumberedFirstInput = isFluxKleinModel(request.providerConfig);
   (request.referenceImages ?? []).slice(0, 8).forEach((asset, index) => {
     const image = mediaAssetToInputImage(asset);
     if (!image) return;
-    if (index === 0) payload.input_image = image;
+    if (index === 0 && !usesNumberedFirstInput) payload.input_image = image;
     else payload[`input_image_${index + 1}`] = image;
   });
   return payload;
@@ -59,7 +60,7 @@ export function normalizeDeepInfraFluxResponse(data: unknown): NormalizedDeepInf
 
 export const deepInfraFluxProvider: ImageGenerationProvider = {
   id: 'deepinfra-flux',
-  label: 'DeepInfra FLUX-2-pro',
+  label: 'DeepInfra FLUX-2',
   kind: 'online',
   capabilities: {
     negativePrompt: true,
@@ -101,6 +102,7 @@ export const deepInfraFluxProvider: ImageGenerationProvider = {
         width: request.width,
         height: request.height,
         referenceImageCount: request.referenceImages?.length ?? 0,
+        referenceImageLabels: request.referenceImageLabels ?? [],
       }),
     };
   },
@@ -111,6 +113,11 @@ function mediaAssetToInputImage(asset: MediaAsset): string | undefined {
   const comma = asset.url.indexOf(',');
   if (asset.url.startsWith('data:image/') && comma >= 0) return asset.url.slice(comma + 1);
   return asset.url;
+}
+
+function isFluxKleinModel(config: ImageProviderConfig): boolean {
+  return config.providerId === 'deepinfra-flux'
+    && config.model.toLocaleLowerCase().includes('flux-2-klein');
 }
 
 function firstString(value: unknown): string {

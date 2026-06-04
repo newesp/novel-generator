@@ -5,9 +5,14 @@ import { storage } from '../../lib/storage';
 import { generateStoryboardDraft } from '../../lib/comic/storyboard-generate';
 import { getImageProvider } from '../../lib/comic/providers';
 import { runImageJobQueue } from '../../lib/comic/image-job-queue';
-import { composeComicImagePrompt } from '../../lib/comic/prompt-composer';
+import { canonicalizePanelCharacterTokens, composeComicImagePrompt, resolveCharacterToken } from '../../lib/comic/prompt-composer';
+import type { ComicReferenceBinding } from '../../lib/comic/prompt-composer';
 import { mapPanelAssets } from '../../lib/comic/media-assets';
 import { resolveReferenceAssets } from '../../lib/comic/reference-assets';
+import { loadComicCharacterSnapshot } from '../../lib/comic/comic-character-snapshot';
+import { createPanelWriteQueue } from '../../lib/comic/panel-write-queue';
+import { buildPanelReferenceLibrary, mergeReferenceBindings } from '../../lib/comic/panel-reference-library';
+import type { PanelReferenceOption } from '../../lib/comic/panel-reference-library';
 import { createDefaultSceneVisual } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -27,16 +32,23 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
   const [comic, setComic] = useState<ChapterComic | null>(null);
   const [panels, setPanels] = useState<ComicPanel[]>([]);
   const [scenes, setScenes] = useState<SceneVisual[]>([]);
+  const [availableCharacters, setAvailableCharacters] = useState<Character[]>(characters);
   const [panelAssets, setPanelAssets] = useState<Record<string, MediaAsset>>({});
+  const [panelReferenceOptions, setPanelReferenceOptions] = useState<PanelReferenceOption[]>([]);
+  const [referenceLibraryRevision, setReferenceLibraryRevision] = useState(0);
   const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
+  const panelWriteQueue = useMemo(
+    () => createPanelWriteQueue((panelId, patch) => storage.comicPanels.update(panelId, patch)),
+    [],
+  );
   const providerLabel = imageGenerationPrefs.providerId === 'comfyui'
     ? 'ComfyUI HTTP API'
     : imageGenerationPrefs.providerId === 'deepinfra-flux'
-    ? 'DeepInfra FLUX-2-pro'
+    ? 'DeepInfra FLUX-2'
     : 'OpenAI-compatible Image';
 
   const providerConfig = (): ImageProviderConfig => (
@@ -74,13 +86,44 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    void storage.sceneVisuals.listByProject(project.id).then((items) => {
-      if (!cancelled) setScenes(items);
+    void Promise.all([
+      storage.sceneVisuals.listByProject(project.id),
+      loadComicCharacterSnapshot({
+        projectId: project.id,
+        fallbackCharacters: characters,
+        listByProject: storage.characters.listByProject,
+      }),
+    ]).then(([items, freshCharacters]) => {
+      if (cancelled) return;
+      setScenes(items);
+      setAvailableCharacters(freshCharacters);
     });
     return () => {
       cancelled = true;
     };
-  }, [open, project.id]);
+  }, [open, project.id, characters]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    void Promise.all([
+      storage.chapters.listByProject(project.id),
+      storage.comics.listAll(),
+      storage.comicPanels.listAll(),
+      storage.mediaAssets.listAll(),
+    ]).then(([projectChapters, allComics, allPanels, allAssets]) => {
+      if (cancelled) return;
+      setPanelReferenceOptions(buildPanelReferenceLibrary({
+        chapters: projectChapters,
+        comics: allComics.filter((item) => item.projectId === project.id),
+        panels: allPanels,
+        assets: allAssets.filter((item) => item.projectId === project.id),
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, project.id, referenceLibraryRevision]);
 
   useEffect(() => {
     if (!open) return;
@@ -109,6 +152,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
     panel: ComicPanel,
     config: ImageProviderConfig,
     referenceImages: MediaAsset[] = [],
+    referenceImageLabels: string[] = [],
   ): Promise<{ assetId: string; url: string }> => {
     if (!provider) throw new Error('Image provider not found');
     const output = await provider.generateImage({
@@ -120,6 +164,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       seed: panel.seed,
       providerConfig: config,
       referenceImages,
+      referenceImageLabels,
     });
     const asset: MediaAsset = {
       id: uuid(),
@@ -132,7 +177,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       height: imageGenerationPrefs.height,
       providerId: output.providerId,
       generationParamsJson: output.generationParamsJson,
-      createdAt: Date.now(),
+      createdAt: new Date().getTime(),
     };
     await storage.mediaAssets.add(asset);
     setPanelAssets((current) => ({ ...current, [panel.id]: asset }));
@@ -149,17 +194,23 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
         beat: panel.beat,
         visualPrompt: panel.visualPrompt,
       }));
+      const characterSnapshot = await loadComicCharacterSnapshot({
+        projectId: project.id,
+        fallbackCharacters: availableCharacters,
+        listByProject: storage.characters.listByProject,
+      });
+      setAvailableCharacters(characterSnapshot);
       const wikiPages = await storage.wikiPages.list(chapter.projectId);
       const draft = await generateStoryboardDraft({
         project,
         chapter,
-        characters,
+        characters: characterSnapshot,
         wikiPages,
         stylePreset: imageGenerationPrefs.stylePreset,
         targetPanelCount: imageGenerationPrefs.targetPanelCount,
         previousPanels: previousPanels.length ? previousPanels : undefined,
       });
-      const now = Date.now();
+      const now = new Date().getTime();
       const nextComic: ChapterComic = {
         id: currentComic?.id ?? uuid(),
         projectId: project.id,
@@ -205,18 +256,39 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
     }
   };
 
-  const updatePanel = async (panel: ComicPanel, patch: Partial<ComicPanel>) => {
-    const next = { ...panel, ...patch, updatedAt: new Date().getTime() };
-    await storage.comicPanels.update(panel.id, next);
-    setPanels((current) => current.map((item) => item.id === panel.id ? next : item));
+  const updatePanel = (panel: ComicPanel, patch: Partial<ComicPanel>): Promise<void> => {
+    const persistedPatch = { ...patch, updatedAt: new Date().getTime() };
+    setPanels((current) => current.map((item) => (
+      item.id === panel.id ? { ...item, ...persistedPatch } : item
+    )));
+    return panelWriteQueue.enqueue(panel.id, persistedPatch);
   };
 
-  const togglePanelCharacter = (panel: ComicPanel, name: string, enabled: boolean) => {
-    const names = new Set(panel.characters);
-    if (enabled) names.add(name);
-    else names.delete(name);
-    void updatePanel(panel, { characters: Array.from(names) });
+  const togglePanelCharacter = (panel: ComicPanel, character: Character, enabled: boolean) => {
+    const tokens = new Set(canonicalizePanelCharacterTokens(panel.characters, availableCharacters));
+    tokens.delete(character.id);
+    if (enabled) tokens.add(character.id);
+    void updatePanel(panel, { characters: Array.from(tokens) });
   };
+
+  const panelCharacterSelected = (panel: ComicPanel, character: Character) => (
+    panel.characters.some((token) => resolveCharacterToken(token, availableCharacters)?.id === character.id)
+  );
+
+  const panelCharacterNames = (panel: ComicPanel) => panel.characters.map((token) => (
+    resolveCharacterToken(token, availableCharacters)?.name
+  )).filter((name): name is string => Boolean(name)).filter((name, index, names) => names.indexOf(name) === index);
+
+  const togglePanelReference = (panel: ComicPanel, assetId: string, enabled: boolean) => {
+    const ids = new Set(panel.referenceAssetIds ?? []);
+    if (enabled) ids.add(assetId);
+    else ids.delete(assetId);
+    void updatePanel(panel, { referenceAssetIds: Array.from(ids) });
+  };
+
+  const referenceOptionsForPanel = (panel: ComicPanel) => (
+    panelReferenceOptions.filter((option) => option.panel.id !== panel.id)
+  );
 
   const refreshScenes = async () => {
     setScenes(await storage.sceneVisuals.listByProject(project.id));
@@ -270,37 +342,60 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
     panel: ComicPanel,
     sourcePanels: ComicPanel[],
     generatedByOrder: Map<number, ComicPanel>,
-  ): Promise<{ panel: ComicPanel; referenceImages: MediaAsset[] }> => {
+    characterSnapshot: Character[],
+  ): Promise<{ panel: ComicPanel; referenceImages: MediaAsset[]; referenceImageLabels: string[] }> => {
+    const canonicalPanel = {
+      ...panel,
+      characters: canonicalizePanelCharacterTokens(panel.characters, characterSnapshot),
+    };
     const composed = composeComicImagePrompt({
-      panel,
+      panel: canonicalPanel,
       stylePreset: comic?.stylePreset || imageGenerationPrefs.stylePreset,
-      characters,
+      characters: characterSnapshot,
       scenes,
     });
-    const continuity = await resolveContinuityReference(panel, sourcePanels, generatedByOrder);
-    const referenceAssetIds = [...composed.referenceAssetIds, ...(continuity.assetId ? [continuity.assetId] : [])];
+    const continuity = await resolveContinuityReference(canonicalPanel, sourcePanels, generatedByOrder);
+    const selectedBindings = (canonicalPanel.referenceAssetIds ?? []).map((assetId) => {
+      const option = panelReferenceOptions.find((item) => item.asset.id === assetId);
+      return { assetId, label: option?.label ?? `selected panel reference ${assetId}` };
+    });
+    const referenceBindings: ComicReferenceBinding[] = mergeReferenceBindings(
+      composed.referenceBindings,
+      selectedBindings,
+      continuity.assetId ? [{ assetId: continuity.assetId, label: 'continuity previous panel reference image' }] : [],
+    );
+    const referenceAssetIds = referenceBindings.map((binding) => binding.assetId);
     const resolved = await resolveReferenceAssets(referenceAssetIds, (id) => storage.mediaAssets.get(id));
     const warnings = [...composed.warnings, ...continuity.warnings, ...resolved.warnings];
     const usableReferences = provider?.capabilities.referenceImages
       ? resolved.assets.slice(0, provider.capabilities.maxReferenceImages)
       : [];
+    const usableBindings = usableReferences.map((asset) => (
+      referenceBindings.find((binding) => binding.assetId === asset.id)
+      ?? { assetId: asset.id, label: `reference image ${asset.id}` }
+    ));
     if (resolved.assets.length && !provider?.capabilities.referenceImages) {
       warnings.push(`${providerLabel} does not support reference images; character, scene, and continuity images were skipped.`);
     }
     if (resolved.assets.length > usableReferences.length) {
       warnings.push(`${providerLabel} supports ${provider?.capabilities.maxReferenceImages ?? 0} reference images; extra images were skipped.`);
     }
-    const prompt = continuity.assetId
-      ? `${composed.prompt}\nContinuity reference: Use the continuity reference image only for lighting, palette, props, and action flow. Do not copy the exact camera angle unless this panel asks for it.`
-      : composed.prompt;
+    const prompt = [
+      composed.prompt,
+      usableBindings.length ? referenceBindingPrompt(usableBindings) : '',
+      continuity.assetId || selectedBindings.length
+        ? 'Panel references: Use selected panel images for continuity, lighting, palette, props, and action flow. Do not copy the exact camera angle unless this panel asks for it.'
+        : '',
+    ].filter(Boolean).join('\n');
     return {
       panel: {
-        ...panel,
+        ...canonicalPanel,
         finalPromptSnapshot: prompt,
         finalNegativePromptSnapshot: composed.negativePrompt,
         errorMessage: warnings.length ? warnings.join('\n') : undefined,
       },
       referenceImages: usableReferences,
+      referenceImageLabels: usableBindings.map((binding) => binding.label),
     };
   };
 
@@ -339,7 +434,13 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       const config = providerConfig();
       const health = await provider.validateConfig(config);
       if (!health.ok) throw new Error(health.message);
-      await storage.comics.update(comic.id, { status: 'generating', updatedAt: Date.now() });
+      const characterSnapshot = await loadComicCharacterSnapshot({
+        projectId: project.id,
+        fallbackCharacters: availableCharacters,
+        listByProject: storage.characters.listByProject,
+      });
+      setAvailableCharacters(characterSnapshot);
+      await storage.comics.update(comic.id, { status: 'generating', updatedAt: new Date().getTime() });
       const generatedByOrder = new Map<number, ComicPanel>();
       const results = await runImageJobQueue({
         panels,
@@ -348,17 +449,18 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
           await storage.comicPanels.update(panel.id, panel);
         },
         generate: async (panel) => {
-          const prepared = await preparePanelForGeneration(panel, panels, generatedByOrder);
+          const prepared = await preparePanelForGeneration(panel, panels, generatedByOrder, characterSnapshot);
           await storage.comicPanels.update(panel.id, prepared.panel);
           setPanels((current) => current.map((item) => item.id === panel.id ? prepared.panel : item));
-          const output = await persistGeneratedPanel(prepared.panel, config, prepared.referenceImages);
+          const output = await persistGeneratedPanel(prepared.panel, config, prepared.referenceImages, prepared.referenceImageLabels);
           generatedByOrder.set(panel.order, { ...prepared.panel, status: 'ready', assetId: output.assetId });
           return { ...output, panel: prepared.panel };
         },
       });
       const failed = results.filter((panel) => panel.status === 'failed').length;
-      await storage.comics.update(comic.id, { status: failed ? 'partial' : 'ready', updatedAt: Date.now() });
+      await storage.comics.update(comic.id, { status: failed ? 'partial' : 'ready', updatedAt: new Date().getTime() });
       setPanels(results);
+      setReferenceLibraryRevision((current) => current + 1);
       setMessage(failed ? `完成，但 ${failed} 格失敗，可修改後重試。` : '漫畫圖片已生成。');
     } catch (error) {
       setMessage(errorMessage(error));
@@ -375,26 +477,33 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       const config = providerConfig();
       const health = await provider.validateConfig(config);
       if (!health.ok) throw new Error(health.message);
+      const characterSnapshot = await loadComicCharacterSnapshot({
+        projectId: project.id,
+        fallbackCharacters: availableCharacters,
+        listByProject: storage.characters.listByProject,
+      });
+      setAvailableCharacters(characterSnapshot);
       const generatedByOrder = new Map<number, ComicPanel>();
-      const prepared = await preparePanelForGeneration(panel, panels, generatedByOrder);
+      const prepared = await preparePanelForGeneration(panel, panels, generatedByOrder, characterSnapshot);
       const generating: ComicPanel = {
         ...prepared.panel,
         status: 'generating',
-        updatedAt: Date.now(),
+        updatedAt: new Date().getTime(),
       };
       await updatePanel(panel, generating);
-      const output = await persistGeneratedPanel(generating, config, prepared.referenceImages);
+      const output = await persistGeneratedPanel(generating, config, prepared.referenceImages, prepared.referenceImageLabels);
       await updatePanel(generating, {
         status: 'ready',
         assetId: output.assetId,
-        updatedAt: Date.now(),
+        updatedAt: new Date().getTime(),
       });
+      setReferenceLibraryRevision((current) => current + 1);
       setMessage(`Panel #${panel.order} image regenerated.`);
     } catch (error) {
       await updatePanel(panel, {
         status: 'failed',
         errorMessage: errorMessage(error),
-        updatedAt: Date.now(),
+        updatedAt: new Date().getTime(),
       });
       setMessage(errorMessage(error));
     } finally {
@@ -501,19 +610,21 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                 </figure>
               )}
               <div className="comic-panel-controls">
-                <label>
+                <label className="comic-character-control">
                   <FieldLabel label="Characters" help="選擇這格要使用哪些角色視覺設定；被勾選的角色會自動帶入角色 prompt 和已上傳的角色參考圖。" />
                   <details className="comic-character-picker">
                     <summary>
-                      {panel.characters.length ? panel.characters.join(', ') : 'No characters'}
+                      <span className="comic-character-summary-text">
+                        {panelCharacterNames(panel).length ? panelCharacterNames(panel).join(', ') : 'No characters'}
+                      </span>
                     </summary>
                     <div className="comic-character-picker-menu">
-                      {characters.length ? characters.map((character) => (
+                      {availableCharacters.length ? availableCharacters.map((character) => (
                         <label className="comic-checkbox-row" key={character.id}>
                           <input
                             type="checkbox"
-                            checked={panel.characters.includes(character.name)}
-                            onChange={(event) => togglePanelCharacter(panel, character.name, event.target.checked)}
+                            checked={panelCharacterSelected(panel, character)}
+                            onChange={(event) => togglePanelCharacter(panel, character, event.target.checked)}
                           />
                           <span>{character.name}</span>
                           {(character.referenceAssetIds?.length ?? 0) > 0 && (
@@ -547,8 +658,39 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                     checked={Boolean(panel.useContinuityReference)}
                     onChange={(event) => updatePanel(panel, { useContinuityReference: event.target.checked })}
                   />
-                  <FieldLabel label="連續性參考圖" help="開啟後會優先使用同章上一格的成圖；若這是章節第一格，會嘗試接續前一章最新漫畫的最後一格。" />
+                  <FieldLabel label="自動使用上一格" help="開啟後會優先使用同章上一格的成圖；若這是章節第一格，會嘗試接續前一章最新漫畫的最後一格。" />
                 </label>
+                <div className="comic-reference-control">
+                  <FieldLabel label="參考圖" help="從已生成的章節分鏡中挑選圖片，生成時會真的傳給支援參考圖的 Provider。" />
+                  <details className="comic-reference-picker">
+                    <summary>已選 {panel.referenceAssetIds?.length ?? 0} 張</summary>
+                    <div className="comic-reference-picker-menu">
+                      {referenceOptionsForPanel(panel).length ? Array.from(new Set(
+                        referenceOptionsForPanel(panel).map((option) => option.chapter.id),
+                      )).map((chapterId) => {
+                        const chapterOptions = referenceOptionsForPanel(panel).filter((option) => option.chapter.id === chapterId);
+                        return (
+                          <section className="comic-reference-chapter" key={chapterId}>
+                            <strong>第 {chapterOptions[0].chapter.order} 章 · {chapterOptions[0].chapter.title}</strong>
+                            <div className="comic-reference-grid">
+                              {chapterOptions.map((option) => (
+                                <label className="comic-reference-option" key={option.asset.id}>
+                                  <input
+                                    type="checkbox"
+                                    checked={panel.referenceAssetIds?.includes(option.asset.id) ?? false}
+                                    onChange={(event) => togglePanelReference(panel, option.asset.id, event.target.checked)}
+                                  />
+                                  {option.asset.url && <img src={option.asset.url} alt={`第 ${option.chapter.order} 章第 ${option.panel.order} 格`} loading="lazy" />}
+                                  <span>第 {option.panel.order} 格</span>
+                                </label>
+                              ))}
+                            </div>
+                          </section>
+                        );
+                      }) : <p className="comic-message">尚無可用的已生成分鏡圖</p>}
+                    </div>
+                  </details>
+                </div>
               </div>
               <textarea value={panel.visualPrompt} onChange={(event) => updatePanel(panel, { visualPrompt: event.target.value })} />
               <input value={panel.negativePrompt} onChange={(event) => updatePanel(panel, { negativePrompt: event.target.value })} />
@@ -589,6 +731,15 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       </div>
     </Modal>
   );
+}
+
+function referenceBindingPrompt(bindings: ComicReferenceBinding[]): string {
+  const lines = bindings.map((binding, index) => `image ${index + 1} = ${binding.label}`);
+  return [
+    'Reference image bindings:',
+    ...lines,
+    'Follow these bindings strictly: each named character must match their own reference image identity and not borrow another character reference.',
+  ].join('\n');
 }
 
 function FieldLabel({ label, help }: { label: string; help: string }) {

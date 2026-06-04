@@ -93,6 +93,7 @@ describe('buildStoryboardPrompt', () => {
       expect(prompt).toContain('黑髮少年');
       expect(prompt).toContain('entity/a-fei');
       expect(prompt).toContain('old panel prompt');
+      expect(prompt).toContain('panels[].characters must use these exact names');
       expect(prompt).toContain('阿飛走入迷霧潮汐');
     } finally {
       useSettingsStore.getState().setAiPrompts({ comicStoryboardTemplate: original });
