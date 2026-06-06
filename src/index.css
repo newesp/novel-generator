@@ -1033,7 +1033,8 @@ input:focus, select:focus, textarea:focus {
 .comic-scene-card textarea,
 .comic-scene-card input,
 .comic-panel-controls select,
-.comic-character-picker {
+.comic-character-picker,
+.comic-scene-picker {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid var(--border);
@@ -1044,7 +1045,8 @@ input:focus, select:focus, textarea:focus {
   font: inherit;
   font-size: 12px;
 }
-.comic-character-picker {
+.comic-character-picker,
+.comic-scene-picker {
   position: relative;
   padding: 0;
 }
@@ -1123,7 +1125,8 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-secondary);
   text-align: center;
 }
-.comic-character-picker summary {
+.comic-character-picker summary,
+.comic-scene-picker summary {
   min-height: 34px;
   display: flex;
   align-items: center;
@@ -1137,7 +1140,14 @@ input:focus, select:focus, textarea:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.comic-character-picker-menu {
+.comic-scene-summary-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comic-character-picker-menu,
+.comic-scene-picker-menu {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1147,13 +1157,31 @@ input:focus, select:focus, textarea:focus {
   border-top: 1px solid var(--border);
   background: var(--bg);
 }
-.comic-character-picker-menu .comic-checkbox-row {
+.comic-character-picker-menu .comic-checkbox-row,
+.comic-scene-picker-menu .comic-checkbox-row {
   margin-top: 0;
   justify-content: flex-start;
 }
-.comic-character-picker-menu small {
+.comic-character-picker-menu small,
+.comic-scene-picker-menu small {
   margin-left: auto;
   color: var(--text-tertiary);
+}
+.comic-visual-reference-thumb {
+  width: 38px;
+  height: 30px;
+  flex: 0 0 38px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-secondary);
+}
+.comic-visual-reference-thumb.placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: 12px;
 }
 .comic-scene-card textarea {
   min-height: 72px;

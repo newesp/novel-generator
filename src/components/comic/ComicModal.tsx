@@ -13,6 +13,7 @@ import { loadComicCharacterSnapshot } from '../../lib/comic/comic-character-snap
 import { createPanelWriteQueue } from '../../lib/comic/panel-write-queue';
 import { buildPanelReferenceLibrary, mergeReferenceBindings } from '../../lib/comic/panel-reference-library';
 import type { PanelReferenceOption } from '../../lib/comic/panel-reference-library';
+import { firstReferenceAssetId, mapReferenceThumbnails } from '../../lib/comic/visual-reference-thumbnails';
 import { createDefaultSceneVisual } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -36,6 +37,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
   const [panelAssets, setPanelAssets] = useState<Record<string, MediaAsset>>({});
   const [panelReferenceOptions, setPanelReferenceOptions] = useState<PanelReferenceOption[]>([]);
   const [referenceLibraryRevision, setReferenceLibraryRevision] = useState(0);
+  const [visualReferenceThumbnails, setVisualReferenceThumbnails] = useState<Record<string, string>>({});
   const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -102,6 +104,30 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       cancelled = true;
     };
   }, [open, project.id, characters]);
+
+  useEffect(() => {
+    if (!open) return;
+    const assetIds = Array.from(new Set([
+      ...availableCharacters.map(firstReferenceAssetId),
+      ...scenes.map(firstReferenceAssetId),
+    ].filter((id): id is string => Boolean(id))));
+    let cancelled = false;
+    if (!assetIds.length) {
+      queueMicrotask(() => {
+        if (!cancelled) setVisualReferenceThumbnails({});
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    void Promise.all(assetIds.map((id) => storage.mediaAssets.get(id))).then((assets) => {
+      if (cancelled) return;
+      setVisualReferenceThumbnails(mapReferenceThumbnails(assets.filter((asset): asset is MediaAsset => Boolean(asset))));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, availableCharacters, scenes]);
 
   useEffect(() => {
     if (!open) return;
@@ -278,6 +304,13 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
   const panelCharacterNames = (panel: ComicPanel) => panel.characters.map((token) => (
     resolveCharacterToken(token, availableCharacters)?.name
   )).filter((name): name is string => Boolean(name)).filter((name, index, names) => names.indexOf(name) === index);
+
+  const activeScene = (panel: ComicPanel) => scenes.find((scene) => scene.slug === panel.sceneSlug);
+
+  const referenceThumbnail = (source: { referenceAssetIds?: string[] }) => {
+    const assetId = firstReferenceAssetId(source);
+    return assetId ? visualReferenceThumbnails[assetId] : undefined;
+  };
 
   const togglePanelReference = (panel: ComicPanel, assetId: string, enabled: boolean) => {
     const ids = new Set(panel.referenceAssetIds ?? []);
@@ -626,6 +659,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                             checked={panelCharacterSelected(panel, character)}
                             onChange={(event) => togglePanelCharacter(panel, character, event.target.checked)}
                           />
+                          <VisualReferenceThumb url={referenceThumbnail(character)} label={character.name} />
                           <span>{character.name}</span>
                           {(character.referenceAssetIds?.length ?? 0) > 0 && (
                             <small>{character.referenceAssetIds?.length} refs</small>
@@ -639,15 +673,38 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                 </label>
                 <label>
                   <FieldLabel label="Scene" help="選擇 Project 層級的場景視覺設定；場景 prompt 和參考圖會自動加入生圖。" />
-                  <select
-                    value={panel.sceneSlug ?? ''}
-                    onChange={(event) => updatePanel(panel, { sceneSlug: event.target.value || undefined })}
-                  >
-                    <option value="">No scene</option>
-                    {scenes.map((scene) => (
-                      <option value={scene.slug} key={scene.id}>{scene.title}</option>
-                    ))}
-                  </select>
+                  <details className="comic-scene-picker">
+                    <summary>
+                      <span className="comic-scene-summary-text">
+                        {activeScene(panel)?.title ?? 'No scene'}
+                      </span>
+                    </summary>
+                    <div className="comic-scene-picker-menu">
+                      <label className="comic-checkbox-row">
+                        <input
+                          type="radio"
+                          name={`scene-${panel.id}`}
+                          checked={!panel.sceneSlug}
+                          onChange={() => updatePanel(panel, { sceneSlug: undefined })}
+                        />
+                        <VisualReferenceThumb label="No scene" />
+                        <span>No scene</span>
+                      </label>
+                      {scenes.map((scene) => (
+                        <label className="comic-checkbox-row" key={scene.id}>
+                          <input
+                            type="radio"
+                            name={`scene-${panel.id}`}
+                            checked={panel.sceneSlug === scene.slug}
+                            onChange={() => updatePanel(panel, { sceneSlug: scene.slug })}
+                          />
+                          <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
+                          <span>{scene.title}</span>
+                          <small>{scene.referenceAssetIds.length} refs</small>
+                        </label>
+                      ))}
+                    </div>
+                  </details>
                 </label>
                 <Button variant="secondary" onClick={() => createSceneFromPanel(panel)} disabled={busy}>
                   建立場景
@@ -747,6 +804,16 @@ function FieldLabel({ label, help }: { label: string; help: string }) {
     <span className="comic-field-label">
       {label}
       <span className="comic-help" title={help} aria-label={help}>?</span>
+    </span>
+  );
+}
+
+function VisualReferenceThumb({ url, label }: { url?: string; label: string }) {
+  return url ? (
+    <img className="comic-visual-reference-thumb" src={url} alt={`${label} reference`} loading="lazy" />
+  ) : (
+    <span className="comic-visual-reference-thumb placeholder" aria-hidden="true">
+      {label.trim().slice(0, 1) || '?'}
     </span>
   );
 }
