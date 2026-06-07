@@ -33,6 +33,12 @@ pub fn run() {
       sql: include_str!("../migrations/005_scene_visuals.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 6,
+      description: "comic panel image variants",
+      sql: include_str!("../migrations/006_comic_panel_image_variants.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

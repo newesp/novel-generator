@@ -10,7 +10,7 @@
 import { storage } from './storage';
 import type {
   Project, Chapter, ChapterVersion, Character,
-  WikiPage, WikiLogEntry, ChapterComic, ComicPanel, MediaAsset, SceneVisual,
+  WikiPage, WikiLogEntry, ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual,
 } from '../types';
 
 // v1: 無 wiki；v2: 含 wikiPages / wikiLog
@@ -29,12 +29,13 @@ export interface BackupSnapshot {
   wikiLog?: WikiLogEntry[];        // v1 缺欄位
   comics?: ChapterComic[];
   comicPanels?: ComicPanel[];
+  comicPanelImageVariants?: ComicPanelImageVariant[];
   mediaAssets?: MediaAsset[];
   sceneVisuals?: SceneVisual[];
 }
 
 export async function exportSnapshot(): Promise<BackupSnapshot> {
-  const [projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, mediaAssets, sceneVisuals] = await Promise.all([
+  const [projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals] = await Promise.all([
     storage.projects.list(),
     storage.chapters.list(),
     storage.versions.list(),
@@ -43,6 +44,7 @@ export async function exportSnapshot(): Promise<BackupSnapshot> {
     storage.wikiLog.listAll(),
     storage.comics.listAll(),
     storage.comicPanels.listAll(),
+    storage.comicPanelImageVariants.listAll(),
     storage.mediaAssets.listAll(),
     storage.sceneVisuals.listAll(),
   ]);
@@ -50,7 +52,7 @@ export async function exportSnapshot(): Promise<BackupSnapshot> {
     schema: 2,
     exportedAt: Date.now(),
     app: 'novel-generator',
-    projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, mediaAssets, sceneVisuals,
+    projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals,
   };
 }
 
@@ -77,6 +79,7 @@ export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' =
       wikiLog: snapshot.wikiLog ?? [],
       comics: snapshot.comics ?? [],
       comicPanels: snapshot.comicPanels ?? [],
+      comicPanelImageVariants: snapshot.comicPanelImageVariants ?? [],
       mediaAssets: snapshot.mediaAssets ?? [],
       sceneVisuals: snapshot.sceneVisuals ?? [],
     });

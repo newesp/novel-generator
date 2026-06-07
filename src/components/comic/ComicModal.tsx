@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import type { Chapter, ChapterComic, Character, ComicPanel, ImageProviderConfig, MediaAsset, Project, SceneVisual } from '../../types';
+import type { Chapter, ChapterComic, Character, ComicPanel, ComicPanelImageVariant, ImageProviderConfig, MediaAsset, Project, SceneVisual } from '../../types';
 import { storage } from '../../lib/storage';
 import { generateStoryboardDraft } from '../../lib/comic/storyboard-generate';
 import { getImageProvider } from '../../lib/comic/providers';
@@ -14,6 +14,7 @@ import { createPanelWriteQueue } from '../../lib/comic/panel-write-queue';
 import { buildPanelReferenceLibrary, mergeReferenceBindings } from '../../lib/comic/panel-reference-library';
 import type { PanelReferenceOption } from '../../lib/comic/panel-reference-library';
 import { firstReferenceAssetId, mapReferenceThumbnails } from '../../lib/comic/visual-reference-thumbnails';
+import { buildReadyImageVariant, canDeleteImageVariant } from '../../lib/comic/image-variants';
 import { createDefaultSceneVisual } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -25,22 +26,34 @@ interface ComicModalProps {
   onClose: () => void;
   project: Project;
   chapter: Chapter;
+  chapters?: Chapter[];
+  onChapterChange?: (chapterId: string) => void;
   characters: Character[];
 }
 
-export function ComicModal({ open, onClose, project, chapter, characters }: ComicModalProps) {
+export function ComicModal({ open, onClose, project, chapter, chapters = [chapter], onChapterChange, characters }: ComicModalProps) {
   const { imageGenerationPrefs, setImageGenerationPrefs } = useSettingsStore();
   const [comic, setComic] = useState<ChapterComic | null>(null);
   const [panels, setPanels] = useState<ComicPanel[]>([]);
   const [scenes, setScenes] = useState<SceneVisual[]>([]);
   const [availableCharacters, setAvailableCharacters] = useState<Character[]>(characters);
   const [panelAssets, setPanelAssets] = useState<Record<string, MediaAsset>>({});
+  const [panelVariants, setPanelVariants] = useState<Record<string, ComicPanelImageVariant[]>>({});
+  const [variantAssets, setVariantAssets] = useState<Record<string, MediaAsset>>({});
   const [panelReferenceOptions, setPanelReferenceOptions] = useState<PanelReferenceOption[]>([]);
   const [referenceLibraryRevision, setReferenceLibraryRevision] = useState(0);
   const [visualReferenceThumbnails, setVisualReferenceThumbnails] = useState<Record<string, string>>({});
   const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
+  const [expandedPrompt, setExpandedPrompt] = useState<{
+    title: string;
+    value: string;
+    readOnly?: boolean;
+    onApply?: (value: string) => void;
+  } | null>(null);
+  const [expandedPromptDraft, setExpandedPromptDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [selectorSearch, setSelectorSearch] = useState('');
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -60,6 +73,16 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       ? { providerId: 'deepinfra-flux', ...imageGenerationPrefs.deepinfraFlux }
       : { providerId: 'comfyui', ...imageGenerationPrefs.comfyui }
   );
+
+  const openExpandedPrompt = (config: {
+    title: string;
+    value: string;
+    readOnly?: boolean;
+    onApply?: (value: string) => void;
+  }) => {
+    setExpandedPrompt(config);
+    setExpandedPromptDraft(config.value);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -174,6 +197,29 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
     };
   }, [open, panels]);
 
+  useEffect(() => {
+    if (!open || !comic) return;
+    let cancelled = false;
+    void storage.comicPanelImageVariants.listByComic(comic.id).then(async (variants) => {
+      if (cancelled) return;
+      const byPanel = variants.reduce<Record<string, ComicPanelImageVariant[]>>((acc, variant) => {
+        acc[variant.panelId] = [...(acc[variant.panelId] ?? []), variant];
+        return acc;
+      }, {});
+      setPanelVariants(byPanel);
+      const assetIds = Array.from(new Set(variants.map((variant) => variant.assetId).filter((id): id is string => Boolean(id))));
+      const assets = await Promise.all(assetIds.map((id) => storage.mediaAssets.get(id)));
+      if (cancelled) return;
+      setVariantAssets(assets.filter((asset): asset is MediaAsset => Boolean(asset)).reduce<Record<string, MediaAsset>>((acc, asset) => {
+        acc[asset.id] = asset;
+        return acc;
+      }, {}));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, comic, panels]);
+
   const persistGeneratedPanel = async (
     panel: ComicPanel,
     config: ImageProviderConfig,
@@ -206,7 +252,23 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       createdAt: new Date().getTime(),
     };
     await storage.mediaAssets.add(asset);
+    const variant = buildReadyImageVariant({
+      id: uuid(),
+      projectId: project.id,
+      chapterId: chapter.id,
+      panel,
+      asset,
+      referenceAssetIds: referenceImages.map((item) => item.id),
+      referenceImageLabels,
+      createdAt: new Date().getTime(),
+    });
+    await storage.comicPanelImageVariants.add(variant);
     setPanelAssets((current) => ({ ...current, [panel.id]: asset }));
+    setPanelVariants((current) => ({
+      ...current,
+      [panel.id]: [...(current[panel.id] ?? []), variant],
+    }));
+    setVariantAssets((current) => ({ ...current, [asset.id]: asset }));
     return { assetId: asset.id, url: output.url };
   };
 
@@ -251,12 +313,17 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
         updatedAt: now,
       };
       if (currentComic) {
+        const oldVariants = await storage.comicPanelImageVariants.listByComic(currentComic.id);
         const oldAssetIds = Array.from(new Set(
-          panels.map((panel) => panel.assetId).filter((assetId): assetId is string => Boolean(assetId)),
+          [
+            ...panels.map((panel) => panel.assetId),
+            ...oldVariants.map((variant) => variant.assetId),
+          ].filter((assetId): assetId is string => Boolean(assetId)),
         ));
         for (const assetId of oldAssetIds) {
           await storage.mediaAssets.delete(assetId);
         }
+        await storage.comicPanelImageVariants.deleteByComic(currentComic.id);
         await storage.comicPanels.deleteByComic(currentComic.id);
         await storage.comics.update(currentComic.id, nextComic);
       } else {
@@ -320,8 +387,21 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
   };
 
   const referenceOptionsForPanel = (panel: ComicPanel) => (
-    panelReferenceOptions.filter((option) => option.panel.id !== panel.id)
+    panelReferenceOptions.filter((option) => option.panel.id !== panel.id).filter((option) => (
+      !selectorSearch.trim()
+      || `${option.chapter.title} ${option.chapter.order} ${option.panel.order} ${option.panel.beat}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
+    ))
   );
+
+  const filteredCharacters = availableCharacters.filter((character) => (
+    !selectorSearch.trim()
+    || `${character.name} ${character.appearance} ${character.race}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
+  ));
+
+  const filteredScenes = scenes.filter((scene) => (
+    !selectorSearch.trim()
+    || `${scene.title} ${scene.slug} ${scene.prompt}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
+  ));
 
   const refreshScenes = async () => {
     setScenes(await storage.sceneVisuals.listByProject(project.id));
@@ -342,10 +422,52 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
     await refreshScenes();
   };
 
+  const selectPanelVariant = async (panel: ComicPanel, variant: ComicPanelImageVariant) => {
+    if (!variant.assetId) return;
+    await updatePanel(panel, { assetId: variant.assetId, status: 'ready' });
+    const asset = await storage.mediaAssets.get(variant.assetId);
+    if (asset) setPanelAssets((current) => ({ ...current, [panel.id]: asset }));
+    setReferenceLibraryRevision((current) => current + 1);
+  };
+
+  const deletePanelVariant = async (panel: ComicPanel, variant: ComicPanelImageVariant) => {
+    if (!canDeleteImageVariant({ panelAssetId: panel.assetId, variantAssetId: variant.assetId })) {
+      setMessage('目前採用圖不能直接刪除；請先選另一張歷史圖。');
+      return;
+    }
+    await storage.comicPanelImageVariants.delete(variant.id);
+    if (variant.assetId) await storage.mediaAssets.delete(variant.assetId);
+    setPanelVariants((current) => ({
+      ...current,
+      [panel.id]: (current[panel.id] ?? []).filter((item) => item.id !== variant.id),
+    }));
+    if (variant.assetId) {
+      setVariantAssets((current) => {
+        const next = { ...current };
+        delete next[variant.assetId as string];
+        return next;
+      });
+    }
+    setReferenceLibraryRevision((current) => current + 1);
+  };
+
   const updateScene = async (scene: SceneVisual, patch: Partial<SceneVisual>) => {
     const next = { ...scene, ...patch, updatedAt: new Date().getTime() };
     await storage.sceneVisuals.update(scene.id, next);
     setScenes((current) => current.map((item) => item.id === scene.id ? next : item));
+  };
+
+  const deleteScene = async (scene: SceneVisual) => {
+    const usedPanels = panels.filter((panel) => panel.sceneSlug === scene.slug);
+    const message = usedPanels.length
+      ? `刪除場景「${scene.title}」？${usedPanels.length} 格分鏡會清除這個場景設定。`
+      : `刪除場景「${scene.title}」？`;
+    if (!window.confirm(message)) return;
+    for (const panel of usedPanels) {
+      await updatePanel(panel, { sceneSlug: undefined });
+    }
+    await storage.sceneVisuals.delete(scene.id);
+    setScenes((current) => current.filter((item) => item.id !== scene.id));
   };
 
   const uploadSceneReference = async (scene: SceneVisual, files: FileList | null) => {
@@ -549,7 +671,8 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
       open={open}
       onClose={() => !busy && onClose()}
       title={`轉漫畫：${chapter.title}`}
-      width={760}
+      width={1100}
+      fullScreen
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={busy}>關閉</Button>
@@ -565,12 +688,27 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
     >
       <div className="comic-modal">
         <section className="comic-settings">
+          <label>
+            <FieldLabel label="章節" help="切換要轉成漫畫的章節。" />
+            <select
+              className="toolbar-input"
+              value={chapter.id}
+              onChange={(event) => onChapterChange?.(event.target.value)}
+              disabled={busy || !onChapterChange}
+            >
+              {chapters.map((item) => (
+                <option value={item.id} key={item.id}>
+                  第 {item.order} 章｜{item.title}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="comic-provider-summary">
-            <FieldLabel label="Provider" help="圖片 provider 在「偏好設定 → 圖片生成」調整。這裡只顯示目前使用的全域設定。" />
+            <FieldLabel label="???" help="圖片 provider 在「偏好設定 → 圖片生成」調整。這裡只顯示目前使用的全域設定。" />
             <strong>{providerLabel}</strong>
           </div>
           <label>
-            <FieldLabel label="Style" help="本章漫畫的畫風描述，會進入分鏡與最終圖片 prompt。" />
+            <FieldLabel label="??" help="本章漫畫的畫風描述，會進入分鏡與最終圖片 prompt。" />
             <input
               className="toolbar-input"
               value={imageGenerationPrefs.stylePreset}
@@ -578,7 +716,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
             />
           </label>
           <label>
-            <FieldLabel label="Panels" help="希望 LLM 拆成幾格分鏡。短場景可用 4-6，完整章節建議 8-20。" />
+            <FieldLabel label="???" help="希望 LLM 拆成幾格分鏡。短場景可用 4-6，完整章節建議 8-20。" />
             <input
               className="toolbar-input"
               type="number"
@@ -588,29 +726,46 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
           </label>
         </section>
 
+        <section className="comic-selector-search">
+          <FieldLabel label="搜尋" help="用關鍵字篩選角色、參考圖與場景視覺設定。" />
+          <input
+            className="toolbar-input"
+            value={selectorSearch}
+            onChange={(event) => setSelectorSearch(event.target.value)}
+            placeholder="搜尋角色、場景、章節或分鏡..."
+          />
+        </section>
+
         {scenes.length > 0 && (
           <section className="comic-scene-library">
             <header>
               <strong>場景視覺設定</strong>
-              <span>{scenes.length} scenes</span>
+              <span>{scenes.length} ???</span>
             </header>
             <div className="comic-scene-list">
               {scenes.map((scene) => (
                 <details className="comic-scene-card" key={scene.id}>
-                  <summary>{scene.title} <span>{scene.slug}</span></summary>
+                  <summary>
+                    <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
+                    <span className="comic-scene-card-title">{scene.title}</span>
+                    <span>{scene.slug}</span>
+                  </summary>
+                  <div className="comic-scene-card-actions">
+                    <button type="button" onClick={() => deleteScene(scene)}>刪除</button>
+                  </div>
                   <label>
-                    <FieldLabel label="Scene prompt" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
+                    <FieldLabel label="?????" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
                     <textarea value={scene.prompt} onChange={(event) => void updateScene(scene, { prompt: event.target.value })} />
                   </label>
                   <label>
-                    <FieldLabel label="Negative" help="避免場景跑偏的內容，例如 modern apartment、clean lab、futuristic city。" />
+                    <FieldLabel label="?????" help="避免場景跑偏的內容，例如 modern apartment、clean lab、futuristic city。" />
                     <input value={scene.negativePrompt} onChange={(event) => void updateScene(scene, { negativePrompt: event.target.value })} />
                   </label>
                   <label>
-                    <FieldLabel label="Reference images" help="上傳場景參考圖。支援 reference image 的 provider 會自動帶入。" />
+                    <FieldLabel label="???" help="上傳場景參考圖。支援 reference image 的 provider 會自動帶入。" />
                     <input type="file" accept="image/*" multiple onChange={(event) => void uploadSceneReference(scene, event.target.files)} />
                   </label>
-                  <p className="comic-message">{scene.referenceAssetIds.length} reference image(s)</p>
+                  <p className="comic-message">{scene.referenceAssetIds.length} ????</p>
                 </details>
               ))}
             </div>
@@ -620,7 +775,9 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
         {message && <p className="comic-message">{message}</p>}
 
         <div className="comic-panel-list">
-          {panels.map((panel) => (
+          {panels.map((panel) => {
+            const filteredPanelReferenceOptions = referenceOptionsForPanel(panel);
+            return (
             <article className={`comic-panel-card ${panel.status}`} key={panel.id}>
               <header><strong>#{panel.order} {panel.beat}</strong><span>{panel.status}</span></header>
               {panelAssets[panel.id]?.url && (
@@ -629,7 +786,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                     type="button"
                     className="comic-image-button"
                     onClick={() => setPreviewAsset(panelAssets[panel.id])}
-                    title="Preview image"
+                    title="????"
                   >
                     <img src={panelAssets[panel.id].url} alt={`#${panel.order} ${panel.beat}`} loading="lazy" />
                   </button>
@@ -642,17 +799,57 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                   </figcaption>
                 </figure>
               )}
+              {(panelVariants[panel.id]?.length ?? 0) > 0 && (
+                <details className="comic-panel-history">
+                  <summary>歷史圖 ({panelVariants[panel.id]?.length ?? 0})</summary>
+                  <div className="comic-panel-history-grid">
+                    {(panelVariants[panel.id] ?? []).map((variant) => {
+                      const asset = variant.assetId ? variantAssets[variant.assetId] : undefined;
+                      const isCurrent = Boolean(variant.assetId && variant.assetId === panel.assetId);
+                      return (
+                        <div className={`comic-panel-variant ${isCurrent ? 'current' : ''}`} key={variant.id}>
+                          {asset?.url ? (
+                            <img src={asset.url} alt={`panel ${panel.order} variant`} loading="lazy" />
+                          ) : (
+                            <span className="comic-panel-variant-placeholder">???</span>
+                          )}
+                          <small>{new Date(variant.createdAt).toLocaleTimeString()} · {variant.providerId || 'provider'}</small>
+                          <div className="comic-panel-variant-actions">
+                            <button
+                              type="button"
+                              className="comic-icon-button"
+                              title={isCurrent ? '已是目前圖' : '設為目前'}
+                              disabled={isCurrent || !variant.assetId}
+                              onClick={() => selectPanelVariant(panel, variant)}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              className="comic-icon-button danger"
+                              title={isCurrent ? '目前採用圖不可刪除' : '刪除'}
+                              onClick={() => deletePanelVariant(panel, variant)}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
               <div className="comic-panel-controls">
                 <label className="comic-character-control">
-                  <FieldLabel label="Characters" help="選擇這格要使用哪些角色視覺設定；被勾選的角色會自動帶入角色 prompt 和已上傳的角色參考圖。" />
+                  <FieldLabel label="??" help="選擇這格要使用哪些角色視覺設定；被勾選的角色會自動帶入角色 prompt 和已上傳的角色參考圖。" />
                   <details className="comic-character-picker">
                     <summary>
                       <span className="comic-character-summary-text">
-                        {panelCharacterNames(panel).length ? panelCharacterNames(panel).join(', ') : 'No characters'}
+                        {panelCharacterNames(panel).length ? panelCharacterNames(panel).join(', ') : '????'}
                       </span>
                     </summary>
                     <div className="comic-character-picker-menu">
-                      {availableCharacters.length ? availableCharacters.map((character) => (
+                      {filteredCharacters.length ? filteredCharacters.map((character) => (
                         <label className="comic-checkbox-row" key={character.id}>
                           <input
                             type="checkbox"
@@ -662,21 +859,21 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                           <VisualReferenceThumb url={referenceThumbnail(character)} label={character.name} />
                           <span>{character.name}</span>
                           {(character.referenceAssetIds?.length ?? 0) > 0 && (
-                            <small>{character.referenceAssetIds?.length} refs</small>
+                            <small>{character.referenceAssetIds?.length} ?</small>
                           )}
                         </label>
                       )) : (
-                        <p className="comic-message">No project characters</p>
+                        <p className="comic-message">沒有符合的角色</p>
                       )}
                     </div>
                   </details>
                 </label>
                 <label>
-                  <FieldLabel label="Scene" help="選擇 Project 層級的場景視覺設定；場景 prompt 和參考圖會自動加入生圖。" />
+                  <FieldLabel label="??" help="選擇 Project 層級的場景視覺設定；場景 prompt 和參考圖會自動加入生圖。" />
                   <details className="comic-scene-picker">
                     <summary>
                       <span className="comic-scene-summary-text">
-                        {activeScene(panel)?.title ?? 'No scene'}
+                        {activeScene(panel)?.title ?? '無場景'}
                       </span>
                     </summary>
                     <div className="comic-scene-picker-menu">
@@ -687,10 +884,10 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                           checked={!panel.sceneSlug}
                           onChange={() => updatePanel(panel, { sceneSlug: undefined })}
                         />
-                        <VisualReferenceThumb label="No scene" />
-                        <span>No scene</span>
+                        <VisualReferenceThumb label="無場景" />
+                        <span>無場景</span>
                       </label>
-                      {scenes.map((scene) => (
+                      {filteredScenes.map((scene) => (
                         <label className="comic-checkbox-row" key={scene.id}>
                           <input
                             type="radio"
@@ -700,7 +897,7 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                           />
                           <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
                           <span>{scene.title}</span>
-                          <small>{scene.referenceAssetIds.length} refs</small>
+                          <small>{scene.referenceAssetIds.length} ?</small>
                         </label>
                       ))}
                     </div>
@@ -722,10 +919,10 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                   <details className="comic-reference-picker">
                     <summary>已選 {panel.referenceAssetIds?.length ?? 0} 張</summary>
                     <div className="comic-reference-picker-menu">
-                      {referenceOptionsForPanel(panel).length ? Array.from(new Set(
-                        referenceOptionsForPanel(panel).map((option) => option.chapter.id),
+                      {filteredPanelReferenceOptions.length ? Array.from(new Set(
+                        filteredPanelReferenceOptions.map((option) => option.chapter.id),
                       )).map((chapterId) => {
-                        const chapterOptions = referenceOptionsForPanel(panel).filter((option) => option.chapter.id === chapterId);
+                        const chapterOptions = filteredPanelReferenceOptions.filter((option) => option.chapter.id === chapterId);
                         return (
                           <section className="comic-reference-chapter" key={chapterId}>
                             <strong>第 {chapterOptions[0].chapter.order} 章 · {chapterOptions[0].chapter.title}</strong>
@@ -749,8 +946,20 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                   </details>
                 </div>
               </div>
+              <div className="comic-prompt-field-header">
+                <span>畫面提示詞</span>
+                <button type="button" onClick={() => openExpandedPrompt({ title: '畫面提示詞', value: panel.visualPrompt, onApply: (value) => updatePanel(panel, { visualPrompt: value }) })}>展開</button>
+              </div>
               <textarea value={panel.visualPrompt} onChange={(event) => updatePanel(panel, { visualPrompt: event.target.value })} />
+              <div className="comic-prompt-field-header">
+                <span>排除提示詞</span>
+                <button type="button" onClick={() => openExpandedPrompt({ title: '排除提示詞', value: panel.negativePrompt, onApply: (value) => updatePanel(panel, { negativePrompt: value }) })}>展開</button>
+              </div>
               <input value={panel.negativePrompt} onChange={(event) => updatePanel(panel, { negativePrompt: event.target.value })} />
+              <div className="comic-prompt-field-header">
+                <span>群眾設定 JSON</span>
+                <button type="button" onClick={() => openExpandedPrompt({ title: '群眾設定 JSON', value: panel.extraGroupsJson ?? '', onApply: (value) => updatePanel(panel, { extraGroupsJson: value }) })}>展開</button>
+              </div>
               <textarea
                 className="comic-extras-input"
                 placeholder='extraGroups JSON，例如 [{"label":"居民","count":12,"role":"civilians","prompt":"穿著舊布衣，站在背景","visualPriority":"low"}]'
@@ -759,7 +968,18 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
               />
               {panel.finalPromptSnapshot && (
                 <details className="comic-prompt-preview">
-                  <summary>Final prompt</summary>
+                  <summary>
+                    <span>最終提示詞</span>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        openExpandedPrompt({ title: '最終提示詞', value: panel.finalPromptSnapshot ?? '', readOnly: true });
+                      }}
+                    >
+                      展開
+                    </button>
+                  </summary>
                   <pre>{panel.finalPromptSnapshot}</pre>
                 </details>
               )}
@@ -769,7 +989,8 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                 重生此格
               </Button>
             </article>
-          ))}
+            );
+          })}
         </div>
         {previewAsset?.url && (
           <div className="comic-image-preview" role="dialog" aria-modal="true" onClick={() => setPreviewAsset(null)}>
@@ -782,6 +1003,35 @@ export function ComicModal({ open, onClose, project, chapter, characters }: Comi
                   複製 URL
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+        {expandedPrompt && (
+          <div className="comic-prompt-expand-modal" role="dialog" aria-modal="true" onClick={() => setExpandedPrompt(null)}>
+            <div className="comic-prompt-expand-content" onClick={(event) => event.stopPropagation()}>
+              <header>
+                <strong>{expandedPrompt.title}</strong>
+                <button type="button" onClick={() => setExpandedPrompt(null)}>關閉</button>
+              </header>
+              <textarea
+                value={expandedPromptDraft}
+                readOnly={expandedPrompt.readOnly}
+                onChange={(event) => setExpandedPromptDraft(event.target.value)}
+              />
+              <footer>
+                <button type="button" onClick={() => setExpandedPrompt(null)}>取消</button>
+                {!expandedPrompt.readOnly && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      expandedPrompt.onApply?.(expandedPromptDraft);
+                      setExpandedPrompt(null);
+                    }}
+                  >
+                    套用
+                  </button>
+                )}
+              </footer>
             </div>
           </div>
         )}

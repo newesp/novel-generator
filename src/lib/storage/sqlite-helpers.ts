@@ -8,7 +8,7 @@
  */
 import type {
   Project, Chapter, ChapterVersion, Character, WikiPage, WikiLogEntry,
-  ChapterComic, ComicPanel, MediaAsset, SceneVisual,
+  ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual,
 } from '../../types';
 
 export interface ProjectRow {
@@ -228,6 +228,18 @@ export interface ComicPanelRow {
   data: string;
 }
 
+export interface ComicPanelImageVariantRow {
+  id: string;
+  project_id: string;
+  chapter_id: string;
+  comic_id: string;
+  panel_id: string;
+  asset_id: string | null;
+  status: string;
+  created_at: number;
+  data: string;
+}
+
 export interface MediaAssetRow {
   id: string;
   project_id: string;
@@ -273,6 +285,24 @@ export function comicPanelToRow(panel: ComicPanel): ComicPanelRow {
 
 export function rowToComicPanel(row: ComicPanelRow): ComicPanel {
   return JSON.parse(row.data) as ComicPanel;
+}
+
+export function comicPanelImageVariantToRow(variant: ComicPanelImageVariant): ComicPanelImageVariantRow {
+  return {
+    id: variant.id,
+    project_id: variant.projectId,
+    chapter_id: variant.chapterId,
+    comic_id: variant.comicId,
+    panel_id: variant.panelId,
+    asset_id: variant.assetId ?? null,
+    status: variant.status,
+    created_at: variant.createdAt,
+    data: JSON.stringify(variant),
+  };
+}
+
+export function rowToComicPanelImageVariant(row: ComicPanelImageVariantRow): ComicPanelImageVariant {
+  return JSON.parse(row.data) as ComicPanelImageVariant;
 }
 
 export function mediaAssetToRow(asset: MediaAsset): MediaAssetRow {

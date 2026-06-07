@@ -16,6 +16,7 @@ import type {
   WikiLogStore,
   ChapterComicStore,
   ComicPanelStore,
+  ComicPanelImageVariantStore,
   MediaAssetStore,
   SceneVisualStore,
   StorageBundle,
@@ -161,6 +162,22 @@ const comicPanels: ComicPanelStore = {
   },
 };
 
+const comicPanelImageVariants: ComicPanelImageVariantStore = {
+  listAll: () => db.comicPanelImageVariants.toArray(),
+  listByComic: (comicId) => db.comicPanelImageVariants.where('comicId').equals(comicId).sortBy('createdAt'),
+  listByPanel: (panelId) => db.comicPanelImageVariants.where('panelId').equals(panelId).sortBy('createdAt'),
+  get: (id) => db.comicPanelImageVariants.get(id),
+  add: async (variant) => { await db.comicPanelImageVariants.add(variant); },
+  update: async (id, data) => { await db.comicPanelImageVariants.update(id, data); },
+  delete: (id) => db.comicPanelImageVariants.delete(id),
+  deleteByComic: async (comicId) => {
+    await db.comicPanelImageVariants.where('comicId').equals(comicId).delete();
+  },
+  deleteByPanel: async (panelId) => {
+    await db.comicPanelImageVariants.where('panelId').equals(panelId).delete();
+  },
+};
+
 const mediaAssets: MediaAssetStore = {
   listAll: () => db.mediaAssets.toArray(),
   listByChapter: (chapterId) => db.mediaAssets.where('chapterId').equals(chapterId).sortBy('createdAt'),
@@ -190,10 +207,11 @@ const sceneVisuals: SceneVisualStore = {
 async function replaceAll(bundle: StorageBundle): Promise<void> {
   await db.transaction('rw',
     [db.projects, db.chapters, db.versions, db.characters, db.wikiPages, db.wikiLog,
-      db.comics, db.comicPanels, db.mediaAssets, db.sceneVisuals],
+      db.comics, db.comicPanels, db.comicPanelImageVariants, db.mediaAssets, db.sceneVisuals],
     async () => {
       await db.sceneVisuals.clear();
       await db.mediaAssets.clear();
+      await db.comicPanelImageVariants.clear();
       await db.comicPanels.clear();
       await db.comics.clear();
       await db.projects.clear();
@@ -211,6 +229,7 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
       await db.wikiLog.bulkAdd(bundle.wikiLog ?? []);
       await db.comics.bulkAdd(bundle.comics ?? []);
       await db.comicPanels.bulkAdd(bundle.comicPanels ?? []);
+      await db.comicPanelImageVariants.bulkAdd(bundle.comicPanelImageVariants ?? []);
       await db.mediaAssets.bulkAdd(bundle.mediaAssets ?? []);
       await db.sceneVisuals.bulkAdd(bundle.sceneVisuals ?? []);
     },
@@ -219,6 +238,6 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
 
 export const dexieAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
-  wikiPages, wikiLog, comics, comicPanels, mediaAssets, sceneVisuals,
+  wikiPages, wikiLog, comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals,
   replaceAll,
 };

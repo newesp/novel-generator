@@ -20,6 +20,7 @@ import type {
   WikiLogStore,
   ChapterComicStore,
   ComicPanelStore,
+  ComicPanelImageVariantStore,
   MediaAssetStore,
   SceneVisualStore,
   StorageBundle,
@@ -42,6 +43,8 @@ import {
   rowToChapterComic,
   comicPanelToRow,
   rowToComicPanel,
+  comicPanelImageVariantToRow,
+  rowToComicPanelImageVariant,
   mediaAssetToRow,
   rowToMediaAsset,
   sceneVisualToRow,
@@ -55,6 +58,7 @@ import {
   type WikiLogRow,
   type ChapterComicRow,
   type ComicPanelRow,
+  type ComicPanelImageVariantRow,
   type MediaAssetRow,
   type SceneVisualRow,
 } from './sqlite-helpers';
@@ -494,6 +498,7 @@ const appMeta: AppMetaStore = {
 
 const CHAPTER_COMIC_COLS = 'id, project_id, chapter_id, updated_at, data';
 const COMIC_PANEL_COLS = 'id, comic_id, ord, status, data';
+const COMIC_PANEL_IMAGE_VARIANT_COLS = 'id, project_id, chapter_id, comic_id, panel_id, asset_id, status, created_at, data';
 const MEDIA_ASSET_COLS = 'id, project_id, chapter_id, kind, file_path, data, created_at';
 const SCENE_VISUAL_COLS = 'id, project_id, slug, title, updated_at, data';
 
@@ -590,6 +595,65 @@ const comicPanels: ComicPanelStore = {
   deleteByComic: async (comicId) => {
     const db = await getDb();
     await db.execute('DELETE FROM comic_panels WHERE comic_id=$1', [comicId]);
+  },
+};
+
+const comicPanelImageVariants: ComicPanelImageVariantStore = {
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<ComicPanelImageVariantRow[]>(`SELECT ${COMIC_PANEL_IMAGE_VARIANT_COLS} FROM comic_panel_image_variants`);
+    return rows.map(rowToComicPanelImageVariant);
+  },
+  listByComic: async (comicId) => {
+    const db = await getDb();
+    const rows = await db.select<ComicPanelImageVariantRow[]>(
+      `SELECT ${COMIC_PANEL_IMAGE_VARIANT_COLS} FROM comic_panel_image_variants WHERE comic_id=$1 ORDER BY created_at ASC`,
+      [comicId],
+    );
+    return rows.map(rowToComicPanelImageVariant);
+  },
+  listByPanel: async (panelId) => {
+    const db = await getDb();
+    const rows = await db.select<ComicPanelImageVariantRow[]>(
+      `SELECT ${COMIC_PANEL_IMAGE_VARIANT_COLS} FROM comic_panel_image_variants WHERE panel_id=$1 ORDER BY created_at ASC`,
+      [panelId],
+    );
+    return rows.map(rowToComicPanelImageVariant);
+  },
+  get: async (id) => {
+    const db = await getDb();
+    const rows = await db.select<ComicPanelImageVariantRow[]>(`SELECT ${COMIC_PANEL_IMAGE_VARIANT_COLS} FROM comic_panel_image_variants WHERE id=$1`, [id]);
+    return rows[0] ? rowToComicPanelImageVariant(rows[0]) : undefined;
+  },
+  add: async (variant) => {
+    const db = await getDb();
+    const row = comicPanelImageVariantToRow(variant);
+    await db.execute(
+      `INSERT INTO comic_panel_image_variants (${COMIC_PANEL_IMAGE_VARIANT_COLS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [row.id, row.project_id, row.chapter_id, row.comic_id, row.panel_id, row.asset_id, row.status, row.created_at, row.data],
+    );
+  },
+  update: async (id, data) => {
+    const current = await comicPanelImageVariants.get(id);
+    if (!current) return;
+    const db = await getDb();
+    const row = comicPanelImageVariantToRow(mergePartial(current, data));
+    await db.execute(
+      'UPDATE comic_panel_image_variants SET project_id=$1, chapter_id=$2, comic_id=$3, panel_id=$4, asset_id=$5, status=$6, created_at=$7, data=$8 WHERE id=$9',
+      [row.project_id, row.chapter_id, row.comic_id, row.panel_id, row.asset_id, row.status, row.created_at, row.data, id],
+    );
+  },
+  delete: async (id) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM comic_panel_image_variants WHERE id=$1', [id]);
+  },
+  deleteByComic: async (comicId) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM comic_panel_image_variants WHERE comic_id=$1', [comicId]);
+  },
+  deleteByPanel: async (panelId) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM comic_panel_image_variants WHERE panel_id=$1', [panelId]);
   },
 };
 
@@ -707,6 +771,7 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
   const db = await getDb();
   await db.execute('DELETE FROM scene_visuals');
   await db.execute('DELETE FROM media_assets');
+  await db.execute('DELETE FROM comic_panel_image_variants');
   await db.execute('DELETE FROM comic_panels');
   await db.execute('DELETE FROM chapter_comics');
   await db.execute('DELETE FROM wiki_log');
@@ -723,13 +788,14 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
   for (const e of bundle.wikiLog ?? [])   await wikiLog.add(e);
   for (const c of bundle.comics ?? []) await comics.add(c);
   for (const p of bundle.comicPanels ?? []) await comicPanels.add(p);
+  for (const v of bundle.comicPanelImageVariants ?? []) await comicPanelImageVariants.add(v);
   for (const a of bundle.mediaAssets ?? []) await mediaAssets.add(a);
   for (const s of bundle.sceneVisuals ?? []) await sceneVisuals.add(s);
 }
 
 export const tauriSqliteAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
-  wikiPages, wikiLog, comics, comicPanels, mediaAssets, sceneVisuals,
+  wikiPages, wikiLog, comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals,
   search: createFtsSearchStore(getDb),
   replaceAll,
 };

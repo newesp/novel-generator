@@ -9,5 +9,7 @@ describe('Tauri SQL migrations', () => {
     expect(libRs).toContain('../migrations/004_comics.sql');
     expect(libRs).toContain('version: 5');
     expect(libRs).toContain('../migrations/005_scene_visuals.sql');
+    expect(libRs).toContain('version: 6');
+    expect(libRs).toContain('../migrations/006_comic_panel_image_variants.sql');
   });
 });

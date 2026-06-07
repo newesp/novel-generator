@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-06-07 - Comic image history and full-screen workflow
+
+- Added `ComicPanelImageVariant` storage so every generated panel image is kept as a selectable history variant while `ComicPanel.assetId` remains the current adopted image.
+- Added Dexie / SQLite adapter support, Tauri migration `006_comic_panel_image_variants.sql`, backup import/export support, and focused tests for variant row conversion and migration registration.
+- Updated the comic modal to full-screen mode with per-panel history thumbnails, set-current and delete-old-image controls, prompt expansion, shared selector search, and scene visual deletion.
+- Regenerating storyboard now removes old panel variants and generated comic image assets; regenerating a panel keeps history and creates a new variant.
+- Added the design spec `docs/superpowers/specs/2026-06-06-comic-image-history-design.md`.
+
 ## 2026-06-04 - Explicit comic panel reference picker
 
 - Replaced the continuity-only interaction with a broader per-panel reference workflow while retaining the automatic previous-panel option.

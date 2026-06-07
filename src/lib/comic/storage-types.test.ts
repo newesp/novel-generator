@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   comicPanelToRow,
+  comicPanelImageVariantToRow,
   chapterComicToRow,
   mediaAssetToRow,
   rowToComicPanel,
+  rowToComicPanelImageVariant,
   rowToChapterComic,
   rowToMediaAsset,
   rowToSceneVisual,
   sceneVisualToRow,
 } from '../storage/sqlite-helpers';
-import type { ChapterComic, ComicPanel, MediaAsset, SceneVisual } from '../../types';
+import type { ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual } from '../../types';
 
 describe('comic sqlite row helpers', () => {
   it('round trips comic metadata rows', () => {
@@ -64,9 +66,27 @@ describe('comic sqlite row helpers', () => {
       createdAt: 1,
       updatedAt: 2,
     };
+    const variant: ComicPanelImageVariant = {
+      id: 'variant',
+      projectId: 'book',
+      chapterId: 'ch1',
+      comicId: 'comic',
+      panelId: 'panel',
+      assetId: 'asset',
+      status: 'ready',
+      providerId: 'comfyui',
+      promptSnapshot: 'manga panel',
+      negativePromptSnapshot: 'bad hands',
+      referenceAssetIds: ['ref-1'],
+      referenceImageLabels: ['image 1 = character'],
+      seed: 123,
+      generationParamsJson: '{"width":1024}',
+      createdAt: 4,
+    };
 
     expect(rowToChapterComic(chapterComicToRow(comic))).toEqual(comic);
     expect(rowToComicPanel(comicPanelToRow(panel))).toEqual(panel);
+    expect(rowToComicPanelImageVariant(comicPanelImageVariantToRow(variant))).toEqual(variant);
     expect(rowToMediaAsset(mediaAssetToRow(asset))).toEqual(asset);
     expect(rowToSceneVisual(sceneVisualToRow(scene))).toEqual(scene);
   });

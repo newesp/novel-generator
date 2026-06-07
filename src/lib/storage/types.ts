@@ -13,7 +13,7 @@
 import type {
   Project, Chapter, ChapterVersion, Character,
   WikiPage, WikiLogEntry, WikiPageType,
-  ChapterComic, ComicPanel, MediaAsset, SceneVisual,
+  ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual,
 } from '../../types';
 import type { SearchStore } from '../search/types';
 
@@ -116,6 +116,18 @@ export interface ComicPanelStore {
   deleteByComic(comicId: string): Promise<void>;
 }
 
+export interface ComicPanelImageVariantStore {
+  listAll(): Promise<ComicPanelImageVariant[]>;
+  listByComic(comicId: string): Promise<ComicPanelImageVariant[]>;
+  listByPanel(panelId: string): Promise<ComicPanelImageVariant[]>;
+  get(id: string): Promise<ComicPanelImageVariant | undefined>;
+  add(variant: ComicPanelImageVariant): Promise<void>;
+  update(id: string, data: Partial<ComicPanelImageVariant>): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByComic(comicId: string): Promise<void>;
+  deleteByPanel(panelId: string): Promise<void>;
+}
+
 export interface MediaAssetStore {
   listAll(): Promise<MediaAsset[]>;
   listByChapter(chapterId: string): Promise<MediaAsset[]>;
@@ -147,6 +159,7 @@ export interface StorageBundle {
   wikiLog?: WikiLogEntry[];
   comics?: ChapterComic[];
   comicPanels?: ComicPanel[];
+  comicPanelImageVariants?: ComicPanelImageVariant[];
   mediaAssets?: MediaAsset[];
   sceneVisuals?: SceneVisual[];
 }
@@ -161,6 +174,7 @@ export interface StorageAdapter {
   wikiLog: WikiLogStore;
   comics: ChapterComicStore;
   comicPanels: ComicPanelStore;
+  comicPanelImageVariants: ComicPanelImageVariantStore;
   mediaAssets: MediaAssetStore;
   sceneVisuals: SceneVisualStore;
   /** Tauri-only FTS5 search store. Browser/Dexie adapter leaves this undefined. */

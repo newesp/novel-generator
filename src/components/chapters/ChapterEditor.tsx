@@ -627,6 +627,8 @@ export function ChapterEditor() {
           onClose={() => setShowComicModal(false)}
           project={project}
           chapter={{ ...chapter, title, content, beat, points }}
+          chapters={chapters}
+          onChapterChange={setSelectedChapterId}
           characters={characters}
         />
       )}

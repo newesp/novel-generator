@@ -971,6 +971,19 @@ input:focus, select:focus, textarea:focus {
 .comic-field > * {
   min-width: 0;
 }
+.comic-selector-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.comic-selector-search input {
+  width: 100%;
+  box-sizing: border-box;
+}
 .comic-field.wide {
   grid-column: 1 / -1;
 }
@@ -1013,13 +1026,38 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg);
 }
 .comic-scene-card summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
   color: var(--text-primary);
   font-size: 12px;
 }
 .comic-scene-card summary span {
-  margin-left: 6px;
   color: var(--text-tertiary);
+}
+.comic-scene-card-title {
+  color: var(--text-primary) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.comic-scene-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.comic-scene-card-actions button {
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 6px;
+  background: transparent;
+  color: #fca5a5;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.comic-scene-card-actions button:hover {
+  background: rgba(239, 68, 68, 0.12);
 }
 .comic-scene-card label,
 .comic-panel-controls label {
@@ -1290,6 +1328,83 @@ input:focus, select:focus, textarea:focus {
   flex-direction: column;
   gap: 6px;
 }
+.comic-panel-history {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+.comic-panel-history summary {
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+.comic-panel-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+.comic-panel-variant {
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+.comic-panel-variant.current {
+  border-color: rgba(34, 197, 94, 0.6);
+}
+.comic-panel-variant img,
+.comic-panel-variant-placeholder {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.comic-panel-variant small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comic-panel-variant-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 5px;
+}
+.comic-icon-button {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.comic-icon-button.danger {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.45);
+}
+.comic-icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .comic-image-button {
   padding: 0;
   border: 1px solid var(--border);
@@ -1336,6 +1451,30 @@ input:focus, select:focus, textarea:focus {
   min-height: 72px;
   font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
 }
+.comic-prompt-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+.comic-prompt-field-header button,
+.comic-prompt-preview summary button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.comic-prompt-field-header button:hover,
+.comic-prompt-preview summary button:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
 .comic-prompt-preview {
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1344,6 +1483,10 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg);
 }
 .comic-prompt-preview summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   cursor: pointer;
   font-size: 12px;
 }
@@ -1402,6 +1545,59 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-primary);
   cursor: pointer;
   font-size: 20px;
+}
+.comic-prompt-expand-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.72);
+}
+.comic-prompt-expand-content {
+  width: min(960px, 96vw);
+  height: min(760px, 92vh);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+.comic-prompt-expand-content header,
+.comic-prompt-expand-content footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.comic-prompt-expand-content textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-primary);
+  padding: 10px;
+  font: inherit;
+  line-height: 1.5;
+}
+.comic-prompt-expand-content button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.comic-prompt-expand-content button:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
 }
 
 .character-visual-section {
