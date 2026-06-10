@@ -15,7 +15,7 @@ import { buildPanelReferenceLibrary, mergeReferenceBindings } from '../../lib/co
 import type { PanelReferenceOption } from '../../lib/comic/panel-reference-library';
 import { firstReferenceAssetId, mapReferenceThumbnails } from '../../lib/comic/visual-reference-thumbnails';
 import { buildLegacyCurrentImageVariant, buildReadyImageVariant, canDeleteImageVariant } from '../../lib/comic/image-variants';
-import { createDefaultSceneVisual } from '../../lib/scene-visuals';
+import { createDefaultSceneVisual, filterSceneVisuals } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Modal } from '../common/Modal';
@@ -410,6 +410,17 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     return assetId ? visualReferenceThumbnails[assetId] : undefined;
   };
 
+  const previewImageUrl = (url: string, label: string) => {
+    setPreviewAsset({
+      id: `preview-${label}`,
+      projectId: project.id,
+      kind: 'comic_panel_image',
+      url,
+      mimeType: 'image/*',
+      createdAt: new Date().getTime(),
+    });
+  };
+
   const togglePanelReference = (panel: ComicPanel, assetId: string, enabled: boolean) => {
     const ids = new Set(panel.referenceAssetIds ?? []);
     if (enabled) ids.add(assetId);
@@ -429,10 +440,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     || `${character.name} ${character.appearance} ${character.race}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
   ));
 
-  const filteredScenes = scenes.filter((scene) => (
-    !selectorSearch.trim()
-    || `${scene.title} ${scene.slug} ${scene.prompt}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
-  ));
+  const filteredScenes = filterSceneVisuals(scenes, selectorSearch);
   const selectedPanel = panels.find((panel) => panel.id === selectedPanelId) ?? panels[0];
   const selectedPanelReferenceOptions = selectedPanel ? referenceOptionsForPanel(selectedPanel) : [];
   const selectedPanelAsset = selectedPanel ? panelAssets[selectedPanel.id] : undefined;
@@ -487,8 +495,13 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
 
   const updateScene = async (scene: SceneVisual, patch: Partial<SceneVisual>) => {
     const next = { ...scene, ...patch, updatedAt: new Date().getTime() };
-    await storage.sceneVisuals.update(scene.id, next);
     setScenes((current) => current.map((item) => item.id === scene.id ? next : item));
+    try {
+      await storage.sceneVisuals.update(scene.id, next);
+    } catch (error) {
+      setMessage(errorMessage(error));
+      await refreshScenes();
+    }
   };
 
   const deleteScene = async (scene: SceneVisual) => {
@@ -843,7 +856,14 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                         return (
                           <div className={`comic-panel-variant ${isCurrent ? 'current' : ''}`} key={variant.id}>
                             {asset?.url ? (
-                              <img src={asset.url} alt={`panel ${selectedPanel.order} variant`} loading="lazy" />
+                              <button
+                                type="button"
+                                className="comic-thumb-button"
+                                onClick={() => setPreviewAsset(asset)}
+                                title="預覽歷史圖"
+                              >
+                                <img src={asset.url} alt={`panel ${selectedPanel.order} variant`} loading="lazy" />
+                              </button>
                             ) : (
                               <span className="comic-panel-variant-placeholder">無圖</span>
                             )}
@@ -944,7 +964,11 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                           checked={panelCharacterSelected(selectedPanel, character)}
                           onChange={(event) => togglePanelCharacter(selectedPanel, character, event.target.checked)}
                         />
-                        <VisualReferenceThumb url={referenceThumbnail(character)} label={character.name} />
+                        <VisualReferenceThumb
+                          url={referenceThumbnail(character)}
+                          label={character.name}
+                          onPreview={(url) => previewImageUrl(url, character.name)}
+                        />
                         <span>{character.name}</span>
                         {(character.referenceAssetIds?.length ?? 0) > 0 && (
                           <small>{character.referenceAssetIds?.length} 張</small>
@@ -992,7 +1016,11 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                           checked={selectedPanel.sceneSlug === scene.slug}
                           onChange={() => updatePanel(selectedPanel, { sceneSlug: scene.slug })}
                         />
-                        <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
+                        <VisualReferenceThumb
+                          url={referenceThumbnail(scene)}
+                          label={scene.title}
+                          onPreview={(url) => previewImageUrl(url, scene.title)}
+                        />
                         <span>{scene.title}</span>
                         <small>{scene.referenceAssetIds.length} 張</small>
                       </label>
@@ -1026,7 +1054,20 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                                   checked={selectedPanel.referenceAssetIds?.includes(option.asset.id) ?? false}
                                   onChange={(event) => togglePanelReference(selectedPanel, option.asset.id, event.target.checked)}
                                 />
-                                {option.asset.url && <img src={option.asset.url} alt={`第 ${option.chapter.order} 章第 ${option.panel.order} 格`} loading="lazy" />}
+                                {option.asset.url && (
+                                  <button
+                                    type="button"
+                                    className="comic-reference-thumb-button"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      setPreviewAsset(option.asset);
+                                    }}
+                                    title="預覽參考圖"
+                                  >
+                                    <img src={option.asset.url} alt={`第 ${option.chapter.order} 章第 ${option.panel.order} 格`} loading="lazy" />
+                                  </button>
+                                )}
                                 <span>第 {option.panel.order} 格</span>
                               </label>
                             ))}
@@ -1039,20 +1080,28 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               </section>
             )}
 
-            {scenes.length > 0 && (
+            {filteredScenes.length > 0 && (
               <section className="comic-side-section">
                 <h3>場景視覺設定</h3>
                 <div className="comic-scene-list">
-                  {scenes.map((scene) => (
+                  {filteredScenes.map((scene) => (
                     <details className="comic-scene-card" key={scene.id}>
                       <summary>
-                        <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
+                        <VisualReferenceThumb
+                          url={referenceThumbnail(scene)}
+                          label={scene.title}
+                          onPreview={(url) => previewImageUrl(url, scene.title)}
+                        />
                         <span className="comic-scene-card-title">{scene.title}</span>
                         <span>{scene.slug}</span>
                       </summary>
                       <div className="comic-scene-card-actions">
                         <button type="button" onClick={() => deleteScene(scene)}>刪除</button>
                       </div>
+                      <label>
+                        <FieldLabel label="場景名稱" help="只改顯示名稱；穩定識別用的 slug 會保留，避免已選分鏡失效。" />
+                        <input value={scene.title} onChange={(event) => void updateScene(scene, { title: event.target.value })} />
+                      </label>
                       <label>
                         <FieldLabel label="場景提示詞" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
                         <textarea value={scene.prompt} onChange={(event) => void updateScene(scene, { prompt: event.target.value })} />
@@ -1139,9 +1188,20 @@ function FieldLabel({ label, help }: { label: string; help: string }) {
   );
 }
 
-function VisualReferenceThumb({ url, label }: { url?: string; label: string }) {
+function VisualReferenceThumb({ url, label, onPreview }: { url?: string; label: string; onPreview?: (url: string) => void }) {
   return url ? (
-    <img className="comic-visual-reference-thumb" src={url} alt={`${label} reference`} loading="lazy" />
+    <button
+      type="button"
+      className="comic-visual-reference-thumb-button"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onPreview?.(url);
+      }}
+      title="預覽縮圖"
+    >
+      <img className="comic-visual-reference-thumb" src={url} alt={`${label} reference`} loading="lazy" />
+    </button>
   ) : (
     <span className="comic-visual-reference-thumb placeholder" aria-hidden="true">
       {label.trim().slice(0, 1) || '?'}

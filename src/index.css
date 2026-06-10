@@ -1373,6 +1373,21 @@ input:focus, select:focus, textarea:focus {
   border-radius: 5px;
   background: var(--bg-secondary);
 }
+.comic-visual-reference-thumb-button {
+  width: 38px;
+  height: 30px;
+  flex: 0 0 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.comic-visual-reference-thumb-button .comic-visual-reference-thumb {
+  flex: 0 0 auto;
+}
 .comic-visual-reference-thumb.placeholder {
   display: inline-flex;
   align-items: center;
@@ -1527,6 +1542,23 @@ input:focus, select:focus, textarea:focus {
   background: var(--surface);
   color: var(--text-tertiary);
   font-size: 11px;
+}
+.comic-thumb-button,
+.comic-reference-thumb-button {
+  width: 100%;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.comic-reference-thumb-button {
+  position: relative;
+  z-index: 0;
+}
+.comic-thumb-button img,
+.comic-reference-thumb-button img {
+  width: 100%;
 }
 .comic-panel-variant small {
   display: block;

@@ -39,3 +39,16 @@ export function slugifySceneTitle(title: string): string {
     .join('-');
   return fallback || 'scene';
 }
+
+export function filterSceneVisuals(scenes: SceneVisual[], query: string): SceneVisual[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (!needle) return scenes;
+  return scenes.filter((scene) => (
+    [
+      scene.title,
+      scene.slug,
+      scene.prompt,
+      scene.negativePrompt,
+    ].join(' ').toLocaleLowerCase().includes(needle)
+  ));
+}

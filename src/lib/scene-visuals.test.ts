@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneVisual, slugifySceneTitle } from './scene-visuals';
+import { createDefaultSceneVisual, filterSceneVisuals, slugifySceneTitle } from './scene-visuals';
 
 describe('scene visuals', () => {
   it('creates a reusable project-level scene visual', () => {
@@ -25,5 +25,29 @@ describe('scene visuals', () => {
   it('uses a deterministic fallback slug for non-ascii titles', () => {
     expect(slugifySceneTitle('阿飛的房間')).not.toBe('');
     expect(slugifySceneTitle('阿飛的房間')).toBe(slugifySceneTitle('阿飛的房間'));
+  });
+
+  it('filters scene visuals by visible and prompt fields', () => {
+    const scenes = [
+      createDefaultSceneVisual({
+        id: 'scene-1',
+        projectId: 'project-1',
+        title: '阿飛的狹窄艙室',
+        prompt: 'warm workshop',
+        now: 1,
+      }),
+      createDefaultSceneVisual({
+        id: 'scene-2',
+        projectId: 'project-1',
+        title: '星塵市底層區域',
+        prompt: 'metal corridor',
+        negativePrompt: 'clean lab',
+        now: 1,
+      }),
+    ];
+
+    expect(filterSceneVisuals(scenes, '阿飛').map((scene) => scene.id)).toEqual(['scene-1']);
+    expect(filterSceneVisuals(scenes, 'clean').map((scene) => scene.id)).toEqual(['scene-2']);
+    expect(filterSceneVisuals(scenes, '').map((scene) => scene.id)).toEqual(['scene-1', 'scene-2']);
   });
 });

@@ -1,5 +1,11 @@
 # 開發日誌
 
+## 2026-06-10 - Comic sidebar interaction fixes
+
+- Applied the shared sidebar search to scene visual settings as well as characters, panel references, and scene pickers.
+- Added image preview behavior for history, character, reference, and scene thumbnails.
+- Made scene visual names editable while keeping stable slugs, and updated scene fields optimistically to avoid input cursor jumps.
+
 ## 2026-06-10 - Comic modal mockup alignment
 
 - Reworked the comic modal into a three-column workspace closer to `docs/comic-ui-static-mockup.html`: chapter/panel rail, selected panel editor, and shared selectors/sidebar.
