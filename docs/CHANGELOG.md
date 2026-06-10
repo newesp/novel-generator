@@ -1,5 +1,11 @@
 # 開發日誌
 
+## 2026-06-10 - Comic modal mockup alignment
+
+- Reworked the comic modal into a three-column workspace closer to `docs/comic-ui-static-mockup.html`: chapter/panel rail, selected panel editor, and shared selectors/sidebar.
+- Replaced remaining visible `??` comic modal labels with Chinese titles and moved scene/character/reference controls into the sidebar.
+- Backfilled current panel images into history variants when existing panels predate `ComicPanelImageVariant`, so the history grid is visible for previously generated panels.
+
 ## 2026-06-07 - Comic image history and full-screen workflow
 
 - Added `ComicPanelImageVariant` storage so every generated panel image is kept as a selectable history variant while `ComicPanel.assetId` remains the current adopted image.

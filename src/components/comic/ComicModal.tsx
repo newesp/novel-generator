@@ -14,7 +14,7 @@ import { createPanelWriteQueue } from '../../lib/comic/panel-write-queue';
 import { buildPanelReferenceLibrary, mergeReferenceBindings } from '../../lib/comic/panel-reference-library';
 import type { PanelReferenceOption } from '../../lib/comic/panel-reference-library';
 import { firstReferenceAssetId, mapReferenceThumbnails } from '../../lib/comic/visual-reference-thumbnails';
-import { buildReadyImageVariant, canDeleteImageVariant } from '../../lib/comic/image-variants';
+import { buildLegacyCurrentImageVariant, buildReadyImageVariant, canDeleteImageVariant } from '../../lib/comic/image-variants';
 import { createDefaultSceneVisual } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -54,6 +54,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [selectorSearch, setSelectorSearch] = useState('');
+  const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -107,6 +108,16 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       cancelled = true;
     };
   }, [open, chapter.id]);
+
+  useEffect(() => {
+    if (!panels.length) {
+      setSelectedPanelId(null);
+      return;
+    }
+    if (!selectedPanelId || !panels.some((panel) => panel.id === selectedPanelId)) {
+      setSelectedPanelId(panels[0].id);
+    }
+  }, [panels, selectedPanelId]);
 
   useEffect(() => {
     if (!open) return;
@@ -202,12 +213,32 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     let cancelled = false;
     void storage.comicPanelImageVariants.listByComic(comic.id).then(async (variants) => {
       if (cancelled) return;
-      const byPanel = variants.reduce<Record<string, ComicPanelImageVariant[]>>((acc, variant) => {
+      const currentVariantKeys = new Set(variants.map((variant) => `${variant.panelId}:${variant.assetId ?? ''}`));
+      const importedVariants: ComicPanelImageVariant[] = [];
+      for (const panel of panels) {
+        if (!panel.assetId || currentVariantKeys.has(`${panel.id}:${panel.assetId}`)) continue;
+        const asset = await storage.mediaAssets.get(panel.assetId);
+        if (!asset) continue;
+        const variant = buildLegacyCurrentImageVariant({
+          id: uuid(),
+          projectId: project.id,
+          chapterId: asset.chapterId ?? chapter.id,
+          panel,
+          asset,
+          createdAt: asset.createdAt,
+        });
+        await storage.comicPanelImageVariants.add(variant);
+        importedVariants.push(variant);
+        currentVariantKeys.add(`${variant.panelId}:${variant.assetId ?? ''}`);
+      }
+      if (cancelled) return;
+      const allVariants = [...variants, ...importedVariants];
+      const byPanel = allVariants.reduce<Record<string, ComicPanelImageVariant[]>>((acc, variant) => {
         acc[variant.panelId] = [...(acc[variant.panelId] ?? []), variant];
         return acc;
       }, {});
       setPanelVariants(byPanel);
-      const assetIds = Array.from(new Set(variants.map((variant) => variant.assetId).filter((id): id is string => Boolean(id))));
+      const assetIds = Array.from(new Set(allVariants.map((variant) => variant.assetId).filter((id): id is string => Boolean(id))));
       const assets = await Promise.all(assetIds.map((id) => storage.mediaAssets.get(id)));
       if (cancelled) return;
       setVariantAssets(assets.filter((asset): asset is MediaAsset => Boolean(asset)).reduce<Record<string, MediaAsset>>((acc, asset) => {
@@ -402,6 +433,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     !selectorSearch.trim()
     || `${scene.title} ${scene.slug} ${scene.prompt}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
   ));
+  const selectedPanel = panels.find((panel) => panel.id === selectedPanelId) ?? panels[0];
+  const selectedPanelReferenceOptions = selectedPanel ? referenceOptionsForPanel(selectedPanel) : [];
+  const selectedPanelAsset = selectedPanel ? panelAssets[selectedPanel.id] : undefined;
 
   const refreshScenes = async () => {
     setScenes(await storage.sceneVisuals.listByProject(project.id));
@@ -688,27 +722,12 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     >
       <div className="comic-modal">
         <section className="comic-settings">
-          <label>
-            <FieldLabel label="章節" help="切換要轉成漫畫的章節。" />
-            <select
-              className="toolbar-input"
-              value={chapter.id}
-              onChange={(event) => onChapterChange?.(event.target.value)}
-              disabled={busy || !onChapterChange}
-            >
-              {chapters.map((item) => (
-                <option value={item.id} key={item.id}>
-                  第 {item.order} 章｜{item.title}
-                </option>
-              ))}
-            </select>
-          </label>
           <div className="comic-provider-summary">
-            <FieldLabel label="???" help="圖片 provider 在「偏好設定 → 圖片生成」調整。這裡只顯示目前使用的全域設定。" />
+            <FieldLabel label="圖片提供商" help="圖片 provider 在「偏好設定 → 圖片生成」調整。這裡只顯示目前使用的全域設定。" />
             <strong>{providerLabel}</strong>
           </div>
           <label>
-            <FieldLabel label="??" help="本章漫畫的畫風描述，會進入分鏡與最終圖片 prompt。" />
+            <FieldLabel label="畫風" help="本章漫畫的畫風描述，會進入分鏡與最終圖片 prompt。" />
             <input
               className="toolbar-input"
               value={imageGenerationPrefs.stylePreset}
@@ -716,7 +735,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             />
           </label>
           <label>
-            <FieldLabel label="???" help="希望 LLM 拆成幾格分鏡。短場景可用 4-6，完整章節建議 8-20。" />
+            <FieldLabel label="格數" help="希望 LLM 拆成幾格分鏡。短場景可用 4-6，完整章節建議 8-20。" />
             <input
               className="toolbar-input"
               type="number"
@@ -726,271 +745,333 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           </label>
         </section>
 
-        <section className="comic-selector-search">
-          <FieldLabel label="搜尋" help="用關鍵字篩選角色、參考圖與場景視覺設定。" />
-          <input
-            className="toolbar-input"
-            value={selectorSearch}
-            onChange={(event) => setSelectorSearch(event.target.value)}
-            placeholder="搜尋角色、場景、章節或分鏡..."
-          />
-        </section>
-
-        {scenes.length > 0 && (
-          <section className="comic-scene-library">
-            <header>
-              <strong>場景視覺設定</strong>
-              <span>{scenes.length} ???</span>
-            </header>
-            <div className="comic-scene-list">
-              {scenes.map((scene) => (
-                <details className="comic-scene-card" key={scene.id}>
-                  <summary>
-                    <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
-                    <span className="comic-scene-card-title">{scene.title}</span>
-                    <span>{scene.slug}</span>
-                  </summary>
-                  <div className="comic-scene-card-actions">
-                    <button type="button" onClick={() => deleteScene(scene)}>刪除</button>
-                  </div>
-                  <label>
-                    <FieldLabel label="?????" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
-                    <textarea value={scene.prompt} onChange={(event) => void updateScene(scene, { prompt: event.target.value })} />
-                  </label>
-                  <label>
-                    <FieldLabel label="?????" help="避免場景跑偏的內容，例如 modern apartment、clean lab、futuristic city。" />
-                    <input value={scene.negativePrompt} onChange={(event) => void updateScene(scene, { negativePrompt: event.target.value })} />
-                  </label>
-                  <label>
-                    <FieldLabel label="???" help="上傳場景參考圖。支援 reference image 的 provider 會自動帶入。" />
-                    <input type="file" accept="image/*" multiple onChange={(event) => void uploadSceneReference(scene, event.target.files)} />
-                  </label>
-                  <p className="comic-message">{scene.referenceAssetIds.length} ????</p>
-                </details>
-              ))}
-            </div>
-          </section>
-        )}
-
         {message && <p className="comic-message">{message}</p>}
 
-        <div className="comic-panel-list">
-          {panels.map((panel) => {
-            const filteredPanelReferenceOptions = referenceOptionsForPanel(panel);
-            return (
-            <article className={`comic-panel-card ${panel.status}`} key={panel.id}>
-              <header><strong>#{panel.order} {panel.beat}</strong><span>{panel.status}</span></header>
-              {panelAssets[panel.id]?.url && (
-                <figure className="comic-panel-image">
+        <div className="comic-workspace">
+          <aside className="comic-rail">
+            <section className="comic-rail-section">
+              <div className="comic-rail-header"><strong>章節</strong><span>{chapters.length} 章</span></div>
+              <select
+                className="toolbar-input"
+                value={chapter.id}
+                onChange={(event) => onChapterChange?.(event.target.value)}
+                disabled={busy || !onChapterChange}
+              >
+                {chapters.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    第 {item.order} 章｜{item.title}
+                  </option>
+                ))}
+              </select>
+            </section>
+            <section className="comic-rail-section">
+              <div className="comic-rail-header">
+                <strong>分鏡</strong>
+                <span>{selectedPanel ? `目前選 #${selectedPanel.order}` : `${panels.length} 格`}</span>
+              </div>
+              <div className="comic-panel-mini-list">
+                {panels.map((panel) => (
                   <button
                     type="button"
-                    className="comic-image-button"
-                    onClick={() => setPreviewAsset(panelAssets[panel.id])}
-                    title="????"
+                    className={`comic-panel-mini ${selectedPanel?.id === panel.id ? 'active' : ''}`}
+                    key={panel.id}
+                    onClick={() => setSelectedPanelId(panel.id)}
                   >
-                    <img src={panelAssets[panel.id].url} alt={`#${panel.order} ${panel.beat}`} loading="lazy" />
+                    <strong>#{panel.order} {panel.beat}</strong>
+                    <span>{panel.status} · {panelVariants[panel.id]?.length ?? 0} 張歷史圖</span>
                   </button>
-                  <figcaption>
-                    <button type="button" onClick={() => setPreviewAsset(panelAssets[panel.id])}>預覽</button>
-                    <a href={panelAssets[panel.id].url} download={`comic-panel-${panel.order}.png`}>下載</a>
-                    <button type="button" onClick={() => void navigator.clipboard?.writeText(panelAssets[panel.id].url ?? '')}>
-                      複製 URL
-                    </button>
-                  </figcaption>
-                </figure>
-              )}
-              {(panelVariants[panel.id]?.length ?? 0) > 0 && (
-                <details className="comic-panel-history">
-                  <summary>歷史圖 ({panelVariants[panel.id]?.length ?? 0})</summary>
-                  <div className="comic-panel-history-grid">
-                    {(panelVariants[panel.id] ?? []).map((variant) => {
-                      const asset = variant.assetId ? variantAssets[variant.assetId] : undefined;
-                      const isCurrent = Boolean(variant.assetId && variant.assetId === panel.assetId);
-                      return (
-                        <div className={`comic-panel-variant ${isCurrent ? 'current' : ''}`} key={variant.id}>
-                          {asset?.url ? (
-                            <img src={asset.url} alt={`panel ${panel.order} variant`} loading="lazy" />
-                          ) : (
-                            <span className="comic-panel-variant-placeholder">???</span>
-                          )}
-                          <small>{new Date(variant.createdAt).toLocaleTimeString()} · {variant.providerId || 'provider'}</small>
-                          <div className="comic-panel-variant-actions">
-                            <button
-                              type="button"
-                              className="comic-icon-button"
-                              title={isCurrent ? '已是目前圖' : '設為目前'}
-                              disabled={isCurrent || !variant.assetId}
-                              onClick={() => selectPanelVariant(panel, variant)}
-                            >
-                              ✓
-                            </button>
-                            <button
-                              type="button"
-                              className="comic-icon-button danger"
-                              title={isCurrent ? '目前採用圖不可刪除' : '刪除'}
-                              onClick={() => deletePanelVariant(panel, variant)}
-                            >
-                              ×
-                            </button>
+                ))}
+              </div>
+            </section>
+          </aside>
+
+          <section className="comic-detail">
+            {selectedPanel ? (
+              <article className={`comic-panel-card ${selectedPanel.status}`}>
+                <header>
+                  <div>
+                    <strong>#{selectedPanel.order} {selectedPanel.beat}</strong>
+                    <span>{panelCharacterNames(selectedPanel).length ? `角色：${panelCharacterNames(selectedPanel).join('、')}` : '尚未選擇角色'}</span>
+                  </div>
+                  <span>{selectedPanel.status}</span>
+                </header>
+
+                <section className="comic-current-image">
+                  <div>
+                    {selectedPanelAsset?.url ? (
+                      <figure className="comic-panel-image">
+                        <button
+                          type="button"
+                          className="comic-image-button"
+                          onClick={() => setPreviewAsset(selectedPanelAsset)}
+                          title="預覽目前圖片"
+                        >
+                          <img src={selectedPanelAsset.url} alt={`#${selectedPanel.order} ${selectedPanel.beat}`} loading="lazy" />
+                        </button>
+                        <figcaption>
+                          <button type="button" onClick={() => setPreviewAsset(selectedPanelAsset)}>預覽</button>
+                          <a href={selectedPanelAsset.url} download={`comic-panel-${selectedPanel.order}.png`}>下載</a>
+                          <button type="button" onClick={() => void navigator.clipboard?.writeText(selectedPanelAsset.url ?? '')}>
+                            複製 URL
+                          </button>
+                        </figcaption>
+                      </figure>
+                    ) : (
+                      <div className="comic-image-empty">尚未生成圖片</div>
+                    )}
+                  </div>
+                  <div className="comic-panel-metadata">
+                    <dl>
+                      <dt>提供商</dt><dd>{providerLabel}</dd>
+                      <dt>參考圖</dt><dd>{selectedPanel.referenceAssetIds?.length ?? 0} 張</dd>
+                      <dt>場景</dt><dd>{activeScene(selectedPanel)?.title ?? '無場景'}</dd>
+                      <dt>Asset</dt><dd>{selectedPanel.assetId ?? '尚未建立'}</dd>
+                    </dl>
+                    <Button variant="secondary" onClick={() => regeneratePanelImage(selectedPanel)} disabled={busy || !provider || !comic}>
+                      重生此格
+                    </Button>
+                  </div>
+                </section>
+
+                {(panelVariants[selectedPanel.id]?.length ?? 0) > 0 && (
+                  <details className="comic-panel-history" open>
+                    <summary>歷史圖 ({panelVariants[selectedPanel.id]?.length ?? 0})</summary>
+                    <div className="comic-panel-history-grid">
+                      {(panelVariants[selectedPanel.id] ?? []).map((variant) => {
+                        const asset = variant.assetId ? variantAssets[variant.assetId] : undefined;
+                        const isCurrent = Boolean(variant.assetId && variant.assetId === selectedPanel.assetId);
+                        return (
+                          <div className={`comic-panel-variant ${isCurrent ? 'current' : ''}`} key={variant.id}>
+                            {asset?.url ? (
+                              <img src={asset.url} alt={`panel ${selectedPanel.order} variant`} loading="lazy" />
+                            ) : (
+                              <span className="comic-panel-variant-placeholder">無圖</span>
+                            )}
+                            <small>{new Date(variant.createdAt).toLocaleTimeString()} · {variant.providerId || 'provider'}</small>
+                            <div className="comic-panel-variant-actions">
+                              <button
+                                type="button"
+                                className="comic-icon-button"
+                                title={isCurrent ? '已是目前圖' : '設為目前'}
+                                disabled={isCurrent || !variant.assetId}
+                                onClick={() => selectPanelVariant(selectedPanel, variant)}
+                              >
+                                ✓
+                              </button>
+                              <button
+                                type="button"
+                                className="comic-icon-button danger"
+                                title={isCurrent ? '目前採用圖不可刪除' : '刪除'}
+                                onClick={() => deletePanelVariant(selectedPanel, variant)}
+                              >
+                                ×
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
+                  </details>
+                )}
+
+                <section className="comic-editor-grid">
+                  <div className="comic-prompt-box">
+                    <div className="comic-prompt-field-header">
+                      <span>畫面提示詞</span>
+                      <button type="button" onClick={() => openExpandedPrompt({ title: '畫面提示詞', value: selectedPanel.visualPrompt, onApply: (value) => updatePanel(selectedPanel, { visualPrompt: value }) })}>展開</button>
+                    </div>
+                    <textarea value={selectedPanel.visualPrompt} onChange={(event) => updatePanel(selectedPanel, { visualPrompt: event.target.value })} />
+                  </div>
+                  <div className="comic-prompt-box">
+                    <div className="comic-prompt-field-header">
+                      <span>排除提示詞</span>
+                      <button type="button" onClick={() => openExpandedPrompt({ title: '排除提示詞', value: selectedPanel.negativePrompt, onApply: (value) => updatePanel(selectedPanel, { negativePrompt: value }) })}>展開</button>
+                    </div>
+                    <textarea value={selectedPanel.negativePrompt} onChange={(event) => updatePanel(selectedPanel, { negativePrompt: event.target.value })} />
+                  </div>
+                  <div className="comic-prompt-box">
+                    <div className="comic-prompt-field-header">
+                      <span>群眾設定 JSON</span>
+                      <button type="button" onClick={() => openExpandedPrompt({ title: '群眾設定 JSON', value: selectedPanel.extraGroupsJson ?? '', onApply: (value) => updatePanel(selectedPanel, { extraGroupsJson: value }) })}>展開</button>
+                    </div>
+                    <textarea
+                      className="comic-extras-input"
+                      placeholder='extraGroups JSON，例如 [{"label":"居民","count":12,"role":"civilians","prompt":"穿著舊布衣，站在背景","visualPriority":"low"}]'
+                      value={selectedPanel.extraGroupsJson ?? ''}
+                      onChange={(event) => updatePanel(selectedPanel, { extraGroupsJson: event.target.value })}
+                    />
+                  </div>
+                  <div className="comic-prompt-box">
+                    <div className="comic-prompt-field-header">
+                      <span>最終提示詞快照</span>
+                      <button type="button" onClick={() => openExpandedPrompt({ title: '最終提示詞快照', value: selectedPanel.finalPromptSnapshot ?? '', readOnly: true })}>展開</button>
+                    </div>
+                    <textarea value={selectedPanel.finalPromptSnapshot ?? ''} readOnly />
+                  </div>
+                </section>
+                {selectedPanel.errorMessage && <p className="comic-error">{selectedPanel.errorMessage}</p>}
+              </article>
+            ) : (
+              <div className="comic-empty-state">尚未產生分鏡。請先生成分鏡。</div>
+            )}
+          </section>
+
+          <aside className="comic-side">
+            <section className="comic-selector-search">
+              <FieldLabel label="搜尋角色、參考圖、場景" help="用關鍵字篩選角色、參考圖與場景視覺設定。" />
+              <input
+                className="toolbar-input"
+                value={selectorSearch}
+                onChange={(event) => setSelectorSearch(event.target.value)}
+                placeholder="搜尋角色、場景、章節或分鏡..."
+              />
+            </section>
+
+            {selectedPanel && (
+              <section className="comic-side-section">
+                <h3>角色</h3>
+                <details className="comic-character-picker" open>
+                  <summary>
+                    <span className="comic-character-summary-text">
+                      {panelCharacterNames(selectedPanel).length ? `已選 ${panelCharacterNames(selectedPanel).length} 位：${panelCharacterNames(selectedPanel).join('、')}` : '尚未選擇角色'}
+                    </span>
+                  </summary>
+                  <div className="comic-character-picker-menu">
+                    {filteredCharacters.length ? filteredCharacters.map((character) => (
+                      <label className="comic-checkbox-row" key={character.id}>
+                        <input
+                          type="checkbox"
+                          checked={panelCharacterSelected(selectedPanel, character)}
+                          onChange={(event) => togglePanelCharacter(selectedPanel, character, event.target.checked)}
+                        />
+                        <VisualReferenceThumb url={referenceThumbnail(character)} label={character.name} />
+                        <span>{character.name}</span>
+                        {(character.referenceAssetIds?.length ?? 0) > 0 && (
+                          <small>{character.referenceAssetIds?.length} 張</small>
+                        )}
+                      </label>
+                    )) : (
+                      <p className="comic-message">沒有符合的角色</p>
+                    )}
                   </div>
                 </details>
-              )}
-              <div className="comic-panel-controls">
-                <label className="comic-character-control">
-                  <FieldLabel label="??" help="選擇這格要使用哪些角色視覺設定；被勾選的角色會自動帶入角色 prompt 和已上傳的角色參考圖。" />
-                  <details className="comic-character-picker">
-                    <summary>
-                      <span className="comic-character-summary-text">
-                        {panelCharacterNames(panel).length ? panelCharacterNames(panel).join(', ') : '????'}
-                      </span>
-                    </summary>
-                    <div className="comic-character-picker-menu">
-                      {filteredCharacters.length ? filteredCharacters.map((character) => (
-                        <label className="comic-checkbox-row" key={character.id}>
-                          <input
-                            type="checkbox"
-                            checked={panelCharacterSelected(panel, character)}
-                            onChange={(event) => togglePanelCharacter(panel, character, event.target.checked)}
-                          />
-                          <VisualReferenceThumb url={referenceThumbnail(character)} label={character.name} />
-                          <span>{character.name}</span>
-                          {(character.referenceAssetIds?.length ?? 0) > 0 && (
-                            <small>{character.referenceAssetIds?.length} ?</small>
-                          )}
-                        </label>
-                      )) : (
-                        <p className="comic-message">沒有符合的角色</p>
-                      )}
-                    </div>
-                  </details>
-                </label>
-                <label>
-                  <FieldLabel label="??" help="選擇 Project 層級的場景視覺設定；場景 prompt 和參考圖會自動加入生圖。" />
-                  <details className="comic-scene-picker">
-                    <summary>
-                      <span className="comic-scene-summary-text">
-                        {activeScene(panel)?.title ?? '無場景'}
-                      </span>
-                    </summary>
-                    <div className="comic-scene-picker-menu">
-                      <label className="comic-checkbox-row">
-                        <input
-                          type="radio"
-                          name={`scene-${panel.id}`}
-                          checked={!panel.sceneSlug}
-                          onChange={() => updatePanel(panel, { sceneSlug: undefined })}
-                        />
-                        <VisualReferenceThumb label="無場景" />
-                        <span>無場景</span>
-                      </label>
-                      {filteredScenes.map((scene) => (
-                        <label className="comic-checkbox-row" key={scene.id}>
-                          <input
-                            type="radio"
-                            name={`scene-${panel.id}`}
-                            checked={panel.sceneSlug === scene.slug}
-                            onChange={() => updatePanel(panel, { sceneSlug: scene.slug })}
-                          />
-                          <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
-                          <span>{scene.title}</span>
-                          <small>{scene.referenceAssetIds.length} ?</small>
-                        </label>
-                      ))}
-                    </div>
-                  </details>
-                </label>
-                <Button variant="secondary" onClick={() => createSceneFromPanel(panel)} disabled={busy}>
-                  建立場景
-                </Button>
                 <label className="comic-checkbox-row">
                   <input
                     type="checkbox"
-                    checked={Boolean(panel.useContinuityReference)}
-                    onChange={(event) => updatePanel(panel, { useContinuityReference: event.target.checked })}
+                    checked={Boolean(selectedPanel.useContinuityReference)}
+                    onChange={(event) => updatePanel(selectedPanel, { useContinuityReference: event.target.checked })}
                   />
                   <FieldLabel label="自動使用上一格" help="開啟後會優先使用同章上一格的成圖；若這是章節第一格，會嘗試接續前一章最新漫畫的最後一格。" />
                 </label>
-                <div className="comic-reference-control">
-                  <FieldLabel label="參考圖" help="從已生成的章節分鏡中挑選圖片，生成時會真的傳給支援參考圖的 Provider。" />
-                  <details className="comic-reference-picker">
-                    <summary>已選 {panel.referenceAssetIds?.length ?? 0} 張</summary>
-                    <div className="comic-reference-picker-menu">
-                      {filteredPanelReferenceOptions.length ? Array.from(new Set(
-                        filteredPanelReferenceOptions.map((option) => option.chapter.id),
-                      )).map((chapterId) => {
-                        const chapterOptions = filteredPanelReferenceOptions.filter((option) => option.chapter.id === chapterId);
-                        return (
-                          <section className="comic-reference-chapter" key={chapterId}>
-                            <strong>第 {chapterOptions[0].chapter.order} 章 · {chapterOptions[0].chapter.title}</strong>
-                            <div className="comic-reference-grid">
-                              {chapterOptions.map((option) => (
-                                <label className="comic-reference-option" key={option.asset.id}>
-                                  <input
-                                    type="checkbox"
-                                    checked={panel.referenceAssetIds?.includes(option.asset.id) ?? false}
-                                    onChange={(event) => togglePanelReference(panel, option.asset.id, event.target.checked)}
-                                  />
-                                  {option.asset.url && <img src={option.asset.url} alt={`第 ${option.chapter.order} 章第 ${option.panel.order} 格`} loading="lazy" />}
-                                  <span>第 {option.panel.order} 格</span>
-                                </label>
-                              ))}
-                            </div>
-                          </section>
-                        );
-                      }) : <p className="comic-message">尚無可用的已生成分鏡圖</p>}
-                    </div>
-                  </details>
-                </div>
-              </div>
-              <div className="comic-prompt-field-header">
-                <span>畫面提示詞</span>
-                <button type="button" onClick={() => openExpandedPrompt({ title: '畫面提示詞', value: panel.visualPrompt, onApply: (value) => updatePanel(panel, { visualPrompt: value }) })}>展開</button>
-              </div>
-              <textarea value={panel.visualPrompt} onChange={(event) => updatePanel(panel, { visualPrompt: event.target.value })} />
-              <div className="comic-prompt-field-header">
-                <span>排除提示詞</span>
-                <button type="button" onClick={() => openExpandedPrompt({ title: '排除提示詞', value: panel.negativePrompt, onApply: (value) => updatePanel(panel, { negativePrompt: value }) })}>展開</button>
-              </div>
-              <input value={panel.negativePrompt} onChange={(event) => updatePanel(panel, { negativePrompt: event.target.value })} />
-              <div className="comic-prompt-field-header">
-                <span>群眾設定 JSON</span>
-                <button type="button" onClick={() => openExpandedPrompt({ title: '群眾設定 JSON', value: panel.extraGroupsJson ?? '', onApply: (value) => updatePanel(panel, { extraGroupsJson: value }) })}>展開</button>
-              </div>
-              <textarea
-                className="comic-extras-input"
-                placeholder='extraGroups JSON，例如 [{"label":"居民","count":12,"role":"civilians","prompt":"穿著舊布衣，站在背景","visualPriority":"low"}]'
-                value={panel.extraGroupsJson ?? ''}
-                onChange={(event) => updatePanel(panel, { extraGroupsJson: event.target.value })}
-              />
-              {panel.finalPromptSnapshot && (
-                <details className="comic-prompt-preview">
+              </section>
+            )}
+
+            {selectedPanel && (
+              <section className="comic-side-section">
+                <h3>場景</h3>
+                <details className="comic-scene-picker" open>
                   <summary>
-                    <span>最終提示詞</span>
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        openExpandedPrompt({ title: '最終提示詞', value: panel.finalPromptSnapshot ?? '', readOnly: true });
-                      }}
-                    >
-                      展開
-                    </button>
+                    <span className="comic-scene-summary-text">{activeScene(selectedPanel)?.title ?? '無場景'}</span>
                   </summary>
-                  <pre>{panel.finalPromptSnapshot}</pre>
+                  <div className="comic-scene-picker-menu">
+                    <label className="comic-checkbox-row">
+                      <input
+                        type="radio"
+                        name={`scene-${selectedPanel.id}`}
+                        checked={!selectedPanel.sceneSlug}
+                        onChange={() => updatePanel(selectedPanel, { sceneSlug: undefined })}
+                      />
+                      <VisualReferenceThumb label="無場景" />
+                      <span>無場景</span>
+                    </label>
+                    {filteredScenes.map((scene) => (
+                      <label className="comic-checkbox-row" key={scene.id}>
+                        <input
+                          type="radio"
+                          name={`scene-${selectedPanel.id}`}
+                          checked={selectedPanel.sceneSlug === scene.slug}
+                          onChange={() => updatePanel(selectedPanel, { sceneSlug: scene.slug })}
+                        />
+                        <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
+                        <span>{scene.title}</span>
+                        <small>{scene.referenceAssetIds.length} 張</small>
+                      </label>
+                    ))}
+                  </div>
                 </details>
-              )}
-              {panel.errorMessage && <p className="comic-error">{panel.errorMessage}</p>}
-              {panel.assetId && <p className="comic-message">asset: {panel.assetId}</p>}
-              <Button variant="secondary" onClick={() => regeneratePanelImage(panel)} disabled={busy || !provider || !comic}>
-                重生此格
-              </Button>
-            </article>
-            );
-          })}
+                <Button variant="secondary" onClick={() => createSceneFromPanel(selectedPanel)} disabled={busy}>
+                  從此格建立場景
+                </Button>
+              </section>
+            )}
+
+            {selectedPanel && (
+              <section className="comic-side-section">
+                <h3>參考圖</h3>
+                <details className="comic-reference-picker" open>
+                  <summary>已選 {selectedPanel.referenceAssetIds?.length ?? 0} 張</summary>
+                  <div className="comic-reference-picker-menu">
+                    {selectedPanelReferenceOptions.length ? Array.from(new Set(
+                      selectedPanelReferenceOptions.map((option) => option.chapter.id),
+                    )).map((chapterId) => {
+                      const chapterOptions = selectedPanelReferenceOptions.filter((option) => option.chapter.id === chapterId);
+                      return (
+                        <section className="comic-reference-chapter" key={chapterId}>
+                          <strong>第 {chapterOptions[0].chapter.order} 章 · {chapterOptions[0].chapter.title}</strong>
+                          <div className="comic-reference-grid">
+                            {chapterOptions.map((option) => (
+                              <label className="comic-reference-option" key={option.asset.id}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedPanel.referenceAssetIds?.includes(option.asset.id) ?? false}
+                                  onChange={(event) => togglePanelReference(selectedPanel, option.asset.id, event.target.checked)}
+                                />
+                                {option.asset.url && <img src={option.asset.url} alt={`第 ${option.chapter.order} 章第 ${option.panel.order} 格`} loading="lazy" />}
+                                <span>第 {option.panel.order} 格</span>
+                              </label>
+                            ))}
+                          </div>
+                        </section>
+                      );
+                    }) : <p className="comic-message">尚無可用的已生成分鏡圖</p>}
+                  </div>
+                </details>
+              </section>
+            )}
+
+            {scenes.length > 0 && (
+              <section className="comic-side-section">
+                <h3>場景視覺設定</h3>
+                <div className="comic-scene-list">
+                  {scenes.map((scene) => (
+                    <details className="comic-scene-card" key={scene.id}>
+                      <summary>
+                        <VisualReferenceThumb url={referenceThumbnail(scene)} label={scene.title} />
+                        <span className="comic-scene-card-title">{scene.title}</span>
+                        <span>{scene.slug}</span>
+                      </summary>
+                      <div className="comic-scene-card-actions">
+                        <button type="button" onClick={() => deleteScene(scene)}>刪除</button>
+                      </div>
+                      <label>
+                        <FieldLabel label="場景提示詞" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
+                        <textarea value={scene.prompt} onChange={(event) => void updateScene(scene, { prompt: event.target.value })} />
+                      </label>
+                      <label>
+                        <FieldLabel label="場景排除詞" help="避免場景跑偏的內容，例如 modern apartment、clean lab、futuristic city。" />
+                        <input value={scene.negativePrompt} onChange={(event) => void updateScene(scene, { negativePrompt: event.target.value })} />
+                      </label>
+                      <label>
+                        <FieldLabel label="參考圖" help="上傳場景參考圖。支援 reference image 的 provider 會自動帶入。" />
+                        <input type="file" accept="image/*" multiple onChange={(event) => void uploadSceneReference(scene, event.target.files)} />
+                      </label>
+                      <p className="comic-message">{scene.referenceAssetIds.length} 張參考圖</p>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            )}
+          </aside>
         </div>
         {previewAsset?.url && (
           <div className="comic-image-preview" role="dialog" aria-modal="true" onClick={() => setPreviewAsset(null)}>

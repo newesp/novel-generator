@@ -11,6 +11,15 @@ interface BuildReadyImageVariantInput {
   createdAt: number;
 }
 
+interface BuildLegacyCurrentImageVariantInput {
+  id: string;
+  projectId: string;
+  chapterId: string;
+  panel: ComicPanel;
+  asset: MediaAsset;
+  createdAt: number;
+}
+
 export function buildReadyImageVariant({
   id,
   projectId,
@@ -34,6 +43,33 @@ export function buildReadyImageVariant({
     negativePromptSnapshot: panel.finalNegativePromptSnapshot ?? panel.negativePrompt,
     referenceAssetIds,
     referenceImageLabels,
+    seed: panel.seed,
+    generationParamsJson: asset.generationParamsJson,
+    createdAt,
+  };
+}
+
+export function buildLegacyCurrentImageVariant({
+  id,
+  projectId,
+  chapterId,
+  panel,
+  asset,
+  createdAt,
+}: BuildLegacyCurrentImageVariantInput): ComicPanelImageVariant {
+  return {
+    id,
+    projectId,
+    chapterId,
+    comicId: panel.comicId,
+    panelId: panel.id,
+    assetId: asset.id,
+    status: 'ready',
+    providerId: asset.providerId ?? '',
+    promptSnapshot: panel.finalPromptSnapshot ?? panel.visualPrompt,
+    negativePromptSnapshot: panel.finalNegativePromptSnapshot ?? panel.negativePrompt,
+    referenceAssetIds: [],
+    referenceImageLabels: ['current panel image imported from existing asset'],
     seed: panel.seed,
     generationParamsJson: asset.generationParamsJson,
     createdAt,

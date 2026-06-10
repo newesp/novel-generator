@@ -997,6 +997,165 @@ input:focus, select:focus, textarea:focus {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+.comic-workspace {
+  min-height: min(760px, calc(100vh - 230px));
+  display: grid;
+  grid-template-columns: 260px minmax(480px, 1.25fr) minmax(340px, 0.85fr);
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.comic-rail,
+.comic-detail,
+.comic-side {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.comic-rail {
+  padding: 12px;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+.comic-detail {
+  padding: 14px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.comic-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--bg);
+}
+.comic-rail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.comic-rail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.comic-panel-mini-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.comic-panel-mini {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+.comic-panel-mini.active {
+  border-color: rgba(139, 92, 246, 0.65);
+  background: rgba(139, 92, 246, 0.12);
+}
+.comic-panel-mini strong,
+.comic-panel-mini span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comic-panel-mini span {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.comic-current-image {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.comic-image-empty {
+  aspect-ratio: 1 / 1;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text-tertiary);
+}
+.comic-panel-metadata {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+}
+.comic-panel-metadata dl {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 7px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+.comic-panel-metadata dt {
+  color: var(--text-tertiary);
+}
+.comic-panel-metadata dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+}
+.comic-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.comic-prompt-box {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+}
+.comic-prompt-box textarea {
+  margin-top: 6px;
+}
+.comic-side-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.comic-side-section h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+}
+.comic-empty-state {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  color: var(--text-tertiary);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
 .comic-scene-library {
   display: flex;
   flex-direction: column;

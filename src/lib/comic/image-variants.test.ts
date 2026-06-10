@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ComicPanel, MediaAsset } from '../../types';
-import { buildReadyImageVariant, canDeleteImageVariant } from './image-variants';
+import { buildReadyImageVariant, buildLegacyCurrentImageVariant, canDeleteImageVariant } from './image-variants';
 
 const panel: ComicPanel = {
   id: 'panel-1',
@@ -69,5 +69,32 @@ describe('comic image variants', () => {
   it('blocks deleting the current selected panel image variant', () => {
     expect(canDeleteImageVariant({ panelAssetId: 'asset-1', variantAssetId: 'asset-1' })).toBe(false);
     expect(canDeleteImageVariant({ panelAssetId: 'asset-current', variantAssetId: 'asset-old' })).toBe(true);
+  });
+
+  it('builds a legacy current-image variant for panels that predate history rows', () => {
+    expect(buildLegacyCurrentImageVariant({
+      id: 'variant-legacy',
+      projectId: 'project-1',
+      chapterId: 'chapter-1',
+      panel,
+      asset,
+      createdAt: 5,
+    })).toEqual({
+      id: 'variant-legacy',
+      projectId: 'project-1',
+      chapterId: 'chapter-1',
+      comicId: 'comic-1',
+      panelId: 'panel-1',
+      assetId: 'asset-1',
+      status: 'ready',
+      providerId: 'deepinfra-flux',
+      promptSnapshot: 'final prompt',
+      negativePromptSnapshot: 'final negative',
+      referenceAssetIds: [],
+      referenceImageLabels: ['current panel image imported from existing asset'],
+      seed: 42,
+      generationParamsJson: '{"model":"flux"}',
+      createdAt: 5,
+    });
   });
 });
