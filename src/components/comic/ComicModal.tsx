@@ -14,7 +14,12 @@ import { createPanelWriteQueue } from '../../lib/comic/panel-write-queue';
 import { buildPanelReferenceLibrary, mergeReferenceBindings } from '../../lib/comic/panel-reference-library';
 import type { PanelReferenceOption } from '../../lib/comic/panel-reference-library';
 import { firstReferenceAssetId, mapReferenceThumbnails } from '../../lib/comic/visual-reference-thumbnails';
-import { buildLegacyCurrentImageVariant, buildReadyImageVariant, canDeleteImageVariant } from '../../lib/comic/image-variants';
+import {
+  buildLegacyCurrentImageVariant,
+  buildReadyImageVariant,
+  canDeleteImageVariant,
+  currentVariantDeleteBlockedMessage,
+} from '../../lib/comic/image-variants';
 import { createDefaultSceneVisual, filterSceneVisuals } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -53,6 +58,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [expandedPromptDraft, setExpandedPromptDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [panelVariantNotice, setPanelVariantNotice] = useState<Record<string, string>>({});
   const [selectorSearch, setSelectorSearch] = useState('');
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
 
@@ -469,12 +475,15 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     await updatePanel(panel, { assetId: variant.assetId, status: 'ready' });
     const asset = await storage.mediaAssets.get(variant.assetId);
     if (asset) setPanelAssets((current) => ({ ...current, [panel.id]: asset }));
+    setPanelVariantNotice((current) => ({ ...current, [panel.id]: '' }));
     setReferenceLibraryRevision((current) => current + 1);
   };
 
   const deletePanelVariant = async (panel: ComicPanel, variant: ComicPanelImageVariant) => {
     if (!canDeleteImageVariant({ panelAssetId: panel.assetId, variantAssetId: variant.assetId })) {
-      setMessage('目前採用圖不能直接刪除；請先選另一張歷史圖。');
+      const notice = currentVariantDeleteBlockedMessage();
+      setMessage(notice);
+      setPanelVariantNotice((current) => ({ ...current, [panel.id]: notice }));
       return;
     }
     await storage.comicPanelImageVariants.delete(variant.id);
@@ -490,6 +499,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         return next;
       });
     }
+    setPanelVariantNotice((current) => ({ ...current, [panel.id]: '' }));
     setReferenceLibraryRevision((current) => current + 1);
   };
 
@@ -849,6 +859,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                 {(panelVariants[selectedPanel.id]?.length ?? 0) > 0 && (
                   <details className="comic-panel-history" open>
                     <summary>歷史圖 ({panelVariants[selectedPanel.id]?.length ?? 0})</summary>
+                    {panelVariantNotice[selectedPanel.id] && (
+                      <p className="comic-panel-history-notice">{panelVariantNotice[selectedPanel.id]}</p>
+                    )}
                     <div className="comic-panel-history-grid">
                       {(panelVariants[selectedPanel.id] ?? []).map((variant) => {
                         const asset = variant.assetId ? variantAssets[variant.assetId] : undefined;

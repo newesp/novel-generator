@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { ComicPanel, MediaAsset } from '../../types';
-import { buildReadyImageVariant, buildLegacyCurrentImageVariant, canDeleteImageVariant } from './image-variants';
+import {
+  buildReadyImageVariant,
+  buildLegacyCurrentImageVariant,
+  canDeleteImageVariant,
+  currentVariantDeleteBlockedMessage,
+} from './image-variants';
 
 const panel: ComicPanel = {
   id: 'panel-1',
@@ -69,6 +74,11 @@ describe('comic image variants', () => {
   it('blocks deleting the current selected panel image variant', () => {
     expect(canDeleteImageVariant({ panelAssetId: 'asset-1', variantAssetId: 'asset-1' })).toBe(false);
     expect(canDeleteImageVariant({ panelAssetId: 'asset-current', variantAssetId: 'asset-old' })).toBe(true);
+  });
+
+  it('explains why the current selected variant cannot be deleted', () => {
+    expect(currentVariantDeleteBlockedMessage()).toContain('目前採用圖');
+    expect(currentVariantDeleteBlockedMessage()).toContain('先選另一張歷史圖');
   });
 
   it('builds a legacy current-image variant for panels that predate history rows', () => {

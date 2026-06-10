@@ -5,6 +5,7 @@
 - Applied the shared sidebar search to scene visual settings as well as characters, panel references, and scene pickers.
 - Added image preview behavior for history, character, reference, and scene thumbnails.
 - Made scene visual names editable while keeping stable slugs, and updated scene fields optimistically to avoid input cursor jumps.
+- Added inline history feedback when trying to delete the current selected panel image variant.
 
 ## 2026-06-10 - Comic modal mockup alignment
 

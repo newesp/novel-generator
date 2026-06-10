@@ -1514,6 +1514,16 @@ input:focus, select:focus, textarea:focus {
   font-size: 12px;
   font-weight: 700;
 }
+.comic-panel-history-notice {
+  margin: 0 8px 8px;
+  padding: 7px 8px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  font-size: 12px;
+  line-height: 1.4;
+}
 .comic-panel-history-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
