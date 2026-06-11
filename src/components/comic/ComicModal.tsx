@@ -5,6 +5,7 @@ import { storage } from '../../lib/storage';
 import { generateStoryboardDraft } from '../../lib/comic/storyboard-generate';
 import { getImageProvider } from '../../lib/comic/providers';
 import { runImageJobQueue } from '../../lib/comic/image-job-queue';
+import { persistableImageOutput } from '../../lib/comic/persistable-image-output';
 import { canonicalizePanelCharacterTokens, composeComicImagePrompt, resolveCharacterToken } from '../../lib/comic/prompt-composer';
 import type { ComicReferenceBinding } from '../../lib/comic/prompt-composer';
 import { mapPanelAssets } from '../../lib/comic/media-assets';
@@ -290,13 +291,14 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       referenceImages,
       referenceImageLabels,
     });
+    const persistedOutput = await persistableImageOutput(output);
     const asset: MediaAsset = {
       id: uuid(),
       projectId: project.id,
       chapterId: chapter.id,
       kind: 'comic_panel_image',
-      url: output.url,
-      mimeType: output.mimeType,
+      url: persistedOutput.url,
+      mimeType: persistedOutput.mimeType,
       width: imageGenerationPrefs.width,
       height: imageGenerationPrefs.height,
       providerId: output.providerId,
@@ -321,7 +323,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       [panel.id]: [...(current[panel.id] ?? []), variant],
     }));
     setVariantAssets((current) => ({ ...current, [asset.id]: asset }));
-    return { assetId: asset.id, url: output.url };
+    return { assetId: asset.id, url: persistedOutput.url };
   };
 
   const generateStoryboard = async () => {

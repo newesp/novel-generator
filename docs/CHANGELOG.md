@@ -14,6 +14,7 @@
 - Made scene visual names editable while keeping stable slugs, and updated scene fields optimistically to avoid input cursor jumps.
 - Added inline history feedback when trying to delete the current selected panel image variant.
 - Added a multi-image scene reference grid with preview and per-image removal.
+- Persist generated images from remote provider URLs as data URLs so expiring signed URLs do not break history thumbnails.
 
 ## 2026-06-10 - Comic modal mockup alignment
 
