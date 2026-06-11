@@ -224,7 +224,7 @@ export interface SceneVisual {
   updatedAt: number;
 }
 
-export type ImageProviderId = 'comfyui' | 'openai-compatible-image' | 'deepinfra-flux';
+export type ImageProviderId = 'comfyui' | 'openai-compatible-image' | 'deepinfra-flux' | 'google-gemini-image';
 
 export interface ComfyUIImageProviderConfig {
   providerId: 'comfyui';
@@ -253,7 +253,18 @@ export interface DeepInfraFluxProviderConfig {
   model: string;
 }
 
-export type ImageProviderConfig = ComfyUIImageProviderConfig | OpenAICompatibleImageProviderConfig | DeepInfraFluxProviderConfig;
+export interface GoogleGeminiImageProviderConfig {
+  providerId: 'google-gemini-image';
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+}
+
+export type ImageProviderConfig =
+  | ComfyUIImageProviderConfig
+  | OpenAICompatibleImageProviderConfig
+  | DeepInfraFluxProviderConfig
+  | GoogleGeminiImageProviderConfig;
 
 export type LLMProvider = 'custom' | 'google' | 'grok';
 

@@ -72,6 +72,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     ? 'ComfyUI HTTP API'
     : imageGenerationPrefs.providerId === 'deepinfra-flux'
     ? 'DeepInfra FLUX-2'
+    : imageGenerationPrefs.providerId === 'google-gemini-image'
+    ? 'Google Gemini Image'
     : 'OpenAI-compatible Image';
 
   const providerConfig = (): ImageProviderConfig => (
@@ -79,6 +81,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       ? { providerId: 'openai-compatible-image', ...imageGenerationPrefs.openaiCompatible }
       : imageGenerationPrefs.providerId === 'deepinfra-flux'
       ? { providerId: 'deepinfra-flux', ...imageGenerationPrefs.deepinfraFlux }
+      : imageGenerationPrefs.providerId === 'google-gemini-image'
+      ? { providerId: 'google-gemini-image', ...imageGenerationPrefs.googleGeminiImage }
       : { providerId: 'comfyui', ...imageGenerationPrefs.comfyui }
   );
 

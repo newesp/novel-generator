@@ -99,6 +99,11 @@ export interface ImageGenerationPrefs {
     apiKey: string;
     model: string;
   };
+  googleGeminiImage: {
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+  };
 }
 
 const DEFAULT_WIKI_PREFS: WikiPrefs = {
@@ -133,6 +138,11 @@ const DEFAULT_IMAGE_GENERATION_PREFS: ImageGenerationPrefs = {
     baseUrl: 'https://api.deepinfra.com/v1',
     apiKey: '',
     model: 'black-forest-labs/FLUX-2-pro',
+  },
+  googleGeminiImage: {
+    baseUrl: 'https://generativelanguage.googleapis.com/v1',
+    apiKey: '',
+    model: 'gemini-3.1-flash-image',
   },
 };
 
@@ -218,6 +228,7 @@ export const useSettingsStore = create<SettingsState>()(
             comfyui: { ...state.imageGenerationPrefs.comfyui, ...(patch.comfyui ?? {}) },
             openaiCompatible: { ...state.imageGenerationPrefs.openaiCompatible, ...(patch.openaiCompatible ?? {}) },
             deepinfraFlux: { ...state.imageGenerationPrefs.deepinfraFlux, ...(patch.deepinfraFlux ?? {}) },
+            googleGeminiImage: { ...state.imageGenerationPrefs.googleGeminiImage, ...(patch.googleGeminiImage ?? {}) },
           },
         })),
       setLintPrefs: (patch) =>
@@ -246,6 +257,10 @@ export const useSettingsStore = create<SettingsState>()(
             deepinfraFlux: {
               ...DEFAULT_IMAGE_GENERATION_PREFS.deepinfraFlux,
               ...(p.imageGenerationPrefs?.deepinfraFlux ?? {}),
+            },
+            googleGeminiImage: {
+              ...DEFAULT_IMAGE_GENERATION_PREFS.googleGeminiImage,
+              ...(p.imageGenerationPrefs?.googleGeminiImage ?? {}),
             },
           },
           lintPrefs: deepMergeLintPrefs(DEFAULT_LINT_PREFS, p.lintPrefs ?? {}),

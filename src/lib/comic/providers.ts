@@ -1,6 +1,7 @@
 import type { ImageProviderConfig, MediaAsset } from '../../types';
 import { comfyUIProvider } from './comfyui-provider';
 import { deepInfraFluxProvider } from './deepinfra-flux-provider';
+import { googleGeminiImageProvider } from './google-gemini-image-provider';
 import { openAICompatibleImageProvider } from './openai-image-provider';
 
 export type ReferenceImageMode = 'none' | 'single-input-image' | 'multi-reference';
@@ -55,6 +56,7 @@ const PROVIDERS: ImageGenerationProvider[] = [
   comfyUIProvider,
   openAICompatibleImageProvider,
   deepInfraFluxProvider,
+  googleGeminiImageProvider,
 ];
 
 export function listImageProviders(): ImageGenerationProvider[] {

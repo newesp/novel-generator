@@ -231,6 +231,7 @@ export function Toolbar() {
                 <option value="comfyui">ComfyUI HTTP API</option>
                 <option value="openai-compatible-image">OpenAI-compatible Image</option>
                 <option value="deepinfra-flux">DeepInfra FLUX-2</option>
+                <option value="google-gemini-image">Google Gemini Image</option>
               </select>
             </div>
 
@@ -380,6 +381,53 @@ export function Toolbar() {
                 />
                 <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.6 }}>
                   FLUX-2-pro 第一張參考圖使用 input_image；FLUX-2-klein 第一張使用 input_image_1，後續圖片依序編號。
+                </p>
+              </>
+            ) : draftImage.providerId === 'google-gemini-image' ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setDraftImage({
+                      ...draftImage,
+                      googleGeminiImage: {
+                        ...draftImage.googleGeminiImage,
+                        apiKey: draftLlm.provider === 'google' ? draftLlm.apiKey : draftImage.googleGeminiImage.apiKey,
+                      },
+                    })}
+                  >
+                    從 LLM Google 設定複製 API Key
+                  </Button>
+                </div>
+                <Input
+                  label="Google Gemini Base URL"
+                  placeholder="https://generativelanguage.googleapis.com/v1"
+                  value={draftImage.googleGeminiImage.baseUrl}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    googleGeminiImage: { ...draftImage.googleGeminiImage, baseUrl: e.target.value },
+                  })}
+                />
+                <Input
+                  label="Google Gemini Image Model"
+                  placeholder="gemini-3.1-flash-image"
+                  value={draftImage.googleGeminiImage.model}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    googleGeminiImage: { ...draftImage.googleGeminiImage, model: e.target.value },
+                  })}
+                />
+                <Input
+                  label="Google Gemini API Key"
+                  type="password"
+                  value={draftImage.googleGeminiImage.apiKey}
+                  onChange={(e) => setDraftImage({
+                    ...draftImage,
+                    googleGeminiImage: { ...draftImage.googleGeminiImage, apiKey: e.target.value },
+                  })}
+                />
+                <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.6 }}>
+                  使用 Google Gemini generateContent 圖片 API。預設模型為 gemini-3.1-flash-image，支援最多 14 張參考圖。
                 </p>
               </>
             ) : (
