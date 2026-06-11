@@ -81,14 +81,6 @@ describe('googleGeminiImageProvider', () => {
               { inline_data: { mime_type: 'image/png', data: 'reference' } },
             ],
           }],
-          generationConfig: {
-            responseModalities: ['IMAGE'],
-            responseFormat: {
-              image: {
-                aspectRatio: '1:1',
-              },
-            },
-          },
         }),
       }),
     );

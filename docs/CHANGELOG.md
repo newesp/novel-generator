@@ -6,6 +6,7 @@
 - Added independent Google image provider settings in preferences, with default model `gemini-3.1-flash-image` and a button to copy the API key from the active Google LLM settings.
 - Enabled Google Gemini Image reference image support with `maxReferenceImages` set to 14.
 - Added focused provider tests for Gemini response normalization, request payload shape, and provider registry exposure.
+- Removed unsupported REST `generationConfig` image fields from the Google Gemini image request payload.
 
 ## 2026-06-10 - Comic sidebar interaction fixes
 

@@ -87,14 +87,6 @@ export function buildGoogleGeminiImagePayload(request: ImageGenerationRequest): 
   ];
   return {
     contents: [{ parts }],
-    generationConfig: {
-      responseModalities: ['IMAGE'],
-      responseFormat: {
-        image: {
-          aspectRatio: aspectRatioFromSize(request.width, request.height),
-        },
-      },
-    },
   };
 }
 
@@ -126,16 +118,6 @@ function mediaAssetToGeminiPart(asset: MediaAsset): GeminiPart | null {
     };
   }
   return null;
-}
-
-function aspectRatioFromSize(width: number, height: number): string {
-  const ratio = width / height;
-  if (Math.abs(ratio - 1) < 0.05) return '1:1';
-  if (Math.abs(ratio - 16 / 9) < 0.08) return '16:9';
-  if (Math.abs(ratio - 9 / 16) < 0.08) return '9:16';
-  if (Math.abs(ratio - 4 / 3) < 0.08) return '4:3';
-  if (Math.abs(ratio - 3 / 4) < 0.08) return '3:4';
-  return '1:1';
 }
 
 function stringValue(value: unknown): string {
