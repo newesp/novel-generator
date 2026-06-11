@@ -20,7 +20,7 @@ import {
   canDeleteImageVariant,
   currentVariantDeleteBlockedMessage,
 } from '../../lib/comic/image-variants';
-import { createDefaultSceneVisual, filterSceneVisuals } from '../../lib/scene-visuals';
+import { createDefaultSceneVisual, filterSceneVisuals, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Modal } from '../common/Modal';
@@ -48,6 +48,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [panelReferenceOptions, setPanelReferenceOptions] = useState<PanelReferenceOption[]>([]);
   const [referenceLibraryRevision, setReferenceLibraryRevision] = useState(0);
   const [visualReferenceThumbnails, setVisualReferenceThumbnails] = useState<Record<string, string>>({});
+  const [sceneReferenceAssets, setSceneReferenceAssets] = useState<Record<string, MediaAsset>>({});
   const [previewAsset, setPreviewAsset] = useState<MediaAsset | null>(null);
   const [expandedPrompt, setExpandedPrompt] = useState<{
     title: string;
@@ -147,14 +148,19 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
 
   useEffect(() => {
     if (!open) return;
-    const assetIds = Array.from(new Set([
+    const thumbnailAssetIds = Array.from(new Set([
       ...availableCharacters.map(firstReferenceAssetId),
       ...scenes.map(firstReferenceAssetId),
     ].filter((id): id is string => Boolean(id))));
+    const sceneAssetIds = Array.from(new Set(scenes.flatMap((scene) => scene.referenceAssetIds)));
+    const assetIds = Array.from(new Set([...thumbnailAssetIds, ...sceneAssetIds]));
     let cancelled = false;
     if (!assetIds.length) {
       queueMicrotask(() => {
-        if (!cancelled) setVisualReferenceThumbnails({});
+        if (!cancelled) {
+          setVisualReferenceThumbnails({});
+          setSceneReferenceAssets({});
+        }
       });
       return () => {
         cancelled = true;
@@ -162,7 +168,12 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     }
     void Promise.all(assetIds.map((id) => storage.mediaAssets.get(id))).then((assets) => {
       if (cancelled) return;
-      setVisualReferenceThumbnails(mapReferenceThumbnails(assets.filter((asset): asset is MediaAsset => Boolean(asset))));
+      const resolvedAssets = assets.filter((asset): asset is MediaAsset => Boolean(asset));
+      setVisualReferenceThumbnails(mapReferenceThumbnails(resolvedAssets));
+      setSceneReferenceAssets(resolvedAssets.reduce<Record<string, MediaAsset>>((acc, asset) => {
+        if (sceneAssetIds.includes(asset.id)) acc[asset.id] = asset;
+        return acc;
+      }, {}));
     });
     return () => {
       cancelled = true;
@@ -527,6 +538,19 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     setScenes((current) => current.filter((item) => item.id !== scene.id));
   };
 
+  const sceneReferenceList = (scene: SceneVisual) => (
+    scene.referenceAssetIds
+      .map((assetId) => sceneReferenceAssets[assetId])
+      .filter((asset): asset is MediaAsset => Boolean(asset))
+  );
+
+  const assetIsReferencedOutsideScene = (assetId: string, sceneId: string) => (
+    scenes.some((scene) => scene.id !== sceneId && scene.referenceAssetIds.includes(assetId))
+    || availableCharacters.some((character) => character.referenceAssetIds?.includes(assetId))
+    || panels.some((panel) => panel.assetId === assetId || panel.referenceAssetIds?.includes(assetId))
+    || panelReferenceOptions.some((option) => option.asset.id === assetId)
+  );
+
   const uploadSceneReference = async (scene: SceneVisual, files: FileList | null) => {
     if (!files?.length) return;
     const uploaded: MediaAsset[] = [];
@@ -545,9 +569,42 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       uploaded.push(asset);
     }
     if (!uploaded.length) return;
+    setSceneReferenceAssets((current) => ({
+      ...current,
+      ...uploaded.reduce<Record<string, MediaAsset>>((acc, asset) => {
+        acc[asset.id] = asset;
+        return acc;
+      }, {}),
+    }));
     await updateScene(scene, {
       referenceAssetIds: [...scene.referenceAssetIds, ...uploaded.map((asset) => asset.id)],
     });
+  };
+
+  const removeSceneReference = async (scene: SceneVisual, assetId: string) => {
+    const nextReferenceAssetIds = removeSceneReferenceAssetId(scene.referenceAssetIds, assetId);
+    const nextScene = { ...scene, referenceAssetIds: nextReferenceAssetIds, updatedAt: new Date().getTime() };
+    setScenes((current) => current.map((item) => item.id === scene.id ? nextScene : item));
+    try {
+      await storage.sceneVisuals.update(scene.id, nextScene);
+    } catch (error) {
+      setMessage(errorMessage(error));
+      await refreshScenes();
+      return;
+    }
+    if (!assetIsReferencedOutsideScene(assetId, scene.id)) {
+      await storage.mediaAssets.delete(assetId);
+      setSceneReferenceAssets((current) => {
+        const next = { ...current };
+        delete next[assetId];
+        return next;
+      });
+      setVisualReferenceThumbnails((current) => {
+        const next = { ...current };
+        delete next[assetId];
+        return next;
+      });
+    }
   };
 
   const preparePanelForGeneration = async (
@@ -1097,7 +1154,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               <section className="comic-side-section">
                 <h3>場景視覺設定</h3>
                 <div className="comic-scene-list">
-                  {filteredScenes.map((scene) => (
+                  {filteredScenes.map((scene) => {
+                    const referenceAssets = sceneReferenceList(scene);
+                    return (
                     <details className="comic-scene-card" key={scene.id}>
                       <summary>
                         <VisualReferenceThumb
@@ -1125,11 +1184,48 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                       </label>
                       <label>
                         <FieldLabel label="參考圖" help="上傳場景參考圖。支援 reference image 的 provider 會自動帶入。" />
-                        <input type="file" accept="image/*" multiple onChange={(event) => void uploadSceneReference(scene, event.target.files)} />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(event) => {
+                            void uploadSceneReference(scene, event.target.files);
+                            event.currentTarget.value = '';
+                          }}
+                        />
                       </label>
-                      <p className="comic-message">{scene.referenceAssetIds.length} 張參考圖</p>
+                      {referenceAssets.length > 0 ? (
+                        <div className="comic-scene-reference-grid" aria-label={`${scene.title} reference images`}>
+                          {referenceAssets.map((asset, index) => (
+                            <figure className="comic-scene-reference-item" key={asset.id}>
+                              <button
+                                type="button"
+                                className="comic-scene-reference-thumb"
+                                onClick={() => setPreviewAsset(asset)}
+                                title="預覽場景參考圖"
+                              >
+                                <img src={asset.url} alt={`${scene.title} reference ${index + 1}`} loading="lazy" />
+                              </button>
+                              <figcaption>
+                                <span>#{index + 1}</span>
+                                <button
+                                  type="button"
+                                  className="comic-scene-reference-delete"
+                                  onClick={() => void removeSceneReference(scene, asset.id)}
+                                  title="刪除場景參考圖"
+                                >
+                                  刪除
+                                </button>
+                              </figcaption>
+                            </figure>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="comic-message">尚無場景參考圖</p>
+                      )}
                     </details>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             )}

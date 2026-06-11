@@ -52,3 +52,7 @@ export function filterSceneVisuals(scenes: SceneVisual[], query: string): SceneV
     ].join(' ').toLocaleLowerCase().includes(needle)
   ));
 }
+
+export function removeSceneReferenceAssetId(referenceAssetIds: string[], assetId: string): string[] {
+  return referenceAssetIds.filter((id) => id !== assetId);
+}

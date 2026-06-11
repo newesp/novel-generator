@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneVisual, filterSceneVisuals, slugifySceneTitle } from './scene-visuals';
+import { createDefaultSceneVisual, filterSceneVisuals, removeSceneReferenceAssetId, slugifySceneTitle } from './scene-visuals';
 
 describe('scene visuals', () => {
   it('creates a reusable project-level scene visual', () => {
@@ -49,5 +49,10 @@ describe('scene visuals', () => {
     expect(filterSceneVisuals(scenes, '阿飛').map((scene) => scene.id)).toEqual(['scene-1']);
     expect(filterSceneVisuals(scenes, 'clean').map((scene) => scene.id)).toEqual(['scene-2']);
     expect(filterSceneVisuals(scenes, '').map((scene) => scene.id)).toEqual(['scene-1', 'scene-2']);
+  });
+
+  it('removes one reference asset id while preserving the remaining order', () => {
+    expect(removeSceneReferenceAssetId(['asset-1', 'asset-2', 'asset-3'], 'asset-2')).toEqual(['asset-1', 'asset-3']);
+    expect(removeSceneReferenceAssetId(['asset-1', 'asset-2'], 'asset-missing')).toEqual(['asset-1', 'asset-2']);
   });
 });

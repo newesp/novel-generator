@@ -1218,6 +1218,56 @@ input:focus, select:focus, textarea:focus {
 .comic-scene-card-actions button:hover {
   background: rgba(239, 68, 68, 0.12);
 }
+.comic-scene-reference-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.comic-scene-reference-item {
+  min-width: 0;
+  margin: 0;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+}
+.comic-scene-reference-thumb {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.comic-scene-reference-thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.comic-scene-reference-item figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-top: 5px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+.comic-scene-reference-delete {
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 5px;
+  background: transparent;
+  color: #fca5a5;
+  padding: 2px 5px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.comic-scene-reference-delete:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
 .comic-scene-card label,
 .comic-panel-controls label {
   display: flex;
