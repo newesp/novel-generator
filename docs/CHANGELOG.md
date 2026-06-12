@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-12 - Comic panel editing controls
+
+- Made the comic prompt expansion dialog fully opaque and added an icon-only close button in the upper-right corner while keeping the existing close action.
+- Added dynamic storyboard panel insertion, per-panel deletion, and drag-and-drop reordering in the comic modal panel rail.
+- Added storage support for deleting a single comic panel and kept remaining panel order synchronized after insert/delete/reorder.
+- Added focused panel order helper coverage for reindex, move, and remove behavior.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-12 - Google Gemini image provider
 
 - Added a dedicated Google Gemini Image provider for comic image generation using the Gemini `generateContent` image API.

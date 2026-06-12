@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type DragEvent, useEffect, useMemo, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import type { Chapter, ChapterComic, Character, ComicPanel, ComicPanelImageVariant, ImageProviderConfig, MediaAsset, Project, SceneVisual } from '../../types';
 import { storage } from '../../lib/storage';
@@ -21,6 +21,7 @@ import {
   canDeleteImageVariant,
   currentVariantDeleteBlockedMessage,
 } from '../../lib/comic/image-variants';
+import { movePanelById, removePanelById, reindexPanels } from '../../lib/comic/panel-order';
 import { createDefaultSceneVisual, filterSceneVisuals, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -63,6 +64,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [panelVariantNotice, setPanelVariantNotice] = useState<Record<string, string>>({});
   const [selectorSearch, setSelectorSearch] = useState('');
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
+  const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -409,6 +411,108 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       item.id === panel.id ? { ...item, ...persistedPatch } : item
     )));
     return panelWriteQueue.enqueue(panel.id, persistedPatch);
+  };
+
+  const persistPanelOrder = async (nextPanels: ComicPanel[]) => {
+    const now = new Date().getTime();
+    const nextPanelsWithTime = nextPanels.map((panel) => ({ ...panel, updatedAt: now }));
+    setPanels(nextPanelsWithTime);
+    await Promise.all(nextPanelsWithTime.map((panel) => (
+      storage.comicPanels.update(panel.id, { order: panel.order, updatedAt: now })
+    )));
+    if (comic) {
+      const nextComicPatch = { targetPanelCount: nextPanelsWithTime.length, updatedAt: now };
+      setComic((current) => current ? { ...current, ...nextComicPatch } : current);
+      await storage.comics.update(comic.id, nextComicPatch);
+    }
+  };
+
+  const addPanelAfterSelected = async () => {
+    if (!comic) return;
+    const now = new Date().getTime();
+    const selectedIndex = selectedPanel ? panels.findIndex((panel) => panel.id === selectedPanel.id) : panels.length - 1;
+    const nextPanel: ComicPanel = {
+      id: uuid(),
+      comicId: comic.id,
+      order: panels.length + 1,
+      beat: '新增分鏡',
+      characters: [],
+      location: selectedPanel?.location ?? '',
+      shotType: selectedPanel?.shotType ?? '',
+      cameraAngle: selectedPanel?.cameraAngle ?? '',
+      visualPrompt: '',
+      negativePrompt: selectedPanel?.negativePrompt ?? '',
+      dialogue: '',
+      narration: '',
+      durationSec: selectedPanel?.durationSec ?? 4,
+      status: 'draft',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const insertAt = Math.max(0, selectedIndex + 1);
+    const nextPanels = reindexPanels([
+      ...panels.slice(0, insertAt),
+      nextPanel,
+      ...panels.slice(insertAt),
+    ]);
+    setSelectedPanelId(nextPanel.id);
+    await storage.comicPanels.add(nextPanel);
+    await persistPanelOrder(nextPanels);
+    setMessage(`已新增分鏡 #${nextPanels.find((panel) => panel.id === nextPanel.id)?.order ?? nextPanel.order}。`);
+  };
+
+  const deletePanel = async (panel: ComicPanel) => {
+    if (!comic || panels.length <= 1) {
+      setMessage('至少需要保留一格分鏡。');
+      return;
+    }
+    if (!window.confirm(`刪除分鏡 #${panel.order}？這會移除該格已生成圖片與歷史版本。`)) return;
+
+    const variants = await storage.comicPanelImageVariants.listByPanel(panel.id);
+    const assetIds = Array.from(new Set([
+      panel.assetId,
+      ...variants.map((variant) => variant.assetId),
+    ].filter((assetId): assetId is string => Boolean(assetId))));
+    await storage.comicPanelImageVariants.deleteByPanel(panel.id);
+    await storage.comicPanels.delete(panel.id);
+    await Promise.all(assetIds.map((assetId) => storage.mediaAssets.delete(assetId)));
+
+    const nextPanels = removePanelById(panels, panel.id);
+    setSelectedPanelId((current) => (
+      current === panel.id ? nextPanels[Math.min(panel.order - 1, nextPanels.length - 1)]?.id ?? null : current
+    ));
+    setPanelAssets((current) => {
+      const next = { ...current };
+      delete next[panel.id];
+      return next;
+    });
+    setPanelVariants((current) => {
+      const next = { ...current };
+      delete next[panel.id];
+      return next;
+    });
+    setVariantAssets((current) => {
+      const next = { ...current };
+      for (const assetId of assetIds) delete next[assetId];
+      return next;
+    });
+    await persistPanelOrder(nextPanels);
+    setReferenceLibraryRevision((current) => current + 1);
+    setMessage('分鏡已刪除並重新排序。');
+  };
+
+  const movePanel = async (panelId: string, targetPanelId: string) => {
+    const nextPanels = movePanelById(panels, panelId, targetPanelId);
+    if (nextPanels.every((panel, index) => panel.id === panels[index]?.id && panel.order === panels[index]?.order)) return;
+    await persistPanelOrder(nextPanels);
+  };
+
+  const handlePanelDrop = async (event: DragEvent<HTMLButtonElement>, targetPanelId: string) => {
+    event.preventDefault();
+    const sourcePanelId = event.dataTransfer.getData('text/plain') || draggingPanelId;
+    setDraggingPanelId(null);
+    if (!sourcePanelId || sourcePanelId === targetPanelId || busy) return;
+    await movePanel(sourcePanelId, targetPanelId);
   };
 
   const togglePanelCharacter = (panel: ComicPanel, character: Character, enabled: boolean) => {
@@ -855,16 +959,59 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                 <strong>分鏡</strong>
                 <span>{selectedPanel ? `目前選 #${selectedPanel.order}` : `${panels.length} 格`}</span>
               </div>
+              <button
+                type="button"
+                className="comic-panel-add-button"
+                onClick={() => void addPanelAfterSelected()}
+                disabled={busy || !comic}
+                title="新增分鏡"
+              >
+                + 新增分鏡
+              </button>
               <div className="comic-panel-mini-list">
                 {panels.map((panel) => (
                   <button
                     type="button"
-                    className={`comic-panel-mini ${selectedPanel?.id === panel.id ? 'active' : ''}`}
+                    className={`comic-panel-mini ${selectedPanel?.id === panel.id ? 'active' : ''} ${draggingPanelId === panel.id ? 'dragging' : ''}`}
                     key={panel.id}
+                    draggable={!busy}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', panel.id);
+                      setDraggingPanelId(panel.id);
+                    }}
+                    onDragEnd={() => setDraggingPanelId(null)}
+                    onDragOver={(event) => {
+                      if (!busy) {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = 'move';
+                      }
+                    }}
+                    onDrop={(event) => void handlePanelDrop(event, panel.id)}
                     onClick={() => setSelectedPanelId(panel.id)}
                   >
-                    <strong>#{panel.order} {panel.beat}</strong>
+                    <span className="comic-panel-mini-main">
+                      <strong>#{panel.order} {panel.beat}</strong>
                     <span>{panel.status} · {panelVariants[panel.id]?.length ?? 0} 張歷史圖</span>
+                    </span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      className="comic-panel-mini-delete"
+                      title="刪除分鏡"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void deletePanel(panel);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key !== 'Enter' && event.key !== ' ') return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        void deletePanel(panel);
+                      }}
+                    >
+                      ×
+                    </span>
                   </button>
                 ))}
               </div>
@@ -1256,6 +1403,15 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             <div className="comic-prompt-expand-content" onClick={(event) => event.stopPropagation()}>
               <header>
                 <strong>{expandedPrompt.title}</strong>
+                <button
+                  type="button"
+                  className="comic-prompt-expand-close"
+                  onClick={() => setExpandedPrompt(null)}
+                  aria-label="關閉"
+                  title="關閉"
+                >
+                  ×
+                </button>
                 <button type="button" onClick={() => setExpandedPrompt(null)}>關閉</button>
               </header>
               <textarea

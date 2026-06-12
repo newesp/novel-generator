@@ -1045,6 +1045,20 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-secondary);
   font-size: 12px;
 }
+.comic-panel-add-button {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+.comic-panel-add-button:hover {
+  color: var(--text-primary);
+  border-color: var(--accent);
+}
 .comic-panel-mini-list {
   display: flex;
   flex-direction: column;
@@ -1052,8 +1066,9 @@ input:focus, select:focus, textarea:focus {
 }
 .comic-panel-mini {
   width: 100%;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
   gap: 3px;
   padding: 9px;
   border: 1px solid var(--border);
@@ -1063,9 +1078,25 @@ input:focus, select:focus, textarea:focus {
   text-align: left;
   cursor: pointer;
 }
+.comic-panel-mini[draggable="true"] {
+  cursor: grab;
+}
+.comic-panel-mini[draggable="true"]:active {
+  cursor: grabbing;
+}
 .comic-panel-mini.active {
   border-color: rgba(139, 92, 246, 0.65);
   background: rgba(139, 92, 246, 0.12);
+}
+.comic-panel-mini.dragging {
+  opacity: 0.56;
+  border-color: var(--accent);
+}
+.comic-panel-mini-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 .comic-panel-mini strong,
 .comic-panel-mini span {
@@ -1077,6 +1108,25 @@ input:focus, select:focus, textarea:focus {
 .comic-panel-mini span {
   color: var(--text-tertiary);
   font-size: 12px;
+}
+.comic-panel-mini-delete {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  border-radius: 6px;
+  color: #fca5a5 !important;
+  background: rgba(239, 68, 68, 0.08);
+  cursor: pointer;
+  font-size: 16px !important;
+  line-height: 1;
+}
+.comic-panel-mini-delete:hover {
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.7);
 }
 .comic-current-image {
   display: grid;
@@ -1805,9 +1855,10 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   padding: 18px;
-  background: rgba(0, 0, 0, 0.72);
+  background: #050507;
 }
 .comic-prompt-expand-content {
+  position: relative;
   width: min(960px, 96vw);
   height: min(760px, 92vh);
   display: flex;
@@ -1816,7 +1867,7 @@ input:focus, select:focus, textarea:focus {
   padding: 14px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--surface);
+  background: var(--bg-secondary);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
 }
 .comic-prompt-expand-content header,
@@ -1826,13 +1877,30 @@ input:focus, select:focus, textarea:focus {
   justify-content: space-between;
   gap: 8px;
 }
+.comic-prompt-expand-content header > button:not(.comic-prompt-expand-close) {
+  display: none;
+}
+.comic-prompt-expand-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  font-size: 18px;
+  line-height: 1;
+}
 .comic-prompt-expand-content textarea {
   flex: 1;
   min-height: 0;
   resize: none;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--bg);
+  background: var(--bg-primary);
   color: var(--text-primary);
   padding: 10px;
   font: inherit;

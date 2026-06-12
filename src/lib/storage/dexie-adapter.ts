@@ -157,6 +157,7 @@ const comicPanels: ComicPanelStore = {
   add: async (panel) => { await db.comicPanels.add(panel); },
   bulkAdd: async (panels) => { await db.comicPanels.bulkAdd(panels); },
   update: async (id, data) => { await db.comicPanels.update(id, data); },
+  delete: async (id) => { await db.comicPanels.delete(id); },
   deleteByComic: async (comicId) => {
     await db.comicPanels.where('comicId').equals(comicId).delete();
   },

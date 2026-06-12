@@ -592,6 +592,10 @@ const comicPanels: ComicPanelStore = {
       [row.comic_id, row.ord, row.status, row.data, id],
     );
   },
+  delete: async (id) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM comic_panels WHERE id=$1', [id]);
+  },
   deleteByComic: async (comicId) => {
     const db = await getDb();
     await db.execute('DELETE FROM comic_panels WHERE comic_id=$1', [comicId]);

@@ -113,6 +113,7 @@ export interface ComicPanelStore {
   add(panel: ComicPanel): Promise<void>;
   bulkAdd(panels: ComicPanel[]): Promise<void>;
   update(id: string, data: Partial<ComicPanel>): Promise<void>;
+  delete(id: string): Promise<void>;
   deleteByComic(comicId: string): Promise<void>;
 }
 
