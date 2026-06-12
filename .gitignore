@@ -22,6 +22,7 @@ docs/
 Thumbs.db
 *.swp
 *.swo
+*.bak
 
 # Local env
 .env
