@@ -933,12 +933,36 @@ input:focus, select:focus, textarea:focus {
 
 /* ====== Comic MVP ====== */
 .comic-modal {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: 100%;
   min-width: 0;
   overflow-x: hidden;
+}
+.comic-main-close-button {
+  position: fixed;
+  top: 22px;
+  right: 22px;
+  z-index: 1200;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+.comic-main-close-button:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
 }
 .comic-settings,
 .comic-provider-grid {
@@ -1855,7 +1879,7 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   justify-content: center;
   padding: 18px;
-  background: #050507;
+  background: rgba(0, 0, 0, 0.72);
 }
 .comic-prompt-expand-content {
   position: relative;

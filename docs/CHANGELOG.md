@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-12 - Comic panel editing follow-up
+
+- Restored the comic prompt expansion backdrop to the previous translucent overlay while keeping the editor surface opaque.
+- Added an icon-only close button to the top-right of the full-screen comic modal.
+- Fixed storyboard drag-and-drop reordering by moving drag handlers off the interactive button and onto a dedicated draggable panel row.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-12 - Comic panel editing controls
 
 - Made the comic prompt expansion dialog fully opaque and added an icon-only close button in the upper-right corner while keeping the existing close action.

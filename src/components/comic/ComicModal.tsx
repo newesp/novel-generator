@@ -507,7 +507,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     await persistPanelOrder(nextPanels);
   };
 
-  const handlePanelDrop = async (event: DragEvent<HTMLButtonElement>, targetPanelId: string) => {
+  const handlePanelDrop = async (event: DragEvent<HTMLDivElement>, targetPanelId: string) => {
     event.preventDefault();
     const sourcePanelId = event.dataTransfer.getData('text/plain') || draggingPanelId;
     setDraggingPanelId(null);
@@ -911,6 +911,16 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       }
     >
       <div className="comic-modal">
+        <button
+          type="button"
+          className="comic-main-close-button"
+          onClick={onClose}
+          disabled={busy}
+          aria-label="關閉轉漫畫"
+          title="關閉"
+        >
+          ×
+        </button>
         <section className="comic-settings">
           <div className="comic-provider-summary">
             <FieldLabel label="圖片提供商" help="圖片 provider 在「偏好設定 → 圖片生成」調整。這裡只顯示目前使用的全域設定。" />
@@ -970,8 +980,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               </button>
               <div className="comic-panel-mini-list">
                 {panels.map((panel) => (
-                  <button
-                    type="button"
+                  <div
                     className={`comic-panel-mini ${selectedPanel?.id === panel.id ? 'active' : ''} ${draggingPanelId === panel.id ? 'dragging' : ''}`}
                     key={panel.id}
                     draggable={!busy}
@@ -994,9 +1003,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                       <strong>#{panel.order} {panel.beat}</strong>
                     <span>{panel.status} · {panelVariants[panel.id]?.length ?? 0} 張歷史圖</span>
                     </span>
-                    <span
-                      role="button"
-                      tabIndex={0}
+                    <button
+                      type="button"
                       className="comic-panel-mini-delete"
                       title="刪除分鏡"
                       onClick={(event) => {
@@ -1011,8 +1019,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                       }}
                     >
                       ×
-                    </span>
-                  </button>
+                    </button>
+                  </div>
                 ))}
               </div>
             </section>
