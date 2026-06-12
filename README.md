@@ -78,4 +78,3 @@ npm run tauri build
 | [output-formats.md](specs/output-formats.md) | 輸出格式規格 |
 | [deployment.md](specs/deployment.md) | 部署方式 |
 
-> AI 載入策略另見 `CLAUDE.md`。

@@ -4,7 +4,8 @@
 
 Add a version history for comic image generation so each panel can keep every generated image, let the user select one image as the current panel image, and safely delete old rejected images.
 
-This design follows the static UI mockup and user feedback from June 6, 2026.
+This design follows the static UI mockup：`docs/comic-ui-static-mockup.html`.
+During implementation, the UI mockup serves as the primary reference, with the accompanying text below as supplementary.
 
 ## Decisions
 
@@ -15,7 +16,6 @@ This design follows the static UI mockup and user feedback from June 6, 2026.
 - Regenerating storyboard deletes old panels, old panel variants, and their generated comic panel image assets.
 - Reference image picker initially continues to list only each panel's current selected image, not all historical variants.
 - Current selected variants cannot be deleted in MVP. The user must first select another variant.
-- Excluded for MVP: A/B comparison, rating, automatic best-image selection, batch delete, history diff.
 
 ## Data Model
 
@@ -95,6 +95,10 @@ Before deleting old panels:
 
 ## UI
 
+### Bug Fixing
+
+Many field labels are currently displayed as `??`. Fixed them to show the correct Chinese titles.
+
 ### Full-Screen Comic Modal
 
 The comic modal becomes a full-screen work area:
@@ -115,20 +119,22 @@ Each panel shows:
 - Provider/model and creation time.
 - Icon button to set as current.
 - Icon button to delete.
-- Hover titles in Chinese.
+- Display Chinese titles when hovering over the button.
 
 Deleting a current selected variant is blocked in MVP.
 
-### Prompt Expansion
+### Prompt Fields
+
+All Prompt Fields must provide a proper editing experience. Previously, whenever a character was entered, the cursor would jump to the end, or undo (Ctrl + Z) could not be used.
 
 All panel prompt fields receive an expand button:
-
 - Visual prompt.
 - Negative prompt.
 - Extra groups JSON.
 - Final prompt snapshot as read-only.
 
 Expanded editing opens a large modal/overlay with cancel/apply controls.
+The Expand button inherits the styling of the `世界觀設定` field from the outline.
 
 ### Selectors
 
@@ -138,8 +144,6 @@ Characters, reference images, and scene visuals use dropdown picker UI:
 - Scene options show a thumbnail from the first scene reference image.
 - Reference image options show generated panel thumbnails.
 - A shared search input filters all three selector groups.
-
-Reference image picker lists current panel images only for MVP.
 
 ### Scene Visual Settings
 
@@ -154,8 +158,7 @@ Scene visual cards/list support delete:
 To reduce accidental clicks:
 
 - `重生此格` stays inside the panel card.
-- `開始生圖` is in a batch generation area.
-- `重新生成分鏡` is separated as a destructive storyboard management action and requires confirmation.
+- `開始生圖` and `重新生成分鏡` are in the footer area.
 
 ## Testing
 
