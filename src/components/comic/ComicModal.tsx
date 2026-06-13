@@ -65,6 +65,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [selectorSearch, setSelectorSearch] = useState('');
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
+  const [dragTargetPanelId, setDragTargetPanelId] = useState<string | null>(null);
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -507,23 +508,28 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     await persistPanelOrder(nextPanels);
   };
 
-  const startPanelPointerDrag = (event: PointerEvent<HTMLDivElement>, panelId: string) => {
-    if (busy || event.button !== 0 || event.target instanceof HTMLButtonElement) return;
+  const startPanelPointerDrag = (event: PointerEvent<HTMLElement>, panelId: string) => {
+    if (busy || event.button !== 0) return;
     setDraggingPanelId(panelId);
   };
 
   const enterPanelPointerDropTarget = (targetPanelId: string) => {
     if (!draggingPanelId || draggingPanelId === targetPanelId || busy) return;
+    setDragTargetPanelId(targetPanelId);
     void movePanel(draggingPanelId, targetPanelId);
   };
 
   const stopPanelPointerDrag = () => {
     setDraggingPanelId(null);
+    setDragTargetPanelId(null);
   };
 
   useEffect(() => {
     if (!draggingPanelId) return;
-    const stopDragging = () => setDraggingPanelId(null);
+    const stopDragging = () => {
+      setDraggingPanelId(null);
+      setDragTargetPanelId(null);
+    };
     window.addEventListener('pointerup', stopDragging);
     window.addEventListener('pointercancel', stopDragging);
     return () => {
@@ -998,7 +1004,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               <div className="comic-panel-mini-list">
                 {panels.map((panel) => (
                   <div
-                    className={`comic-panel-mini ${selectedPanel?.id === panel.id ? 'active' : ''} ${draggingPanelId === panel.id ? 'dragging' : ''}`}
+                    className={`comic-panel-mini ${selectedPanel?.id === panel.id ? 'active' : ''} ${draggingPanelId === panel.id ? 'dragging' : ''} ${dragTargetPanelId === panel.id ? 'drop-target' : ''}`}
                     key={panel.id}
                     role="button"
                     tabIndex={0}
@@ -1008,11 +1014,18 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                       event.preventDefault();
                       setSelectedPanelId(panel.id);
                     }}
-                    onPointerDown={(event) => startPanelPointerDrag(event, panel.id)}
                     onPointerEnter={() => enterPanelPointerDropTarget(panel.id)}
                     onPointerUp={stopPanelPointerDrag}
                     onPointerCancel={stopPanelPointerDrag}
                   >
+                    <span
+                      className="comic-panel-drag-handle"
+                      title="拖拉排序"
+                      onPointerDown={(event) => startPanelPointerDrag(event, panel.id)}
+                      aria-hidden="true"
+                    >
+                      ⠿
+                    </span>
                     <span className="comic-panel-mini-main">
                       <strong>#{panel.order} {panel.beat}</strong>
                     <span>{panel.status} · {panelVariants[panel.id]?.length ?? 0} 張歷史圖</span>
@@ -1044,8 +1057,14 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             {selectedPanel ? (
               <article className={`comic-panel-card ${selectedPanel.status}`}>
                 <header>
-                  <div>
-                    <strong>#{selectedPanel.order} {selectedPanel.beat}</strong>
+                  <div className="comic-panel-title-editor">
+                    <label>
+                      <FieldLabel label={`分鏡 #${selectedPanel.order} 標題`} help="顯示在左側分鏡列表與圖片檔名中的分鏡名稱。" />
+                      <input
+                        value={selectedPanel.beat}
+                        onChange={(event) => void updatePanel(selectedPanel, { beat: event.target.value })}
+                      />
+                    </label>
                     <span>{panelCharacterNames(selectedPanel).length ? `角色：${panelCharacterNames(selectedPanel).join('、')}` : '尚未選擇角色'}</span>
                   </div>
                   <span>{selectedPanel.status}</span>

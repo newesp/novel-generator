@@ -1091,7 +1091,7 @@ input:focus, select:focus, textarea:focus {
 .comic-panel-mini {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
+  grid-template-columns: 22px minmax(0, 1fr) 28px;
   align-items: center;
   gap: 3px;
   padding: 9px;
@@ -1103,6 +1103,7 @@ input:focus, select:focus, textarea:focus {
   cursor: grab;
   user-select: none;
   touch-action: none;
+  position: relative;
 }
 .comic-panel-mini:active,
 .comic-panel-mini.dragging {
@@ -1115,6 +1116,33 @@ input:focus, select:focus, textarea:focus {
 .comic-panel-mini.dragging {
   opacity: 0.56;
   border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.comic-panel-mini.drop-target::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: -5px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(124, 58, 237, 0.2);
+}
+.comic-panel-drag-handle {
+  width: 20px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  cursor: grab;
+  font-size: 17px !important;
+  line-height: 1;
+}
+.comic-panel-drag-handle:hover,
+.comic-panel-mini.dragging .comic-panel-drag-handle {
+  color: var(--accent);
 }
 .comic-panel-mini-main {
   min-width: 0;
@@ -1177,7 +1205,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg);
 }
 .comic-panel-title-field {
-  display: flex;
+  display: none;
   flex-direction: column;
   gap: 6px;
   color: var(--text-tertiary);
@@ -1582,9 +1610,30 @@ input:focus, select:focus, textarea:focus {
 .comic-panel-card header {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 8px;
   font-size: 12px;
   color: var(--text-secondary);
+}
+.comic-panel-title-editor {
+  flex: 1;
+  min-width: 0;
+}
+.comic-panel-title-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.comic-panel-title-editor input {
+  width: 100%;
+  min-height: 36px;
+  font-size: 14px;
+  font-weight: 700;
+  background: var(--bg-secondary);
+}
+.comic-panel-title-editor > span {
+  display: block;
+  margin-top: 5px;
 }
 .comic-panel-controls {
   display: grid;
