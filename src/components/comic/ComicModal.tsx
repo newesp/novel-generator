@@ -66,6 +66,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
   const [dragTargetPanelId, setDragTargetPanelId] = useState<string | null>(null);
+  const [downloadNotice, setDownloadNotice] = useState<{ key: string; label: string } | null>(null);
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -100,6 +101,11 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     setExpandedPromptDraft(config.value);
   };
 
+  const markDownloadStarted = (key: string, fileName: string) => {
+    setDownloadNotice({ key, label: `已開始下載 ${fileName}` });
+    setMessage(`已開始下載 ${fileName}。若瀏覽器詢問，請確認儲存位置。`);
+  };
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -123,6 +129,12 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       cancelled = true;
     };
   }, [open, chapter.id]);
+
+  useEffect(() => {
+    if (!downloadNotice) return;
+    const timeoutId = window.setTimeout(() => setDownloadNotice(null), 3500);
+    return () => window.clearTimeout(timeoutId);
+  }, [downloadNotice]);
 
   useEffect(() => {
     if (!panels.length) {
@@ -1020,6 +1032,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         </section>
 
         {message && <p className="comic-message">{message}</p>}
+        {downloadNotice && <p className="comic-download-notice" aria-live="polite">{downloadNotice.label}</p>}
 
         <div className="comic-workspace">
           <aside className="comic-rail">
@@ -1135,7 +1148,14 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                         </button>
                         <figcaption>
                           <button type="button" onClick={() => setPreviewAsset(selectedPanelAsset)}>預覽</button>
-                          <a href={selectedPanelAsset.url} download={`comic-panel-${selectedPanel.order}.png`}>下載</a>
+                          <a
+                            href={selectedPanelAsset.url}
+                            download={`comic-panel-${selectedPanel.order}.png`}
+                            className={downloadNotice?.key === `panel-${selectedPanel.id}` ? 'download-started' : ''}
+                            onClick={() => markDownloadStarted(`panel-${selectedPanel.id}`, `comic-panel-${selectedPanel.order}.png`)}
+                          >
+                            {downloadNotice?.key === `panel-${selectedPanel.id}` ? '已開始下載' : '下載'}
+                          </a>
                           <button type="button" onClick={() => void navigator.clipboard?.writeText(selectedPanelAsset.url ?? '')}>
                             複製 URL
                           </button>
@@ -1503,7 +1523,14 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               <button type="button" className="comic-image-preview-close" onClick={() => setPreviewAsset(null)}>×</button>
               <img src={previewAsset.url} alt="漫畫圖片預覽" />
               <div className="comic-image-preview-actions">
-                <a href={previewAsset.url} download="comic-panel.png">下載圖片</a>
+                <a
+                  href={previewAsset.url}
+                  download="comic-panel.png"
+                  className={downloadNotice?.key === `preview-${previewAsset.id}` ? 'download-started' : ''}
+                  onClick={() => markDownloadStarted(`preview-${previewAsset.id}`, 'comic-panel.png')}
+                >
+                  {downloadNotice?.key === `preview-${previewAsset.id}` ? '已開始下載' : '下載圖片'}
+                </a>
                 <button type="button" onClick={() => void navigator.clipboard?.writeText(previewAsset.url ?? '')}>
                   複製 URL
                 </button>

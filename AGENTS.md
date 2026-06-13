@@ -26,7 +26,7 @@
 | 儲存層 / Tauri / adapter | `src/lib/storage/` + `specs/tech-stack.md`   |
 | 部署方式                  | `specs/deployment.md`                        |
 
-3. 以程式碼為主，md 只在設計/roadmap 時讀。
+3. 以程式碼為主，md 不見得是最新資訊，只在設計/roadmap 時讀。
 4. 用戶詢問歷史/最近改動時才查：優先 `docs/CHANGELOG.md`，否則 `git log` main 分支（忽略未合併 branch）。
 
 ## 開發鐵則

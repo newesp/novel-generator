@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-06-13 - Comic image download feedback
+
+- Added visible feedback when downloading comic panel images from the panel editor or preview modal.
+- Download links now switch to a started state and the comic modal message explains that the browser download has begun.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-13 - Comic panel image upload
 
 - Added an `上傳圖片` action next to `重生此格` in the comic panel editor.
