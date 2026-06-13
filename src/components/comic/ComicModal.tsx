@@ -256,6 +256,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         if (!panel.assetId || currentVariantKeys.has(`${panel.id}:${panel.assetId}`)) continue;
         const asset = await storage.mediaAssets.get(panel.assetId);
         if (!asset) continue;
+        if (asset.providerId === 'uploaded') continue;
         const variant = buildLegacyCurrentImageVariant({
           id: uuid(),
           projectId: project.id,
@@ -271,7 +272,11 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       if (cancelled) return;
       const allVariants = [...variants, ...importedVariants];
       const byPanel = allVariants.reduce<Record<string, ComicPanelImageVariant[]>>((acc, variant) => {
-        acc[variant.panelId] = [...(acc[variant.panelId] ?? []), variant];
+        const panelVariants = acc[variant.panelId] ?? [];
+        if (variant.assetId && panelVariants.some((item) => item.assetId === variant.assetId)) {
+          return acc;
+        }
+        acc[variant.panelId] = [...panelVariants, variant];
         return acc;
       }, {});
       setPanelVariants(byPanel);
@@ -454,7 +459,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       shotType: selectedPanel?.shotType ?? '',
       cameraAngle: selectedPanel?.cameraAngle ?? '',
       visualPrompt: '',
-      negativePrompt: selectedPanel?.negativePrompt ?? '',
+      negativePrompt: '',
       dialogue: '',
       narration: '',
       durationSec: selectedPanel?.durationSec ?? 4,
@@ -963,7 +968,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       setPanelAssets((current) => ({ ...current, [panel.id]: asset }));
       setPanelVariants((current) => ({
         ...current,
-        [panel.id]: [...(current[panel.id] ?? []), variant],
+        [panel.id]: [...(current[panel.id] ?? []).filter((item) => item.assetId !== asset.id), variant],
       }));
       setVariantAssets((current) => ({ ...current, [asset.id]: asset }));
       setPanelVariantNotice((current) => ({ ...current, [panel.id]: '' }));

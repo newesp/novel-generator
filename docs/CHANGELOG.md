@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-13 - Comic upload and CJK search fixes
+
+- Prevented manually uploaded comic panel images from appearing twice in the panel history.
+- New comic panels now start with an empty negative prompt instead of inheriting the selected panel's text.
+- Added a CJK `LIKE` fallback for desktop full-text search when FTS returns no results.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-13 - Comic image download feedback
 
 - Added visible feedback when downloading comic panel images from the panel editor or preview modal.
