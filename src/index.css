@@ -1100,12 +1100,12 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg-secondary);
   color: var(--text-primary);
   text-align: left;
-  cursor: pointer;
-}
-.comic-panel-mini[draggable="true"] {
   cursor: grab;
+  user-select: none;
+  touch-action: none;
 }
-.comic-panel-mini[draggable="true"]:active {
+.comic-panel-mini:active,
+.comic-panel-mini.dragging {
   cursor: grabbing;
 }
 .comic-panel-mini.active {
@@ -1175,6 +1175,23 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--bg);
+}
+.comic-panel-title-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.comic-panel-title-field input {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
 }
 .comic-panel-metadata dl {
   display: grid;

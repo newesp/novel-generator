@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-06-13 - Comic panel drag and title editing
+
+- Replaced native drag/drop in the comic panel rail with pointer-based reordering so dragging works inside the full-screen comic modal.
+- Added a selected-panel title field so newly inserted panels such as `#9 新增分鏡` can be renamed.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-12 - Comic panel editing follow-up
 
 - Restored the comic prompt expansion backdrop to the previous translucent overlay while keeping the editor surface opaque.
