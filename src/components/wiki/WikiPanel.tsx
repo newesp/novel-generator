@@ -28,10 +28,18 @@ const TYPE_LABELS: Record<WikiPageType, string> = {
 
 const WIKI_TOOL_BUTTON_STYLE: CSSProperties = {
   height: 44,
-  minWidth: 64,
-  padding: '0 10px',
+  width: '100%',
+  minWidth: 0,
+  padding: '0 6px',
   justifyContent: 'center',
   whiteSpace: 'nowrap',
+};
+
+const WIKI_TOOLBAR_STYLE: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+  gap: 6,
+  width: '100%',
 };
 
 export function WikiPanel() {
@@ -97,8 +105,8 @@ export function WikiPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: 12, borderBottom: '1px solid var(--border, #ccc)' }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 8, overflowX: 'auto' }}>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
+        <div style={{ marginBottom: 8 }}>
+          <div style={WIKI_TOOLBAR_STYLE}>
             <Button
               variant="secondary"
               size="sm"

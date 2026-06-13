@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-06-13 - Wiki toolbar fit fix
+
+- Changed the Wiki toolbar from right-aligned flex buttons to a fixed six-column grid so every action remains visible on one row.
+- Removed per-button minimum widths that caused the leftmost toolbar actions to be clipped in narrower panes.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-13 - Wiki operation log popup
 
 - Removed the redundant Wiki label from the Wiki panel toolbar so actions fit on one row.
