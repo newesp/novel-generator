@@ -132,14 +132,22 @@ input:focus, select:focus, textarea:focus {
 }
 .tab {
   flex: 1;
+  min-width: 64px;
+  height: 44px;
   text-align: center;
-  padding: 10px 8px;
+  padding: 0 8px;
   font-size: 13px;
   font-weight: 500;
   color: var(--text-secondary);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   transition: all 120ms;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tab:hover:not(.disabled) { color: var(--text-primary); background: var(--bg-hover); }
 .tab.active {

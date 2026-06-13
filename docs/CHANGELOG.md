@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-13 - Wiki toolbar and editor layout polish
+
+- Updated Wiki navigation/actions to use fixed-size icon-plus-text buttons with tooltip labels.
+- Moved `改 slug` into the Wiki editor action bar and aligned it with `刪除` and `儲存`.
+- Split the Wiki list/editor columns to 50/50 and added full-name tooltips for truncated list entries.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-13 - Comic upload and CJK search fixes
 
 - Prevented manually uploaded comic panel images from appearing twice in the panel history.

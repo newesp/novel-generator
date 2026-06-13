@@ -1,7 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type CSSProperties } from 'react';
 import type { WikiPage } from '../../types';
 import { useWikiStore } from '../../stores/wikiStore';
 import { Button } from '../common/Button';
+
+const ACTION_BUTTON_STYLE: CSSProperties = {
+  width: 104,
+  height: 36,
+  justifyContent: 'center',
+  whiteSpace: 'nowrap',
+};
 
 export function WikiPageEditor({ page }: { page: WikiPage }) {
   return <WikiPageEditorContent key={`${page.id}:${page.updatedAt}`} page={page} />;
@@ -97,9 +104,6 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
             >
               {page.type} / {page.slug}
             </div>
-            <Button variant="secondary" onClick={onRenameSlug} disabled={renamingSlug} style={{ padding: '2px 8px', fontSize: 11, flex: '0 0 auto' }}>
-              {renamingSlug ? '重命名中...' : '重命名 slug'}
-            </Button>
           </div>
           {fullscreen ? (
             <Button variant="secondary" onClick={() => setFullscreen(false)}>✕ 收起 (Esc)</Button>
@@ -164,8 +168,17 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
         borderTop: '1px solid var(--border, #e0e0e0)',
         background: 'var(--bg-secondary, #fafafa)',
       }}>
-        <Button variant="secondary" onClick={onDelete}>🗑 刪除</Button>
-        <Button variant="primary" onClick={onSave} disabled={!dirty}>💾 儲存</Button>
+        <Button
+          variant="secondary"
+          onClick={onRenameSlug}
+          disabled={renamingSlug}
+          title="重新命名 slug，並同步更新所有 Wiki 內部引用"
+          style={ACTION_BUTTON_STYLE}
+        >
+          ✏️ {renamingSlug ? '改名中' : '改 slug'}
+        </Button>
+        <Button variant="secondary" onClick={onDelete} style={ACTION_BUTTON_STYLE}>🗑 刪除</Button>
+        <Button variant="primary" onClick={onSave} disabled={!dirty} style={ACTION_BUTTON_STYLE}>💾 儲存</Button>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useWikiStore } from '../../stores/wikiStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useLintStore } from '../../stores/lintStore';
@@ -23,6 +23,14 @@ const TYPE_LABELS: Record<WikiPageType, string> = {
   summary: '摘要',
   compare: '對比',
   synthesis: '綜述',
+};
+
+const WIKI_TOOL_BUTTON_STYLE: CSSProperties = {
+  height: 44,
+  minWidth: 64,
+  padding: '0 10px',
+  justifyContent: 'center',
+  whiteSpace: 'nowrap',
 };
 
 export function WikiPanel() {
@@ -87,38 +95,48 @@ export function WikiPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: 12, borderBottom: '1px solid var(--border, #ccc)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
           <strong>📚 Wiki</strong>
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setQueryOpen(true)}
               disabled={!project || pages.length === 0}
               title="用目前 Wiki 內容回答問題"
-            >問 Wiki</Button>
+              style={WIKI_TOOL_BUTTON_STYLE}
+            >💬 提問</Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setSummaryQualityOpen(true)}
               disabled={!project}
               title="檢查 summary/ch-N 品質並重建 Wiki 摘要"
-            >摘要品質</Button>
+              style={WIKI_TOOL_BUTTON_STYLE}
+            >📋 品質</Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setGraphOpen(true)}
               disabled={!project}
               title="查詢角色與 Wiki 的 2-hop Graph 關聯"
-            >◎ Graph</Button>
+              style={WIKI_TOOL_BUTTON_STYLE}
+            >◎ 關係</Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => { setLintOpen(true); if (project) runLint(project.id); }}
               disabled={lintRunning || !project}
               title="跑一致性 Lint：broken link、孤頁、別名重複、未登錄角色、wiki 內部矛盾、wiki vs 章節"
-            >🔍 執行 Lint</Button>
-            <Button variant="primary" size="sm" onClick={() => setShowNew(true)}>+ 新增頁面</Button>
+              style={WIKI_TOOL_BUTTON_STYLE}
+            >🔍 Lint</Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowNew(true)}
+              title="新增 Wiki 頁面"
+              style={WIKI_TOOL_BUTTON_STYLE}
+            >＋ 新增</Button>
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-tertiary, #888)' }}>
@@ -142,7 +160,7 @@ export function WikiPanel() {
               style={{ width: '100%' }}
             />
             <Button variant="secondary" size="sm" onClick={jumpToChapter} disabled={!chapterJump.trim()}>
-              跳
+              ↩ 跳
             </Button>
           </div>
         )}
@@ -150,7 +168,7 @@ export function WikiPanel() {
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* 左欄：分組列表 */}
-        <div style={{ width: 220, borderRight: '1px solid var(--border, #ccc)', overflowY: 'auto' }}>
+        <div style={{ flex: '0 0 50%', minWidth: 0, borderRight: '1px solid var(--border, #ccc)', overflowY: 'auto' }}>
           {(Object.keys(grouped) as WikiPageType[]).map((type) => {
             const arr = grouped[type];
             if (arr.length === 0) return null;
@@ -206,7 +224,7 @@ export function WikiPanel() {
         </div>
 
         {/* 右欄：選中頁的編輯區 */}
-        <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+        <div style={{ flex: '0 0 50%', position: 'relative', minWidth: 0 }}>
           {selected ? (
             <WikiPageEditor page={selected} />
           ) : (
@@ -290,6 +308,7 @@ function WikiListItem({ page, selected, onSelect }: {
   return (
     <div
       onClick={onSelect}
+      title={`${title}\n${page.slug}`}
       style={{
         padding: '6px 12px 6px 9px',
         cursor: 'pointer',
@@ -307,7 +326,14 @@ function WikiListItem({ page, selected, onSelect }: {
       }}>
         {title}
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-tertiary, #888)', fontWeight: 400 }}>{page.slug}</div>
+      <div style={{
+        fontSize: 11,
+        color: 'var(--text-tertiary, #888)',
+        fontWeight: 400,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}>{page.slug}</div>
     </div>
   );
 }
@@ -367,13 +393,13 @@ function NewPageInline(props: {
           />
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <Button variant="secondary" onClick={props.onClose}>取消</Button>
+          <Button variant="secondary" onClick={props.onClose}>✕ 取消</Button>
           <Button
             variant="primary"
             onClick={() => props.onCreate(type, slug.trim(), title.trim())}
             disabled={!valid}
           >
-            建立
+            ＋ 建立
           </Button>
         </div>
       </div>

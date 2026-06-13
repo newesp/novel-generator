@@ -11,11 +11,11 @@ import { useProjectStore } from './stores/projectStore';
 
 import type { TabName } from './types';
 
-const TABS: { key: TabName; label: string; disabled?: boolean }[] = [
-  { key: 'outline', label: '大綱' },
-  { key: 'characters', label: '角色' },
-  { key: 'chapters', label: '章節' },
-  { key: 'wiki', label: '📚 Wiki' },
+const TABS: { key: TabName; label: string; title: string; disabled?: boolean }[] = [
+  { key: 'outline', label: '🧭 大綱', title: '大綱' },
+  { key: 'characters', label: '👥 角色', title: '角色' },
+  { key: 'chapters', label: '📄 章節', title: '章節' },
+  { key: 'wiki', label: '📚 Wiki', title: 'Wiki' },
 ];
 
 export default function App() {
@@ -38,6 +38,7 @@ export default function App() {
                     key={t.key}
                     className={`tab${activeTab === t.key ? ' active' : ''}${t.disabled ? ' disabled' : ''}`}
                     onClick={() => !t.disabled && setActiveTab(t.key)}
+                    title={t.title}
                   >
                     {t.label}
                   </div>
