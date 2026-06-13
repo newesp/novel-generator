@@ -913,6 +913,57 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     }
   };
 
+  const uploadPanelImage = async (panel: ComicPanel, files: FileList | null) => {
+    const file = files?.[0];
+    if (!file || !comic) return;
+    if (!file.type.startsWith('image/')) {
+      setMessage('請上傳圖片檔。');
+      return;
+    }
+    setBusy(true);
+    try {
+      const now = new Date().getTime();
+      const asset: MediaAsset = {
+        id: uuid(),
+        projectId: project.id,
+        chapterId: chapter.id,
+        kind: 'comic_panel_image',
+        url: await readFileAsDataUrl(file),
+        mimeType: file.type || 'image/*',
+        sizeBytes: file.size,
+        providerId: 'uploaded',
+        generationParamsJson: JSON.stringify({ source: 'manual_upload', fileName: file.name }),
+        createdAt: now,
+      };
+      await storage.mediaAssets.add(asset);
+      const variant = buildReadyImageVariant({
+        id: uuid(),
+        projectId: project.id,
+        chapterId: chapter.id,
+        panel,
+        asset,
+        referenceAssetIds: [],
+        referenceImageLabels: ['manual upload'],
+        createdAt: now,
+      });
+      await storage.comicPanelImageVariants.add(variant);
+      await updatePanel(panel, { assetId: asset.id, status: 'ready' });
+      setPanelAssets((current) => ({ ...current, [panel.id]: asset }));
+      setPanelVariants((current) => ({
+        ...current,
+        [panel.id]: [...(current[panel.id] ?? []), variant],
+      }));
+      setVariantAssets((current) => ({ ...current, [asset.id]: asset }));
+      setPanelVariantNotice((current) => ({ ...current, [panel.id]: '' }));
+      setReferenceLibraryRevision((current) => current + 1);
+      setMessage(`已上傳圖片並加入 #${panel.order} 歷史圖。`);
+    } catch (error) {
+      setMessage(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <Modal
       open={open}
@@ -1108,9 +1159,23 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                       <dt>場景</dt><dd>{activeScene(selectedPanel)?.title ?? '無場景'}</dd>
                       <dt>Asset</dt><dd>{selectedPanel.assetId ?? '尚未建立'}</dd>
                     </dl>
-                    <Button variant="secondary" onClick={() => regeneratePanelImage(selectedPanel)} disabled={busy || !provider || !comic}>
-                      重生此格
-                    </Button>
+                    <div className="comic-panel-image-actions">
+                      <Button variant="secondary" onClick={() => regeneratePanelImage(selectedPanel)} disabled={busy || !provider || !comic}>
+                        重生此格
+                      </Button>
+                      <label className={`comic-upload-button ${busy || !comic ? 'disabled' : ''}`}>
+                        上傳圖片
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={busy || !comic}
+                          onChange={(event) => {
+                            void uploadPanelImage(selectedPanel, event.currentTarget.files);
+                            event.currentTarget.value = '';
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </section>
 

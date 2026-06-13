@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-06-13 - Comic panel image upload
+
+- Added an `上傳圖片` action next to `重生此格` in the comic panel editor.
+- Uploaded panel images are saved as comic panel media assets, selected as the current panel image, and added to the panel history variants.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-13 - Comic panel title and drag affordance
 
 - Moved the selected comic panel title editor into the panel header so inserted panels such as `#9 新增分鏡` can be renamed directly.
