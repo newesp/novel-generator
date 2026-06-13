@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-13 - Wiki operation log popup
+
+- Removed the redundant Wiki label from the Wiki panel toolbar so actions fit on one row.
+- Added a `📜 紀錄` toolbar button that opens operation history in a popup.
+- Removed the always-visible operation history footer from the Wiki panel.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-13 - Wiki toolbar and editor layout polish
 
 - Updated Wiki navigation/actions to use fixed-size icon-plus-text buttons with tooltip labels.

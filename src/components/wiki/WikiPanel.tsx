@@ -4,6 +4,7 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useLintStore } from '../../stores/lintStore';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
+import { Modal } from '../common/Modal';
 import { WikiPageEditor } from './WikiPageEditor';
 import { LintReportModal } from '../lint/LintReportModal';
 import { KnowledgeGraphModal } from './KnowledgeGraphModal';
@@ -44,6 +45,7 @@ export function WikiPanel() {
   const [graphOpen, setGraphOpen] = useState(false);
   const [summaryQualityOpen, setSummaryQualityOpen] = useState(false);
   const [queryOpen, setQueryOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
 
   useEffect(() => {
     if (!project) return;
@@ -95,9 +97,8 @@ export function WikiPanel() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ padding: 12, borderBottom: '1px solid var(--border, #ccc)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <strong>📚 Wiki</strong>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 8, overflowX: 'auto' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
             <Button
               variant="secondary"
               size="sm"
@@ -130,6 +131,13 @@ export function WikiPanel() {
               title="跑一致性 Lint：broken link、孤頁、別名重複、未登錄角色、wiki 內部矛盾、wiki vs 章節"
               style={WIKI_TOOL_BUTTON_STYLE}
             >🔍 Lint</Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setLogOpen(true)}
+              title="顯示操作記錄"
+              style={WIKI_TOOL_BUTTON_STYLE}
+            >📜 紀錄</Button>
             <Button
               variant="primary"
               size="sm"
@@ -233,35 +241,6 @@ export function WikiPanel() {
         </div>
       </div>
 
-      {/* 底部：操作記錄 */}
-      <div style={{
-        borderTop: '1px solid var(--border, #ccc)',
-        maxHeight: 180,
-        overflowY: 'auto',
-        padding: 8,
-        fontSize: 11,
-        fontFamily: 'var(--font-mono, monospace)',
-      }}>
-        <div style={{ color: 'var(--text-tertiary, #888)', marginBottom: 4 }}>操作記錄（最近 50 條）</div>
-        {log.length === 0 ? (
-          <div style={{ color: 'var(--text-tertiary, #888)' }}>—</div>
-        ) : (
-          log.map((e) => (
-            <div
-              key={e.id}
-              style={{
-                opacity: e.opStatus === 'undone' ? 0.4 : 1,
-                color: e.opStatus === 'failed' ? 'var(--accent-danger, crimson)' : 'inherit',
-              }}
-            >
-              {new Date(e.appliedAt).toLocaleString()} {e.kind} {e.pageType}/{e.pageSlug}
-              {e.opStatus !== 'ok' ? ` [${e.opStatus}]` : ''}
-              {e.errorMessage ? ` — ${e.errorMessage.slice(0, 60)}` : ''}
-            </div>
-          ))
-        )}
-      </div>
-
       {showNew && (
         <NewPageInline
           onClose={() => setShowNew(false)}
@@ -295,6 +274,41 @@ export function WikiPanel() {
         onClose={() => setQueryOpen(false)}
         pages={pages}
       />
+      <Modal open={logOpen} onClose={() => setLogOpen(false)} title="操作記錄" width={680}>
+        <WikiOperationLog log={log} />
+      </Modal>
+    </div>
+  );
+}
+
+function WikiOperationLog({ log }: { log: ReturnType<typeof useWikiStore.getState>['log'] }) {
+  return (
+    <div style={{
+      maxHeight: 420,
+      overflowY: 'auto',
+      fontSize: 12,
+      fontFamily: 'var(--font-mono, monospace)',
+      lineHeight: 1.6,
+    }}>
+      {log.length === 0 ? (
+        <div style={{ color: 'var(--text-tertiary, #888)', textAlign: 'center', padding: 24 }}>尚無操作記錄</div>
+      ) : (
+        log.map((e) => (
+          <div
+            key={e.id}
+            style={{
+              padding: '6px 0',
+              borderBottom: '1px solid var(--border, #333)',
+              opacity: e.opStatus === 'undone' ? 0.4 : 1,
+              color: e.opStatus === 'failed' ? 'var(--accent-danger, crimson)' : 'inherit',
+            }}
+          >
+            {new Date(e.appliedAt).toLocaleString()} {e.kind} {e.pageType}/{e.pageSlug}
+            {e.opStatus !== 'ok' ? ` [${e.opStatus}]` : ''}
+            {e.errorMessage ? ` — ${e.errorMessage.slice(0, 120)}` : ''}
+          </div>
+        ))
+      )}
     </div>
   );
 }
