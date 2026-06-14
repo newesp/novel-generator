@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-14 - Comic TTS video MVP design
+
+- Added the design spec for the Phase 6 comic narration video MVP: `docs/superpowers/specs/2026-06-14-comic-tts-video-design.md`.
+- Scoped the first implementation to one chapter, pure narration, one Edge-TTS voice, per-panel TTS audio, ffmpeg panel segments, and concat-list mp4 export.
+- Defined timing rules: `durationSec` can extend a panel but never truncates TTS; each panel duration is `max(audioDurationMs, durationSec * 1000) + panelPauseMs`.
+
+**Verification**
+- Documentation-only change; skipped `tsc -b`.
+- Cross-checked against `package.json`, `src/types/index.ts`, `src/lib/storage/types.ts`, `src/lib/comic/storyboard*.ts`, and current Tauri config.
+
 ## 2026-06-14 - Documentation refresh against code
 
 - Updated README, module docs, specs, AI loading guides, and storyboard skill schema against current `package.json`, `src/types`, storage adapters, and Phase 6 comic implementation.
