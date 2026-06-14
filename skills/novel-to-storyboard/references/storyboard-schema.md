@@ -43,14 +43,10 @@ export interface ContinuityProp {
 }
 
 export interface StoryboardPanel {
-  panelId: string
-  order: number
-  sourceExcerpt: string
+  panelNumber: number
   beat: string
-  sceneSummary: string
-  location: string
-  timeOfDay?: string
   characters: string[]
+  setting: string
   shotType:
     | 'establishing'
     | 'wide'
@@ -64,10 +60,23 @@ export interface StoryboardPanel {
   emotion: string
   visualPrompt: string
   negativePrompt?: string
-  dialogue: string[]
+  extraGroups: StoryboardExtraGroup[]
+  dialogue: StoryboardDialogueLine[]
   narration: string
   durationSec: number
-  continuityNotes: string[]
+}
+
+export interface StoryboardExtraGroup {
+  label: string
+  count?: number
+  role: 'crowd' | 'guards' | 'civilians' | 'creatures' | 'vehicles' | 'background'
+  prompt: string
+  visualPriority: 'low' | 'medium'
+}
+
+export interface StoryboardDialogueLine {
+  character: string
+  text: string
 }
 
 export interface StoryboardQualityChecks {
@@ -93,24 +102,20 @@ Minimal valid JSON shape:
   },
   "panels": [
     {
-      "panelId": "p01",
-      "order": 1,
-      "sourceExcerpt": "",
+      "panelNumber": 1,
       "beat": "",
-      "sceneSummary": "",
-      "location": "",
-      "timeOfDay": "",
       "characters": [],
+      "setting": "",
       "shotType": "medium",
       "cameraAngle": "",
       "action": "",
       "emotion": "",
       "visualPrompt": "",
       "negativePrompt": "",
+      "extraGroups": [],
       "dialogue": [],
       "narration": "",
-      "durationSec": 5,
-      "continuityNotes": []
+      "durationSec": 5
     }
   ],
   "qualityChecks": {

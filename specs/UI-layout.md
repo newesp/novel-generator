@@ -75,7 +75,7 @@
 「⚙️ 偏好設定」開啟 Modal，採分頁式設定：
 
 1. **🔑 LLM API**：provider、顯示名稱、API 端點（Base URL）、API Key、模型名稱。切換 provider 時會套用該 provider 的預設顯示名稱 / Base URL / 模型，API Key 目前保留單一 active 設定。
-2. **🖼 圖片生成**：圖片 provider、尺寸、風格、panel count，以及 ComfyUI / OpenAI-compatible image provider 的 endpoint、model、API key 等設定。
+2. **🖼 圖片生成**：圖片 provider、尺寸、風格、panel count，以及 ComfyUI / OpenAI-compatible image / DeepInfra FLUX / Google Gemini Image 的 endpoint、model、API key 等設定。
 3. **✨ 選取調整**：預設上下文範圍（window / full）、前後字數（window 模式下可編輯）。
 4. **📜 AI 提示詞**：章節生成、Wiki ingest、Lint 等 prompt 模板。
 5. **📚 Wiki 設定**：context budget、pick-pages、Lint checks 與 LLM 上限。

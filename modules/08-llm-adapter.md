@@ -6,12 +6,12 @@
 
 | 提供商       | 模型範例                             | Phase | 狀態 |
 | --------- | -------------------------------- | ----- | ---- |
-| 自定義 API   | NVIDIA、任意 OpenAI-compatible API   | 1     | ✅ 已實作 |
+| 自定義 API   | OpenAI-compatible chat completions endpoint | 1     | ✅ 已實作 |
 | Google    | Gemini 1.5 Pro, Gemini 2.0 Flash 等 | 2     | ✅ 已實作 |
 | Grok (xAI) | grok-2-latest, grok-2-1212, grok-beta | 2     | ✅ 已實作 |
-| Anthropic | Claude 3.5 Sonnet, Claude 3 Opus | 2     | 待實作 |
-| OpenAI    | GPT-4o, GPT-4o-mini, GPT-4 Turbo | 2     | 待實作 |
-| Ollama    | llama3.3, qwen2.5, mistral 等本機模型 | 2     | 待實作 |
+| OpenAI    | GPT-4o, GPT-4o-mini 等 | 2     | 透過自定義 OpenAI-compatible endpoint 使用 |
+| Anthropic | Claude 系列 | 2     | 待實作 |
+| Ollama    | llama / qwen / mistral 等本機模型 | 2     | 待實作；若提供 OpenAI-compatible endpoint 可先走自定義 API |
 
 ---
 

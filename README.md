@@ -1,12 +1,13 @@
 # 小說產生器（Novel Generator）
 
-> 版本：1.6（Phase 2.5 MVP Complete / Advanced polish remaining）　更新：2026-05-28
+> 版本：1.7（Phase 6 comic image foundation implemented）　更新：2026-06-14
 
-本機瀏覽器 Web App，自動生成高品質中文小說，從大綱到正文完整流程；透過 **LLM Wiki + SQLite FTS5 全文檢索** 維持一致性。Multi-Agent 協作（Phase 4）為選配。
+本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文、版本、LLM Wiki、全文檢索、知識圖與漫畫圖片生成。
 
 - 目標語言：中文小說（優先）
-- 使用方式：本機瀏覽器執行
-- 輸出格式：`.txt` / `.html` / `.epub`
+- 使用方式：本機瀏覽器或 Windows 桌面版
+- 目前資料層：瀏覽器版 IndexedDB（Dexie）；桌面版 SQLite（`tauri-plugin-sql`）
+- 輸出格式：`.txt` / `.html` / `.epub` 仍屬 Phase 3 未實作
 
 ---
 
@@ -19,7 +20,7 @@ npm install
 npm run dev
 ```
 
-瀏覽器開 `http://localhost:5173`；首次使用點「⚙️ 偏好設定」填 LLM provider 與 API Key（支援 OpenAI-compatible、Google Gemini、Grok）。
+瀏覽器開 `http://localhost:5173`；首次使用點「偏好設定」填 LLM provider 與 API Key（支援 OpenAI-compatible、Google Gemini、Grok）。
 
 ### 桌面版（Windows，Phase 5b）
 
@@ -42,10 +43,10 @@ npm run tauri build
 
 ## 系統分層
 
-1. **UI 層** — 本機 Web App（React 19 + 自製元件）
-2. **業務邏輯層** — 大綱／角色／章節／潤色 + LLM Wiki + FTS5 全文檢索 + Context Budget Manager + Graph 關係層（Phase 2.5 MVP complete）+ Multi-Agent（Phase 4，選做）
-3. **LLM 適配層** — OpenAI / Anthropic / Google / Grok / Ollama + 自定義 API
-4. **儲存層** — IndexedDB（Dexie，瀏覽器版）/ SQLite + FTS5（桌面版，Tauri）/ File System API
+1. **UI 層** — React 19 + TypeScript strict + Vite 8 + 自製 CSS variables 元件。
+2. **業務邏輯層** — 大綱、角色、章節、版本、LLM Wiki、Context Budget、Lint、Graph、漫畫圖片。
+3. **LLM 適配層** — 自定義 OpenAI-compatible、Google Gemini、Grok（文字）；ComfyUI、OpenAI-compatible image、DeepInfra FLUX、Google Gemini Image（圖片）。
+4. **儲存層** — `StorageAdapter` 統一介面；瀏覽器版走 Dexie / IndexedDB，桌面版走 Tauri SQLite + FTS5。
 
 ---
 
@@ -57,13 +58,13 @@ npm run tauri build
 | [01-outline.md](modules/01-outline.md) | 大綱生成系統 | 1 | 00, 02, 07, 08 |
 | [02-characters.md](modules/02-characters.md) | 角色系統 | 2 | 00, 04 |
 | [03-chapters.md](modules/03-chapters.md) | 章節管理器 | 1 | 00, 04, 05, 07 |
-| [04-knowledge.md](modules/04-knowledge.md) | 知識管理（Wiki ✅ + FTS5 ✅ + Lint ✅ + Graph / 問 Wiki ✅） | 2 / 2.5 | 00, 07 |
+| [04-knowledge.md](modules/04-knowledge.md) | 知識管理（Wiki、FTS5、Lint、Graph、問 Wiki） | 2 / 2.5 | 00, 07 |
 | [05-versions.md](modules/05-versions.md) | 章節版本管理 | 1 | 00 |
-| [06-polish.md](modules/06-polish.md) | 內容潤色器 | 3 | 00, 08 |
+| [06-polish.md](modules/06-polish.md) | 內容潤色器（未實作） | 3 | 00, 08 |
 | [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager（Wiki 摘要 + pick-pages + 摘要品質 ✅） | 1 / 2.5 | 04 |
 | [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM 適配層 | 1 / 2 | tech-stack |
-| [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎 | 4（選做） | 04, 07 |
-| [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（Phase 6 漫畫圖片 MVP 設計完成） | 6 / 4（選做） | 00, tech-stack |
+| [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎（未實作） | 4（選做） | 04, 07 |
+| [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（漫畫圖片 foundation 已實作） | 6 / 4（選做） | 00, tech-stack |
 
 ---
 
@@ -78,3 +79,10 @@ npm run tauri build
 | [output-formats.md](specs/output-formats.md) | 輸出格式規格 |
 | [deployment.md](specs/deployment.md) | 部署方式 |
 
+---
+
+## 文件維護原則
+
+- `package.json` 是套件版本權威來源。
+- `src/types/index.ts` 與 `src/lib/storage/types.ts` 是資料模型與儲存介面權威來源。
+- `docs/superpowers/specs/` 與 `docs/superpowers/plans/` 是歷史設計/實作紀錄，不回填成最新狀態；最新狀態以本 README、`modules/`、`specs/`、`docs/CHANGELOG.md` 與程式碼為準。

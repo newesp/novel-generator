@@ -2,18 +2,19 @@
 
 ---
 
-## 本機 Web App（Phase 1–4 主要部署方式）
+## 本機 Web App
 
-- 直接用瀏覽器開啟 `index.html`，或執行 `npx serve` 後於瀏覽器訪問
+- 開發：`npm install` 後執行 `npm run dev`，固定使用 `http://localhost:5173`（`strictPort: true`）
+- 預覽 production build：`npm run build` 後執行 `npm run preview`
 - 所有資料存於本機 IndexedDB（Dexie），可選連結資料夾做 File System Access 備份
-- Ollama 在本機運行，無 CORS 限制
-- 離線完全可用（LLM 使用 Ollama 本機模型時）
+- LLM 文字生成在瀏覽器開發環境走 Vite `/llm-proxy` 避開 CORS；Tauri 桌面版直接 fetch 目標 API
+- 若使用外部 LLM / image provider，生成能力仍取決於 API 可用性
 
 ### 已知限制
 
 - **無痕模式關閉後資料會被清光**（IndexedDB 被瀏覽器清空）— 這是瀏覽器規範，非 bug
 - 大量 binary（圖片/影片）受瀏覽器配額限制（通常數 GB）
-- 影片合成只能用 ffmpeg.wasm，效能受限
+- 影片合成若留在 Web 版只能用 ffmpeg.wasm 或後端服務，效能受限
 - → 上述限制由 Phase 5 桌面化解決
 
 ---
@@ -24,8 +25,8 @@
 - 資料層改用 **SQLite（native via `tauri-plugin-sql`）**，無瀏覽器配額限制、無無痕模式問題
   - DB 路徑：`%AppData%\com.novelgenerator.app\novel-generator.db`
   - `PRAGMA journal_mode=WAL` + `synchronous=NORMAL`（效能調校，規避 Windows Defender fsync 拖慢）
-- 媒體檔案存本機檔案系統：`<project_folder>/media/...`（Phase 6 實作）
-- 影片合成走 native **ffmpeg sidecar**（Phase 6 實作）
+- 漫畫圖片 metadata 走 SQLite；大型 binary 長期目標是本機檔案系統
+- 影片合成走 native **ffmpeg sidecar**（尚未實作）
 - Windows MSI：`npm run tauri build` → `Novel Generator_0.1.0_x64_en-US.msi`（4.25 MB）
 - macOS / Linux 打包：之後補
 

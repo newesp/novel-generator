@@ -31,7 +31,8 @@ await dbDebug.wipeAllExceptBook('小圓舞進行曲')
 **4. 直接操作 db（進階）**
 
 ```
-dbDebug.db.projects.toArray().then(console.table)dbDebug.db.characters.toArray().then(console.table)
+dbDebug.db.projects.toArray().then(console.table)
+dbDebug.db.characters.toArray().then(console.table)
 ```
 
 ---

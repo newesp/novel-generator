@@ -39,11 +39,11 @@
 - 獨立的 Wiki 面板，可查看/編輯已存儲的知識
 - 生成新章節時，自動載入 Wiki 中的相關內容到上下文
 
-**未存入 Wiki 提醒機制：**
-- 章節列表中，未存入的章節顯示橘色警示標記 `⚠️ 未存入 Wiki`
-- 頂部通知列提示：`您有 N 個章節尚未存入 Wiki，建議存入以確保生成一致性。[前往檢視]`
-- 點擊「導出」或「生成新章節」前，若有未存入章節，彈出確認提示
-- 存入狀態欄位：`wikiSyncedAt: timestamp | null`（存於 IndexedDB 章節資料）
+**存入狀態：**
+- 章節資料包含 `wikiSyncedAt`、`wikiSyncedHash`、`wikiSyncStatus`。
+- `wikiSyncStatus` 可為 `unsynced`、`synced`、`stale`、`partial`、`partial_stale`。
+- 章節內容變更時會透過 `recomputeChapterSyncStatus()` 重新判斷是否 stale。
+- Ingest 失敗可保留 partial 狀態，並可檢視 diff / undo / retry remaining。
 
 ---
 
@@ -81,8 +81,9 @@
 ```
 
 **核心功能：**
-- 人物關係網視覺化 MVP 已在角色分頁完成：從 `Character.relations` 推導角色連線，以 SVG circular layout 顯示；完整 Graph JSON 來源待本節後續實作
-- 基本多跳查詢（✅ `knowledge-graph.ts`：characters + wiki pages → serializable graph；Wiki 分頁 `◎ Graph` 可查 2-hop neighborhood）
+- 人物關係網視覺化 MVP 已在角色分頁完成：從 `Character.relations` 推導角色連線，以 SVG circular layout 顯示。
+- 基本多跳查詢（✅ `knowledge-graph.ts`：characters + wiki pages → serializable graph；Wiki 分頁 Graph modal 可查 2-hop neighborhood）。
+- 事件順序、因果線索與時間線參照目前由 summary 章序與 Wiki related refs 建立 MVP 邊，進階事件抽取仍屬 polish。
 - 提供 Critic Agent（Phase 4）結構化審核依據
 
 ---
@@ -128,7 +129,7 @@ Wiki 寫入不只依賴 LLM 自覺，核心結構改由 deterministic guard 保�
     ↓
 AI 提取章節關鍵資訊 + deterministic integrity guards
     ↓
-整理進 Wiki + 同步 FTS5 索引 + 更新 Graph JSON + 修正 related refs / 必建角色 entity
+整理進 Wiki + 同步 FTS5 索引 + 即時計算 Graph + 修正 related refs / 必建角色 entity
     ↓
 進行 Lint：找出矛盾、缺少交叉引用（Phase 2.5 ✅）
     ↓

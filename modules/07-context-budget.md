@@ -34,9 +34,9 @@
 
 ## 動態調整機制
 
-- 系統根據所選模型的 context window 大小自動調整各區塊上限
-- 若 Wiki 條目總量超出預算，優先保留與本章角色/地點相關的條目
-- 用戶可在生成設置面板手動調整「參考深度」（淺層/標準/深度）
+- 目前 `src/lib/tokens.ts` 提供粗估 token 計算，`wikiPrefs.budgetRatio` 控制 Wiki 區塊比例。
+- 若 Wiki 條目總量超出預算，優先保留與本章角色、標題、節拍、要點相關的條目。
+- 參考章節全文仍是最高優先來源；大型 Wiki 以 deterministic pick-pages 降級。
 
 ---
 
@@ -70,7 +70,7 @@
 | `beat` | 故事節拍 |
 | `chapterPoints` | 章節要點 |
 | `referenceChapterTitle` | 參考章節標題 |
-| `referenceChapterContent` | 參考章節正文（`referenceDepth` 控制截斷）|
+| `referenceChapterContent` | 參考章節正文 |
 | `olderChapterSummary` | 更早章節摘要（由 Wiki `summary/ch-N` 產生；無可用摘要時傳空字串）|
 
 ### formatCharacters()
@@ -119,7 +119,7 @@
 
 ## Phase 2 — wikiSection 整合（已實作 2026-05-18）
 
-`BudgetInputs` 新增 `wikiSection: string` 欄位。`buildGenerationPrompt()` 將其注入 `DEFAULT_CHAPTER_CONTENT_TEMPLATE` 的 `{{wikiSection}}`。
+`BudgetInputs` 新增 `wikiSection: string` 欄位。`buildGenerationPrompt()` 將其注入 `DEFAULT_CHAPTER_CONTENT_TEMPLATE` 的 `{{wikiSection}}`；較新的模板也包含 `{{olderSummarySection}}`。
 
 實作：`src/lib/wiki-loader.ts`（cheap relevance filter + 優先級 + 預算截斷）→ `src/lib/wiki-section.ts`（格式化）。
 

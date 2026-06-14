@@ -12,7 +12,7 @@
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| id | string | 版本唯一識別碼（nanoid） |
+| id | string | 版本唯一識別碼（UUID） |
 | chapterId | string | 所屬章節 ID |
 | createdAt | number | 生成時間戳（ms） |
 | content | string | 正文內容 |

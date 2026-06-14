@@ -48,7 +48,7 @@ If a field is missing, infer conservatively and note uncertainty in `qualityChec
 - Do not invent named characters unless the source clearly implies them.
 - Use stable placeholders for unnamed people, such as `unnamed_guard_01`.
 - Track outfits, injuries, props, weather, location, and time of day.
-- Mark important persistent details in `continuityNotes`.
+- Mark important persistent details in `visualContinuityBible`; panel-level continuity should be reflected through `visualPrompt`, `setting`, `characters`, and `extraGroups`.
 
 ## Output Requirements
 

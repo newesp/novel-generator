@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-14 - Documentation refresh against code
+
+- Updated README, module docs, specs, AI loading guides, and storyboard skill schema against current `package.json`, `src/types`, storage adapters, and Phase 6 comic implementation.
+- Clarified that pure Markdown-only changes do not require `tsc -b`; code changes still use the existing focused TypeScript verification rule.
+- Marked historical superpowers specs/plans as records rather than current-state docs, and corrected stale storage, backup, deployment, LLM provider, Graph, and comic image provider descriptions.
+
+**Verification**
+- Documentation-only change; skipped `tsc -b`.
+- Ran Markdown/code consistency spot checks with `rg`.
+- `git diff --check` passed with only existing line-ending normalization warnings.
+
 ## 2026-06-13 - Wiki toolbar fit fix
 
 - Changed the Wiki toolbar from right-aligned flex buttons to a fixed six-column grid so every action remains visible on one row.

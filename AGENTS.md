@@ -35,4 +35,4 @@
 - 非硬性規定，但建議使用順序：CLI > API > MCP。
 - 僅讀 main 分支。
 - 技術棧現況（權威來源是 `package.json`）：React 19 / TypeScript strict / Vite 8 / Zustand 5 / Dexie 4 / Tauri 2.x（桌面殼層） / tauri-plugin-sql（SQLite） / 自製 UI 元件（無 shadcn、無 Tailwind，使用 CSS variables）。
-- **驗證範圍**：只跑 tsc -b。完整 vitest run、browser 驗證留到階段完成，使用者進行要求時。驗證通過就 commit，和更新`docs/CHANGELOG.md`。
+- **驗證範圍**：程式碼變更只跑 `tsc -b`。完整 `vitest run`、browser 驗證留到階段完成，或使用者要求時。純 Markdown 文件整理不需要跑 `tsc -b`，但需以 `package.json`、`src/types/`、`src/lib/storage/` 與相關實作檔交叉檢查。驗證通過就 commit，並更新 `docs/CHANGELOG.md`。

@@ -23,7 +23,7 @@
 	- **主角的成長弧線必須對應主線劇情各階段**（開頭→中段→高潮→結局）
 	- maxTokens = 6144（角色卡欄位多，需較大 token 預算）
 - 角色卡片管理
-- 關係圖視覺化 MVP（✅ 2026-05-28）：角色分頁可切換「列表 / 關係圖」，目前以 `Character.relations` 文字中提到的其他角色名字推導連線；完整 Graph JSON 資料來源留 Phase 2.5。
+- 關係圖視覺化 MVP（✅ 2026-05-28）：角色分頁可切換「列表 / 關係圖」，目前以 `Character.relations` 文字中提到的其他角色名字推導連線；Wiki 面板另有 `knowledge-graph.ts` 建立 characters + wiki pages 的 2-hop 查詢圖。
 
 ---
 ## 角色欄位

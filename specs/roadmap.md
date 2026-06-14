@@ -19,7 +19,7 @@
 
 1. ✅ LLM Wiki 完整功能（2026-05-18）→ `docs/superpowers/specs/2026-05-17-llm-wiki-design.md`
 2. ✅ 全文檢索（SQLite FTS5 + trigram tokenizer，2026-05-28）→ `docs/superpowers/specs/2026-05-26-fts5-search-design.md`
-3. ✅ 角色關係圖視覺化 MVP（2026-05-28，從 Character.relations 推導）→ 02-characters（完整 Graph JSON 留 Phase 2.5）
+3. ✅ 角色關係圖視覺化 MVP（2026-05-28，從 Character.relations 推導）→ 02-characters；Wiki 面板另有 characters + wiki pages 的 Graph 查詢
 4. ✅ 多 LLM provider 支援（Google Gemini / Grok / 自定義 OpenAI-compatible）→ 08-llm-adapter
 
 ---
@@ -58,10 +58,10 @@
 
 ---
 
-## Phase 4 — 選做功能（❌ 未開始）
+## Phase 4 — 選做功能（❌ 未開始；部分多媒體能力已提前併入 Phase 6）
 
 1. ❌ Multi-Agent 協作引擎（Planner / Writer / Critic / Editor）→ 09-multi-agent
-2. ❌ 多媒體生成（封面圖、語音朗讀、漫畫分鏡）→ 10-multimedia
+2. ❌ 封面圖、語音朗讀、影片合成 → 10-multimedia
 
 ---
 
@@ -81,7 +81,7 @@
 ```
 React UI（不動）
       ↓ 只依賴抽象介面
-StorageAdapter / MediaAdapter (interface)
+StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
       ↓
 ┌─ TauriSqliteAdapter（桌面）─┐    ┌─ WebAdapter（瀏覽器備援）─┐
 │ - SQLite (native)           │    │ - wa-sqlite + OPFS         │
@@ -98,18 +98,18 @@ StorageAdapter / MediaAdapter (interface)
 2. ✅ **加 Tauri shell** — `src-tauri/`，React + Vite UI 不動
 3. ✅ **`TauriSqliteAdapter`** — `src/lib/storage/tauri-sqlite-adapter.ts`；DB 位於 `%AppData%\com.novelgenerator.app\novel-generator.db`
 4. ⚠️ **資料遷移**：採手動方案（瀏覽器版匯出 JSON → 桌面版匯入），未做自動偵測 IndexedDB；跨平台 round-trip 已驗證 bit-perfect
-5. ✅ **媒體儲存規則**：`media_assets` 表已建為 Phase 6 佔位；binary 存本機檔案系統原則已訂（Phase 6 實作）
+5. ✅ **媒體儲存規則**：`media_assets`、`scene_visuals`、`comic_panel_image_variants` 等 metadata 表已建；大型 binary 移往本機檔案系統仍屬後續 polish
 6. ✅ **Windows 發布**：`npm run tauri build` → MSI（4.25 MB，`Novel Generator_0.1.0_x64_en-US.msi`）；macOS / Linux 之後再補
 
 ### SQLite schema 原則
 
-- Schema 與 Dexie tables 對齊：`projects`、`chapters`、`versions`、`characters`、`settings`、`appMeta`、（Phase 6 增加）`media_assets`
+- Schema 與 Dexie tables 對齊：`projects`、`chapters`、`versions`、`characters`、`appMeta`、`wiki_pages`、`wiki_log`、`comics`、`comic_panels`、`comic_panel_image_variants`、`media_assets`、`scene_visuals`
 - **大型 binary 不進 SQLite**（避免 DB 膨脹）— 改放檔案系統
 - Schema 設計時考量「Web 版用 wa-sqlite 也能執行相同 SQL」
 
 ---
 
-## Phase 6 — 漫畫圖片 MVP（🟡 MVP foundation implemented；Visual Bible 進行中）
+## Phase 6 — 漫畫圖片 MVP（🟡 foundation implemented；advanced polish remaining）
 
 > 目標：選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片。  
 > 設計：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`  
@@ -124,17 +124,19 @@ StorageAdapter / MediaAdapter (interface)
 4. ✅ **線上圖片模型**：OpenAI-compatible image provider（endpoint/model/API key）
 5. ✅ **漫畫分鏡 pipeline**：章節文本 + 角色卡 + Wiki → 可編輯 storyboard
 6. ✅ **UI 整合**：章節工具列「轉漫畫」→ storyboard editor → batch progress → comic preview
-7. ❌ **單格重生 / 失敗重試 / 圖片包下載**
-8. 🟡 **Visual Bible / Prompt Composer**：角色/場景跨章節資產規劃完成；Prompt Composer 與 `extraGroupsJson` MVP 已接入，完整 Visual Bible store/UI 待實作
+7. ✅ **單格重生、手動上傳、圖片歷史與單圖下載**：panel variant history、目前圖片切換、目前圖片保護、上傳圖片與下載回饋已接入
+8. 🟡 **Visual Bible / Prompt Composer**：角色/場景 reference、scene visuals、continuity reference、`extraGroupsJson`、final prompt snapshot 已接入；完整 Visual Bible 管理仍待 polish
 
-### 2026-06-03 Phase 6 progress
+### 2026-06 Phase 6 progress
 
 - Added `SceneVisual` as a project-level scene visual setting store for reusable locations.
 - Added provider reference-image capability metadata and request plumbing.
 - Added DeepInfra FLUX-2-pro provider for image generation with reference images.
+- Added Google Gemini Image provider with separate image-generation settings.
 - Added panel-level continuity reference control so a panel can use the previous panel image, including previous-chapter fallback for chapter-opening panels.
 - Added an explicit per-panel reference image picker grouped by chapter and panel order. Selected generated panels are persisted on the target panel, merged with character/scene/automatic previous-panel references, and sent as real image inputs to reference-capable providers.
-- Remaining advanced polish: richer Visual Bible management UI and provider-specific reference weighting controls.
+- Added panel insertion, deletion, pointer-based reordering, title editing, manual panel image upload, per-panel image history, and download feedback.
+- Remaining advanced polish: richer Visual Bible management UI, provider-specific reference weighting controls, bulk image package download, TTS, and video assembly.
 
 ### Phase 6.1 Visual Bible 重點
 

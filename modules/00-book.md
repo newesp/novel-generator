@@ -12,15 +12,17 @@
 
 | 欄位 | 型別 | 說明 |
 |------|------|------|
-| bookId | string | 唯一識別碼（UUID） |
+| id | string | 唯一識別碼（UUID），在多數文件中語意上等同 `bookId` |
 | title | string | 書名 |
 | genre | string | 題材（玄幻/都市/仙俠/科幻/言情/懸疑/自定義） |
 | style | string | 風格（輕鬆/沉重/黑暗/熱血/幽默/爽文/自定義） |
+| worldSetting | string | 世界觀設定 |
+| mainPlot | string | 主線劇情 |
+| chapterOutline | string | 章節大綱文字 |
 | createdAt | timestamp | 建立時間 |
 | updatedAt | timestamp | 最後修改時間 |
-| coverImage | string \| null | 封面圖路徑（Phase 4，選填） |
-| defaultLLMProvider | string | 此書預設使用的 LLM provider |
-| defaultLanguageStyle | string \| null | 預設語言風格提示詞（選填） |
+
+> 權威型別：`src/types/index.ts` 的 `Project`。目前沒有書本層級 `coverImage`、`defaultLLMProvider`、`defaultLanguageStyle` 欄位；LLM 與圖片 provider 設定走全域 `settingsStore`。
 
 ---
 
@@ -30,7 +32,7 @@
 - ✅ 開啟書本
 - ✅ 重命名書本
 - ✅ 刪除書本（含確認提示，避免誤刪；同時刪除所有章節/版本/角色）
-- ✅ **備份/匯出全部**（單檔 JSON snapshot，含所有書本/章節/角色/版本）
+- ✅ **備份/匯出全部**（單檔 JSON snapshot，含書本、章節、版本、角色、Wiki、漫畫、媒體資產、場景視覺）
 - ✅ **匯入 JSON**（取代本機資料）
 - ✅ **連結同步資料夾**（File System Access API，自動寫入；建議選 OneDrive/Google Drive 同步資料夾）
 - 匯出整本書（成書格式 .txt/.html/.epub，觸發 specs/output-formats）[Phase 3]
@@ -104,17 +106,19 @@ Toolbar 點「💾 備份」開啟 Modal，提供兩條路徑：
 
 | 方案 | 機制 | 適用 |
 |------|------|------|
-| **手動匯出/匯入 JSON** | `exportSnapshot()` dump 所有 4 個 table 為單檔；`importSnapshot()` clear + bulkAdd 還原 | 全瀏覽器、無痕模式、換機備援 |
+| **手動匯出/匯入 JSON** | `exportSnapshot()` dump `StorageBundle` 主要資料為單檔；`importSnapshot()` replaceAll 還原 | 全瀏覽器、無痕模式、換機備援 |
 | **連結同步資料夾** | File System Access API；handle 存於 Dexie `appMeta` table；訂閱 `projectStore`，2s debounced 寫入 `novel-generator-backup.json` | Chrome/Edge；資料夾選在 OneDrive/iCloud 同步資料夾即可跨機 |
 
 **啟動行為**（`initAutoSync()` 於 `main.tsx` 載入時呼叫）：
 - 若已連結資料夾且權限仍 granted：
   - 本機 DB 為空 → 從資料夾 pull 還原
   - 本機 DB 非空 → 立刻 push 一次覆寫資料夾的備份檔
-- 訂閱 `projectStore.books / chapters / characters / currentChapterVersions`，變動 2s 後 debounced push
+- 訂閱主要書本狀態，變動 2s 後 debounced push
 
 **備份範圍：**
-- ✅ projects / chapters / versions / characters（4 個 Dexie tables）
+- ✅ projects / chapters / versions / characters
+- ✅ wikiPages / wikiLog
+- ✅ comics / comicPanels / comicPanelImageVariants / mediaAssets / sceneVisuals
 - ❌ settings（含 LLM API key — 避免明文洩漏到雲端硬碟）
 - ❌ Zustand persist（偏好設定、prompts — 走 localStorage，不在跨機備份範圍）
 
@@ -131,14 +135,15 @@ Toolbar 點「💾 備份」開啟 Modal，提供兩條路徑：
 
 ## IndexedDB 資料關聯
 
-所有子資料（章節、角色、Wiki 條目等）均透過 `bookId` 外鍵關聯至書本：
+所有子資料以書本 ID 為根鍵；目前型別中有些欄位命名為 `projectId`，Wiki 使用 `bookId`，語意上都指向 `Project.id`：
 
 ```
 books
-  └── bookId
+  └── id / bookId / projectId
         ├── chapters[]        → 05-versions 版本資料掛載於此
         ├── characters[]
-        ├── wikiEntries[]
-        ├── graphJSON         → 04-knowledge Graph 關係層
-        └── outlineData       → 01-outline 大綱資料
+        ├── wikiPages[] / wikiLog[]
+        ├── comics[] / comicPanels[] / comicPanelImageVariants[]
+        ├── mediaAssets[] / sceneVisuals[]
+        └── outline data      → Project.worldSetting / mainPlot / chapterOutline
 ```
