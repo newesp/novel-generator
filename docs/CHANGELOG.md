@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-16 - Comic TTS video implementation plan
+
+- Added the implementation plan for the comic TTS video MVP: `docs/superpowers/plans/2026-06-16-comic-tts-video.md`.
+- Planned the work across timing/types, storyboard narration updates, storage migration, Tauri Edge-TTS/ffmpeg commands, video rendering helpers, panel media cleanup, ComicModal UI, frontend visual QA, and final verification.
+
+**Verification**
+- Documentation-only change; skipped `tsc -b`.
+- Ran plan placeholder/self-review scan and `git diff --check`.
+
 ## 2026-06-14 - Comic TTS video MVP design
 
 - Added the design spec for the Phase 6 comic narration video MVP: `docs/superpowers/specs/2026-06-14-comic-tts-video-design.md`.
