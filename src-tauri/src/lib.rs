@@ -39,6 +39,12 @@ pub fn run() {
       sql: include_str!("../migrations/006_comic_panel_image_variants.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 7,
+      description: "comic TTS and video metadata indexes",
+      sql: include_str!("../migrations/007_comic_tts_video_metadata.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()
