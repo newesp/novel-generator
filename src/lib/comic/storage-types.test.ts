@@ -28,7 +28,7 @@ describe('comic sqlite row helpers', () => {
       videoAssetId: 'video-asset',
       videoProviderId: 'ffmpeg',
       videoSettingsJson: '{"panelPauseMs":400}',
-      videoErrorMessage: undefined,
+      videoErrorMessage: 'video warning',
       createdAt: 1,
       updatedAt: 2,
     };
@@ -52,6 +52,8 @@ describe('comic sqlite row helpers', () => {
       ttsDurationMs: 3200,
       ttsProviderId: 'edge-tts',
       ttsVoice: 'zh-TW-HsiaoChenNeural',
+      ttsErrorMessage: 'tts warning',
+      segmentAssetId: 'segment-asset',
       createdAt: 1,
       updatedAt: 2,
     };
