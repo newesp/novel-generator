@@ -30,8 +30,9 @@ If a field is missing, infer conservatively and note uncertainty in `qualityChec
 3. Preserve chronological order and avoid unsupported inventions.
 4. Build a `visualContinuityBible` for recurring characters, locations, props, outfits, injuries, weather, and time of day.
 5. For each panel, write concrete visual data: setting, characters, action, emotion, shot type, camera angle, prompt, narration, dialogue, and duration.
-6. Check continuity across panels and repair contradictions before returning.
-7. Return valid JSON first, then a short summary of panel coverage and assumptions.
+6. Ensure the ordered `panels[].narration` joined together forms a complete chapter narration script, not only a short summary.
+7. Check continuity across panels and repair contradictions before returning.
+8. Return valid JSON first, then a short summary of panel coverage and assumptions.
 
 ## Panel Count Rules
 
@@ -78,10 +79,12 @@ Use `references/panel-style-guide.md` when the user asks for a specific visual m
 
 Write narration for spoken video pacing:
 
-- Compress prose; do not copy whole paragraphs.
-- Keep dialogue separate from narration.
+- Cover the complete chapter across all panels. The joined narration should work as the full spoken script for the chapter.
+- Adjust sentence count by panel count and content density instead of forcing a fixed 1-3 sentence rule.
+- Keep dialogue separate from narration unless pure-narration MVP output needs dialogue meaning included in the spoken script.
 - Avoid describing visuals already obvious in the panel unless the meaning would be unclear.
-- Make intense action panels shorter and quieter emotional panels slightly longer.
+- Preserve plot movement, cause/effect, emotional turns, key clues, relationship changes, and the chapter ending or hook.
+- Make intense action panels shorter and quieter emotional panels slightly longer, while still maintaining chapter-level coverage.
 
 Use `references/narration-rules.md` for pacing and conversion details.
 
@@ -90,8 +93,9 @@ Use `references/narration-rules.md` for pacing and conversion details.
 Before final output, verify:
 
 - The storyboard covers the chapter's main plot movement.
+- Ordered panel narration covers the complete chapter as a spoken script.
 - Every named character is handled consistently.
 - Panel order is coherent.
 - Visual prompts are drawable and not overly abstract.
-- Narration duration roughly matches `durationSec`.
+- Narration duration roughly matches `durationSec` when `durationSec > 0`; when `durationSec` is 0, downstream video timing should use measured TTS duration.
 - No major event, relationship, prop, or location is invented without support from the source.

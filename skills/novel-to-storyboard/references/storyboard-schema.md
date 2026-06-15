@@ -62,7 +62,9 @@ export interface StoryboardPanel {
   negativePrompt?: string
   extraGroups: StoryboardExtraGroup[]
   dialogue: StoryboardDialogueLine[]
+  /** Spoken narration for this panel. All panel narrations joined in order should cover the complete chapter. */
   narration: string
+  /** 0 means downstream video timing should use measured TTS duration. Positive values are manual minimum seconds. */
   durationSec: number
 }
 
@@ -115,7 +117,7 @@ Minimal valid JSON shape:
       "extraGroups": [],
       "dialogue": [],
       "narration": "",
-      "durationSec": 5
+      "durationSec": 0
     }
   ],
   "qualityChecks": {

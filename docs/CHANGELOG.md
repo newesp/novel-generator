@@ -5,10 +5,12 @@
 - Added the design spec for the Phase 6 comic narration video MVP: `docs/superpowers/specs/2026-06-14-comic-tts-video-design.md`.
 - Scoped the first implementation to one chapter, pure narration, one Edge-TTS voice, per-panel TTS audio, ffmpeg panel segments, and concat-list mp4 export.
 - Defined timing rules: `durationSec` can extend a panel but never truncates TTS; each panel duration is `max(audioDurationMs, durationSec * 1000) + panelPauseMs`.
+- Updated the design after review: removed the single-filter-graph option, moved browser ffmpeg.wasm to future consideration, required panel deletion cleanup for related media files, and required `frontend-visual-qa` for future ComicModal UI work.
+- Updated `skills/novel-to-storyboard` so generated narration is chapter-complete across ordered panels, with sentence density based on panel count instead of a fixed 1-3 sentence rule.
 
 **Verification**
 - Documentation-only change; skipped `tsc -b`.
-- Cross-checked against `package.json`, `src/types/index.ts`, `src/lib/storage/types.ts`, `src/lib/comic/storyboard*.ts`, and current Tauri config.
+- Cross-checked against `package.json`, `src/types/index.ts`, `src/lib/storage/types.ts`, `src/lib/comic/storyboard*.ts`, `skills/novel-to-storyboard`, and current Tauri config.
 
 ## 2026-06-14 - Documentation refresh against code
 

@@ -29,6 +29,7 @@ This design covers the first shippable MVP for one chapter at a time.
 - Browser-only ffmpeg.wasm export.
 - Cloud video rendering.
 - Advanced motion effects such as pan/zoom, transitions, or animated speech bubbles.
+- A single large ffmpeg filter graph path.
 
 ## Key Decisions
 
@@ -45,6 +46,12 @@ Edge-TTS is not an official paid stability contract, so the provider abstraction
 ### Audio Scope
 
 MVP is pure narration with a single selected voice. `ComicPanel.narration` is the canonical spoken script. `ComicPanel.dialogue` remains available for comic display and future multi-voice support, but it is not spoken in the MVP unless the user manually includes it in `narration`.
+
+The full chapter narration is the ordered concatenation of all panel narration. The target is not a short summary; the joined narration should cover the complete chapter content in spoken form. Panel count controls narration density:
+
+- fewer panels mean each panel can carry more narration;
+- more panels mean narration is distributed into shorter lines;
+- visually obvious description can move to `visualPrompt`, but plot movement, cause/effect, emotional turns, important dialogue meaning, and chapter hooks must remain in the spoken script.
 
 ### Duration Rule
 
@@ -66,9 +73,9 @@ const effectiveDurationMs = baseDurationMs + panelPauseMs;
 
 Default `panelPauseMs` is 400ms. The export UI should offer at least 0, 250, 400, 600, and 1000ms. A separate `endingHoldMs` can default to 1200ms for the last panel, but the MVP may use the same `panelPauseMs` for all panels if UI space is tight.
 
-## Approaches Considered
+## Chosen Composition Approach
 
-### Recommended: Panel Segments + Concat List
+### Panel Segments + Concat List
 
 Generate one mp4 segment per panel, then concatenate them with ffmpeg concat demuxer.
 
@@ -95,24 +102,7 @@ Cons:
 
 This is the MVP design.
 
-### Alternative: Single ffmpeg Filter Graph
-
-One ffmpeg command could load all images and audio files, set exact durations, and output final mp4 directly.
-
-Pros:
-
-- Fewer intermediate files.
-- One command creates the final artifact.
-
-Cons:
-
-- Harder to debug.
-- Long commands become fragile on Windows.
-- Retrying one failed panel requires rerunning the whole graph.
-
-Rejected for MVP.
-
-### Alternative: Browser ffmpeg.wasm
+### Future Consideration: Browser ffmpeg.wasm
 
 Use ffmpeg.wasm in the browser for Web export.
 
@@ -175,11 +165,13 @@ The first implementation must update Dexie and SQLite adapters through `StorageA
 
 The storyboard prompt should make `narration` a required field for every panel:
 
-- 1-3 short Chinese sentences;
+- Chinese spoken prose sized to the target panel count and source content density;
 - suitable for direct TTS narration;
 - no image prompt syntax;
 - no speaker labels unless intentionally part of the narration;
 - faithful to the panel beat and chapter prose.
+
+The quality gate should validate chapter-level spoken coverage, not only per-panel brevity. When all `panels[].narration` are joined in order, the result should read as a complete chapter narration script. It may be compressed for video pacing, but it must not skip major events, relationship changes, key clues, emotional turns, or the chapter ending/hook.
 
 Normalization keeps `narration` as a trimmed string. If LLM output omits narration, the fallback is an empty string and the UI marks the panel as needing narration before audio generation.
 
@@ -296,6 +288,15 @@ media/
 
 Temporary segment files may be retained for debugging in MVP. A later cleanup option can delete segments after successful concat.
 
+When a panel is deleted, all panel-owned media files and metadata must be deleted or marked for cleanup:
+
+- panel TTS audio asset;
+- generated segment file for that panel;
+- stale concat list entries;
+- any panel-scoped temporary files.
+
+Deleting a panel image variant should keep following the existing comic image history rules. Deleting the panel itself should remove assets that exist only for that panel and then rerender the concat list/video before publishing a new final mp4.
+
 ## Tauri Boundary
 
 Current Tauri setup only includes SQLite and log plugins. This feature needs a desktop command boundary for Edge-TTS, ffmpeg, and ffprobe.
@@ -312,6 +313,8 @@ If sidecar bundling is not ready in the first implementation, the UI may require
 ## UI Workflow
 
 ComicModal gets a video/export section after storyboard and images are ready.
+
+Any implementation that changes this UI must use the `frontend-visual-qa` skill. The affected surface is the full-screen ComicModal, especially the selected panel editor and export controls. Verification must check for clipped controls, overflowing narration fields, understandable loading/failure states, and panel rail/editor/sidebar layout behavior at the existing modal sizes.
 
 Minimum controls:
 
@@ -352,6 +355,7 @@ Regeneration rules:
 - changing voice or provider requires regenerating all audio;
 - changing `durationSec` or `panelPauseMs` does not require regenerating TTS, only rerendering segments/video;
 - replacing a panel image does not require regenerating TTS, only rerendering segments/video.
+- deleting a panel removes panel-owned TTS and segment artifacts, rewrites the concat list, and marks the final video stale.
 
 ## Testing
 
@@ -364,6 +368,7 @@ Focused unit coverage should include:
 - TTS provider request construction without shell string concatenation;
 - media asset creation for TTS and final video;
 - concat list generation with escaped Windows paths;
+- cleanup behavior when deleting a panel with TTS and segment artifacts;
 - SQLite/Dexie round-trip for new optional fields.
 
 Manual desktop verification should cover:
