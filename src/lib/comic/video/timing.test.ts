@@ -29,4 +29,20 @@ describe('calculatePanelTiming', () => {
       trailingSilenceMs: 250,
     });
   });
+
+  it('normalizes non-finite inputs to finite zeros', () => {
+    expect(
+      calculatePanelTiming({
+        audioDurationMs: Number.NaN,
+        durationSec: Number.POSITIVE_INFINITY,
+        panelPauseMs: Number.NEGATIVE_INFINITY,
+      }),
+    ).toEqual({
+      audioDurationMs: 0,
+      manualDurationMs: 0,
+      baseDurationMs: 0,
+      effectiveDurationMs: 0,
+      trailingSilenceMs: 0,
+    });
+  });
 });

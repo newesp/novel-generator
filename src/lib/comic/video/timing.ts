@@ -12,10 +12,15 @@ export interface PanelTiming {
   trailingSilenceMs: number;
 }
 
+function finiteNumber(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback;
+}
+
 export function calculatePanelTiming(input: PanelTimingInput): PanelTiming {
-  const audioDurationMs = Math.max(0, Math.round(input.audioDurationMs));
-  const manualDurationMs = input.durationSec > 0 ? Math.round(input.durationSec * 1000) : 0;
-  const panelPauseMs = Math.max(0, Math.round(input.panelPauseMs));
+  const audioDurationMs = Math.max(0, Math.round(finiteNumber(input.audioDurationMs, 0)));
+  const durationSec = finiteNumber(input.durationSec, 0);
+  const manualDurationMs = durationSec > 0 ? Math.round(durationSec * 1000) : 0;
+  const panelPauseMs = Math.max(0, Math.round(finiteNumber(input.panelPauseMs, 0)));
   const baseDurationMs = Math.max(audioDurationMs, manualDurationMs);
   const effectiveDurationMs = baseDurationMs + panelPauseMs;
 
