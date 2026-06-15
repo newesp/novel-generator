@@ -50,6 +50,10 @@ describe('buildStoryboardPrompt', () => {
     expect(prompt).toContain('one-off background extras');
     expect(prompt).toContain('ordered panels[].narration');
     expect(prompt).toContain('complete spoken chapter script');
+    expect(prompt).toContain('panels[].narration 是影片旁白腳本，不是短摘要');
+    expect(prompt).toContain('旁白句數依目標格數與內容密度調整');
+    expect(prompt).toContain('可把純視覺描述交給 visualPrompt');
+    expect(prompt).toContain('主要事件、因果、情緒轉折、關鍵線索、重要對白含義、章末 hook 必須留在 narration');
     expect(prompt).toContain('"durationSec": 0');
     expect(prompt).toContain('黑白漫畫');
     expect(prompt).toContain('只輸出 JSON');
