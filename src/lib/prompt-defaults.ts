@@ -174,6 +174,10 @@ export const DEFAULT_COMIC_STORYBOARD_TEMPLATE = `你是小說轉漫畫分鏡師
 - one-off background extras 可直接寫在 visualPrompt，例如「周圍站著十幾個居民」。
 - 會跨多格出現的群體請放入 extraGroups；不要把群體龍套塞進 characters。
 - extraGroups 必須永遠是合法 JSON array；沒有 recurring groups 時請輸出空陣列 []。
+- panels[].narration 是影片旁白腳本，不是短摘要。所有 ordered panels[].narration 依序串起來後，必須能構成完整章節念稿（complete spoken chapter script）。
+- 旁白句數依目標格數與內容密度調整：格數少時單格可承載較多旁白；格數多時分散成較短句。
+- 可把純視覺描述交給 visualPrompt，但主要事件、因果、情緒轉折、關鍵線索、重要對白含義、章末 hook 必須留在 narration。
+- panels[].durationSec 預設輸出 0，代表影片合成時使用 TTS 實測音訊長度；只有需要手動延長畫面時才輸出正數。
 - 不要捏造正文沒有支撐的重大事件。
 
 JSON schema:
@@ -204,7 +208,7 @@ JSON schema:
       ],
       "narration": "string",
       "dialogue": [{"character":"string","text":"string"}],
-      "durationSec": 4
+      "durationSec": 0
     }
   ],
   "qualityChecks": { "notes": [] }

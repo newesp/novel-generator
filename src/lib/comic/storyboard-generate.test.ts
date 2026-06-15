@@ -48,6 +48,9 @@ describe('buildStoryboardPrompt', () => {
     expect(prompt).toContain('entity/a-fei');
     expect(prompt).toContain('"extraGroups"');
     expect(prompt).toContain('one-off background extras');
+    expect(prompt).toContain('ordered panels[].narration');
+    expect(prompt).toContain('complete spoken chapter script');
+    expect(prompt).toContain('"durationSec": 0');
     expect(prompt).toContain('黑白漫畫');
     expect(prompt).toContain('只輸出 JSON');
   });

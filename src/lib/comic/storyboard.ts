@@ -46,7 +46,7 @@ export function normalizeStoryboardDraft(raw: unknown): StoryboardNormalizeResul
       extraGroupsJson: normalizeExtraGroups(panel.extraGroups),
       dialogue: dialogueToText(panel.dialogue),
       narration: stringValue(panel.narration, ''),
-      durationSec: clamp(numberValue(panel.durationSec, 4), 2, 12),
+      durationSec: normalizeDurationSec(panel.durationSec),
       status: 'draft',
       createdAt: now,
       updatedAt: now,
@@ -120,6 +120,12 @@ function numberValue(value: unknown, fallback: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function normalizeDurationSec(value: unknown): number {
+  const duration = numberValue(value, 0);
+  if (duration <= 0) return 0;
+  return clamp(duration, 2, 60);
 }
 
 function dialogueToText(value: unknown): string {

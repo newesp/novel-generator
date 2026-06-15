@@ -44,12 +44,30 @@ describe('normalizeStoryboardDraft', () => {
   it('clamps duration and fills missing prompt fallbacks', () => {
     const result = normalizeStoryboardDraft({
       chapterTitle: '測試章',
-      panels: [{ panelNumber: 1, beat: '開場', action: '主角看見城市', durationSec: 30 }],
+      panels: [{ panelNumber: 1, beat: '開場', action: '主角看見城市', durationSec: 90 }],
     });
 
-    expect(result.panels[0].durationSec).toBe(12);
+    expect(result.panels[0].durationSec).toBe(60);
     expect(result.panels[0].visualPrompt).toContain('主角看見城市');
     expect(result.visualContinuityBibleJson).toContain('測試章');
+  });
+
+  it('allows durationSec 0 for TTS-measured timing', () => {
+    const result = normalizeStoryboardDraft({
+      chapterTitle: '測試章',
+      panels: [
+        {
+          panelNumber: 1,
+          beat: '開場',
+          action: '主角看見城市',
+          narration: '城市在霧裡醒來，主角第一次聽見地下傳來的鐘聲。',
+          durationSec: 0,
+        },
+      ],
+    });
+
+    expect(result.panels[0].durationSec).toBe(0);
+    expect(result.panels[0].narration).toContain('地下傳來的鐘聲');
   });
 
   it('normalizes recurring extra groups separately from named characters', () => {
