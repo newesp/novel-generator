@@ -24,6 +24,8 @@ import {
 import { movePanelById, removePanelById, reindexPanels } from '../../lib/comic/panel-order';
 import { desktopComicVideoCommands } from '../../lib/comic/video/desktop-commands';
 import { cleanupPanelVideoArtifacts } from '../../lib/comic/video/panel-cleanup';
+import { edgeTtsProvider } from '../../lib/comic/video/tts-provider';
+import { renderComicVideo } from '../../lib/comic/video/video-renderer';
 import { createDefaultSceneVisual, filterSceneVisuals, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -69,6 +71,13 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
   const [dragTargetPanelId, setDragTargetPanelId] = useState<string | null>(null);
   const [downloadNotice, setDownloadNotice] = useState<{ key: string; label: string } | null>(null);
+  const [videoVoice, setVideoVoice] = useState('zh-TW-HsiaoChenNeural');
+  const [panelPauseMs, setPanelPauseMs] = useState(400);
+  const [videoMessage, setVideoMessage] = useState('');
+  const [videoAsset, setVideoAsset] = useState<MediaAsset | null>(null);
+  const [edgeTtsBin, setEdgeTtsBin] = useState('edge-tts');
+  const [ffmpegBin, setFfmpegBin] = useState('ffmpeg');
+  const [ffprobeBin, setFfprobeBin] = useState('ffprobe');
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -464,7 +473,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       negativePrompt: '',
       dialogue: '',
       narration: '',
-      durationSec: selectedPanel?.durationSec ?? 4,
+      durationSec: selectedPanel?.durationSec ?? 0,
       status: 'draft',
       createdAt: now,
       updatedAt: now,
@@ -534,6 +543,76 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     await persistPanelOrder(nextPanels);
     setReferenceLibraryRevision((current) => current + 1);
     setMessage('分鏡已刪除並重新排序。');
+  };
+
+  const renderVideo = async () => {
+    if (!comic) return;
+    const orderedPanels = [...panels].sort((a, b) => a.order - b.order);
+    const missingImage = orderedPanels.find((panel) => !panel.assetId);
+    if (missingImage) {
+      setVideoMessage(`分鏡 #${missingImage.order} 尚未建立圖片。`);
+      return;
+    }
+    const missingNarration = orderedPanels.find((panel) => !panel.narration.trim());
+    if (missingNarration) {
+      setVideoMessage(`分鏡 #${missingNarration.order} 尚未填寫旁白。`);
+      return;
+    }
+
+    try {
+      setBusy(true);
+      setVideoMessage('正在輸出旁白影片...');
+      const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
+        projectId: comic.projectId,
+        chapterId: comic.chapterId,
+      });
+      const asset = await renderComicVideo({
+        comic,
+        panels: orderedPanels,
+        storage,
+        ttsProvider: edgeTtsProvider,
+        commands: desktopComicVideoCommands,
+        writeTextFile: (path, content) => desktopComicVideoCommands.writeTextFile({ path, content }),
+        settings: {
+          mediaRoot,
+          edgeTtsBin,
+          ffmpegBin,
+          ffprobeBin,
+          voice: videoVoice,
+          panelPauseMs,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+        },
+      });
+      setVideoAsset(asset);
+      setComic((current) => current ? {
+        ...current,
+        videoStatus: 'ready',
+        videoAssetId: asset.id,
+        videoProviderId: 'ffmpeg',
+        videoSettingsJson: asset.generationParamsJson,
+        videoErrorMessage: undefined,
+        updatedAt: Date.now(),
+      } : current);
+      setVideoMessage('影片已輸出完成。');
+    } catch (error) {
+      const message = errorMessage(error);
+      setVideoMessage(message);
+      await storage.comics.update(comic.id, {
+        videoStatus: 'failed',
+        videoErrorMessage: message,
+        updatedAt: Date.now(),
+      });
+      setComic((current) => current ? {
+        ...current,
+        videoStatus: 'failed',
+        videoErrorMessage: message,
+        updatedAt: Date.now(),
+      } : current);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const movePanel = async (panelId: string, targetPanelId: string) => {
@@ -1271,6 +1350,80 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                     </div>
                   </details>
                 )}
+
+                <section className="comic-narration-panel">
+                  <div className="comic-prompt-field-header">
+                    <span>旁白腳本</span>
+                    <span>{selectedPanel.ttsDurationMs ? `音訊 ${Math.round(selectedPanel.ttsDurationMs / 100) / 10}s` : '尚未產生音訊'}</span>
+                  </div>
+                  <textarea
+                    value={selectedPanel.narration}
+                    onChange={(event) => void updatePanel(selectedPanel, {
+                      narration: event.target.value,
+                      ttsStatus: 'idle',
+                      ttsAssetId: undefined,
+                      ttsDurationMs: undefined,
+                      ttsErrorMessage: undefined,
+                    })}
+                  />
+                  <label className="comic-video-number-field">
+                    <FieldLabel label="手動秒數" help="0 代表使用 TTS 實測音訊長度；大於 0 時會和音訊長度取較長者，避免截斷旁白。" />
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={selectedPanel.durationSec}
+                      onChange={(event) => void updatePanel(selectedPanel, { durationSec: Number(event.target.value) || 0 })}
+                    />
+                  </label>
+                  <small>每格顯示長度 = max(TTS 音訊長度, 手動秒數) + 格間停頓。</small>
+                </section>
+
+                <section className="comic-video-export">
+                  <header>
+                    <h3>旁白影片</h3>
+                    <span>{comic?.videoStatus ?? 'idle'}</span>
+                  </header>
+                  <div className="comic-video-export-grid">
+                    <label>
+                      <FieldLabel label="旁白音色" help="MVP 使用單一 Edge-TTS 音色輸出整章旁白。" />
+                      <select value={videoVoice} onChange={(event) => setVideoVoice(event.target.value)}>
+                        <option value="zh-TW-HsiaoChenNeural">zh-TW-HsiaoChenNeural</option>
+                        <option value="zh-TW-YunJheNeural">zh-TW-YunJheNeural</option>
+                        <option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural</option>
+                      </select>
+                    </label>
+                    <label>
+                      <FieldLabel label="格間停頓" help="加在每格音訊後的靜音長度，用於分鏡之間的呼吸感。" />
+                      <select value={panelPauseMs} onChange={(event) => setPanelPauseMs(Number(event.target.value))}>
+                        <option value={0}>0ms</option>
+                        <option value={250}>250ms</option>
+                        <option value={400}>400ms</option>
+                        <option value={600}>600ms</option>
+                        <option value={1000}>1000ms</option>
+                      </select>
+                    </label>
+                    <label>
+                      <FieldLabel label="Edge-TTS" help="Edge-TTS CLI 指令或完整路徑。" />
+                      <input value={edgeTtsBin} onChange={(event) => setEdgeTtsBin(event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel label="ffmpeg" help="ffmpeg CLI 指令或完整路徑。" />
+                      <input value={ffmpegBin} onChange={(event) => setFfmpegBin(event.target.value)} />
+                    </label>
+                    <label>
+                      <FieldLabel label="ffprobe" help="ffprobe CLI 指令或完整路徑，用於量測 TTS 音訊長度。" />
+                      <input value={ffprobeBin} onChange={(event) => setFfprobeBin(event.target.value)} />
+                    </label>
+                  </div>
+                  <div className="comic-video-actions">
+                    <Button variant="secondary" disabled={busy || !comic || panels.length === 0} onClick={() => void renderVideo()}>
+                      輸出 MP4
+                    </Button>
+                    {videoAsset?.path && <span title={videoAsset.path}>輸出：{videoAsset.path}</span>}
+                  </div>
+                  {videoMessage && <p className="comic-message">{videoMessage}</p>}
+                </section>
 
                 <section className="comic-editor-grid">
                   <div className="comic-prompt-box">

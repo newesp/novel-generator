@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[derive(Debug, Deserialize)]
@@ -46,6 +47,20 @@ struct ConcatVideoArgs {
 #[serde(rename_all = "camelCase")]
 struct DeleteMediaFileArgs {
   path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WriteTextFileArgs {
+  path: String,
+  content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResolveMediaRootArgs {
+  project_id: String,
+  chapter_id: String,
 }
 
 fn ensure_parent_dir(path: &str) -> Result<(), String> {
@@ -202,6 +217,33 @@ fn delete_media_file(args: DeleteMediaFileArgs) -> Result<(), String> {
   fs::remove_file(path).map_err(|err| format!("Failed to delete {}: {err}", path.display()))
 }
 
+#[tauri::command]
+fn write_text_file(args: WriteTextFileArgs) -> Result<(), String> {
+  ensure_parent_dir(&args.path)?;
+  fs::write(&args.path, args.content).map_err(|err| format!("Failed to write {}: {err}", args.path))
+}
+
+#[tauri::command]
+fn resolve_media_root(
+  app: tauri::AppHandle,
+  args: ResolveMediaRootArgs,
+) -> Result<String, String> {
+  let dir = app
+    .path()
+    .app_data_dir()
+    .map_err(|err| format!("Failed to resolve app data dir: {err}"))?
+    .join("media")
+    .join(args.project_id)
+    .join("chapters")
+    .join(args.chapter_id)
+    .join("comic-video");
+
+  fs::create_dir_all(&dir)
+    .map_err(|err| format!("Failed to create media root {}: {err}", dir.display()))?;
+
+  Ok(dir.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let migrations = vec![
@@ -256,6 +298,8 @@ pub fn run() {
       render_comic_video_segment,
       concat_comic_video,
       delete_media_file,
+      write_text_file,
+      resolve_media_root,
     ])
     .plugin(
       tauri_plugin_sql::Builder::default()

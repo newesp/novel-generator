@@ -34,6 +34,16 @@ export interface DeleteMediaFileArgs {
   path: string;
 }
 
+export interface WriteTextFileArgs {
+  path: string;
+  content: string;
+}
+
+export interface ResolveMediaRootArgs {
+  projectId: string;
+  chapterId: string;
+}
+
 export const desktopComicVideoCommands = {
   generateTtsAudio: (args: GenerateTtsAudioArgs) =>
     invoke<void>('generate_tts_audio', { args }),
@@ -45,4 +55,8 @@ export const desktopComicVideoCommands = {
     invoke<void>('concat_comic_video', { args }),
   deleteMediaFile: (args: DeleteMediaFileArgs) =>
     invoke<void>('delete_media_file', { args }),
+  writeTextFile: (args: WriteTextFileArgs) =>
+    invoke<void>('write_text_file', { args }),
+  resolveMediaRoot: (args: ResolveMediaRootArgs) =>
+    invoke<string>('resolve_media_root', { args }),
 };
