@@ -22,6 +22,8 @@ import {
   currentVariantDeleteBlockedMessage,
 } from '../../lib/comic/image-variants';
 import { movePanelById, removePanelById, reindexPanels } from '../../lib/comic/panel-order';
+import { desktopComicVideoCommands } from '../../lib/comic/video/desktop-commands';
+import { cleanupPanelVideoArtifacts } from '../../lib/comic/video/panel-cleanup';
 import { createDefaultSceneVisual, filterSceneVisuals, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -491,9 +493,24 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       panel.assetId,
       ...variants.map((variant) => variant.assetId),
     ].filter((assetId): assetId is string => Boolean(assetId))));
+    await cleanupPanelVideoArtifacts({
+      panel,
+      storage,
+      commands: desktopComicVideoCommands,
+    });
     await storage.comicPanelImageVariants.deleteByPanel(panel.id);
     await storage.comicPanels.delete(panel.id);
     await Promise.all(assetIds.map((assetId) => storage.mediaAssets.delete(assetId)));
+    if (comic.videoAssetId || comic.videoStatus === 'ready') {
+      const staleVideoPatch: Partial<ChapterComic> = {
+        videoStatus: 'idle',
+        videoAssetId: undefined,
+        videoErrorMessage: '刪除分鏡後，影片需重新輸出。',
+        updatedAt: Date.now(),
+      };
+      setComic((current) => current ? { ...current, ...staleVideoPatch } : current);
+      await storage.comics.update(comic.id, staleVideoPatch);
+    }
 
     const nextPanels = removePanelById(panels, panel.id);
     setSelectedPanelId((current) => (
