@@ -394,10 +394,23 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         providerId: imageGenerationPrefs.providerId,
         targetPanelCount: imageGenerationPrefs.targetPanelCount,
         visualContinuityBibleJson: draft.visualContinuityBibleJson,
+        videoStatus: 'idle',
+        videoAssetId: undefined,
+        videoProviderId: undefined,
+        videoSettingsJson: undefined,
+        videoErrorMessage: undefined,
         createdAt: currentComic?.createdAt ?? now,
         updatedAt: now,
       };
       if (currentComic) {
+        await cleanupMediaAssetFile(currentComic.videoAssetId);
+        for (const panel of panels) {
+          await cleanupPanelVideoArtifacts({
+            panel,
+            storage,
+            commands: desktopComicVideoCommands,
+          });
+        }
         const oldVariants = await storage.comicPanelImageVariants.listByComic(currentComic.id);
         const oldAssetIds = Array.from(new Set(
           [
@@ -425,6 +438,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       setComic(nextComic);
       setPanels(nextPanels);
       setPanelAssets({});
+      setVideoAsset(null);
+      setVideoMessage('');
       setPreviewAsset(null);
       setMessage(`已產生 ${nextPanels.length} 格分鏡，請確認後開始生圖。`);
     } catch (error) {
@@ -543,6 +558,15 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     await persistPanelOrder(nextPanels);
     setReferenceLibraryRevision((current) => current + 1);
     setMessage('分鏡已刪除並重新排序。');
+  };
+
+  const cleanupMediaAssetFile = async (assetId: string | undefined): Promise<void> => {
+    if (!assetId) return;
+    const asset = await storage.mediaAssets.get(assetId);
+    if (asset?.path) {
+      await desktopComicVideoCommands.deleteMediaFile({ path: asset.path });
+    }
+    await storage.mediaAssets.delete(assetId);
   };
 
   const renderVideo = async () => {

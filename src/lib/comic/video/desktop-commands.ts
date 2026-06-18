@@ -39,6 +39,11 @@ export interface WriteTextFileArgs {
   content: string;
 }
 
+export interface WriteBinaryFileArgs {
+  path: string;
+  bytes: number[];
+}
+
 export interface ResolveMediaRootArgs {
   projectId: string;
   chapterId: string;
@@ -57,6 +62,8 @@ export const desktopComicVideoCommands = {
     invoke<void>('delete_media_file', { args }),
   writeTextFile: (args: WriteTextFileArgs) =>
     invoke<void>('write_text_file', { args }),
+  writeBinaryFile: (args: WriteBinaryFileArgs) =>
+    invoke<void>('write_binary_file', { args }),
   resolveMediaRoot: (args: ResolveMediaRootArgs) =>
     invoke<string>('resolve_media_root', { args }),
 };

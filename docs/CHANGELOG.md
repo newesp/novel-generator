@@ -5,7 +5,8 @@
 - Added panel-level TTS metadata, chapter video status metadata, and timing helpers where `durationSec: 0` uses measured TTS duration and manual estimates never truncate audio.
 - Updated comic storyboard generation so `panels[].narration` is a chapter-complete spoken script distributed across ordered panels.
 - Added Edge-TTS/ffprobe/ffmpeg Tauri command wrappers, concat-list generation, per-panel segment rendering orchestration, app-data media root resolution, and concat mp4 export.
-- Added cleanup for panel-owned TTS and segment files when a panel is deleted, and marks an existing chapter video stale after panel deletion.
+- Added data URL image materialization before ffmpeg segment rendering, and constrained desktop file write/delete/render paths to the Tauri app-data media root.
+- Added cleanup for panel-owned TTS and segment files when a panel is deleted, on rerender, and when regenerating a storyboard; existing chapter video metadata is reset when panels are replaced.
 - Added ComicModal controls for narration editing, manual duration fallback, voice/padding/bin settings, and MP4 export.
 
 **Verification**

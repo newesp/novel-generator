@@ -11,6 +11,7 @@ const comic: ChapterComic = {
   stylePreset: 'manga',
   providerId: 'comfyui',
   visualContinuityBibleJson: '{}',
+  videoAssetId: 'old-video',
   createdAt: 1,
   updatedAt: 2,
 };
@@ -43,14 +44,45 @@ describe('renderComicVideo', () => {
       projectId: 'book',
       chapterId: 'chapter',
       kind: 'comic_panel_image',
-      path: 'C:/media/image.png',
+      url: 'data:image/png;base64,AQID',
       mimeType: 'image/png',
       createdAt: 1,
     };
+    const assets: Record<string, MediaAsset> = {
+      'image-1': imageAsset,
+      'old-tts': {
+        id: 'old-tts',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'tts_audio',
+        path: 'C:/media/old-audio.mp3',
+        mimeType: 'audio/mpeg',
+        createdAt: 1,
+      },
+      'old-segment': {
+        id: 'old-segment',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'video',
+        path: 'C:/media/old-segment.mp4',
+        mimeType: 'video/mp4',
+        createdAt: 1,
+      },
+      'old-video': {
+        id: 'old-video',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'video',
+        path: 'C:/media/old-video.mp4',
+        mimeType: 'video/mp4',
+        createdAt: 1,
+      },
+    };
     const storage = {
       mediaAssets: {
-        get: vi.fn(async () => imageAsset),
+        get: vi.fn(async (id: string) => assets[id]),
         add: vi.fn(async () => undefined),
+        delete: vi.fn(async () => undefined),
       },
       comicPanels: {
         update: vi.fn(async () => undefined),
@@ -82,13 +114,14 @@ describe('renderComicVideo', () => {
       concatVideo: vi.fn(async () => undefined),
       probeAudioDuration: vi.fn(),
       generateTtsAudio: vi.fn(),
-      deleteMediaFile: vi.fn(),
+      deleteMediaFile: vi.fn(async () => undefined),
+      writeBinaryFile: vi.fn(async () => undefined),
     };
     const writeTextFile = vi.fn(async () => undefined);
 
     await renderComicVideo({
       comic,
-      panels: [panel({ durationSec: 3 })],
+      panels: [panel({ durationSec: 3, ttsAssetId: 'old-tts', segmentAssetId: 'old-segment' })],
       storage,
       ttsProvider,
       commands,
@@ -108,10 +141,21 @@ describe('renderComicVideo', () => {
 
     expect(commands.renderSegment).toHaveBeenCalledWith(
       expect.objectContaining({
+        imagePath: 'C:/media/book/chapter/comic-video/images/panel-001.png',
         durationMs: 7600,
         trailingSilenceMs: 400,
       }),
     );
+    expect(commands.writeBinaryFile).toHaveBeenCalledWith({
+      path: 'C:/media/book/chapter/comic-video/images/panel-001.png',
+      bytes: [1, 2, 3],
+    });
+    expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/media/old-audio.mp3' });
+    expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/media/old-segment.mp4' });
+    expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/media/old-video.mp4' });
+    expect(storage.mediaAssets.delete).toHaveBeenCalledWith('old-tts');
+    expect(storage.mediaAssets.delete).toHaveBeenCalledWith('old-segment');
+    expect(storage.mediaAssets.delete).toHaveBeenCalledWith('old-video');
     expect(commands.concatVideo).toHaveBeenCalled();
     expect(storage.mediaAssets.add).toHaveBeenCalledWith(expect.objectContaining({ kind: 'video' }));
   });

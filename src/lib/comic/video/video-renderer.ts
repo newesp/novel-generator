@@ -5,9 +5,12 @@ import type { desktopComicVideoCommands } from './desktop-commands';
 import { calculatePanelTiming } from './timing';
 import type { TTSProvider } from './tts-provider';
 
-type Commands = Pick<typeof desktopComicVideoCommands, 'concatVideo' | 'renderSegment'>;
+type Commands = Pick<
+  typeof desktopComicVideoCommands,
+  'concatVideo' | 'deleteMediaFile' | 'renderSegment' | 'writeBinaryFile'
+>;
 type VideoRendererStorage = {
-  mediaAssets: Pick<StorageAdapter['mediaAssets'], 'add' | 'get'>;
+  mediaAssets: Pick<StorageAdapter['mediaAssets'], 'add' | 'delete' | 'get'>;
   comicPanels: Pick<StorageAdapter['comicPanels'], 'update'>;
   comics: Pick<StorageAdapter['comics'], 'update'>;
 };
@@ -39,8 +42,11 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
   const panels = [...input.panels].sort((a, b) => a.order - b.order);
   const segmentPaths: string[] = [];
 
+  await deleteAssetFileAndRecord(comic.videoAssetId, storage, commands);
+
   await storage.comics.update(comic.id, {
     videoStatus: 'generating_audio',
+    videoAssetId: undefined,
     videoErrorMessage: undefined,
     updatedAt: Date.now(),
   });
@@ -49,15 +55,23 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
     if (!panel.assetId) throw new Error(`Panel #${panel.order} has no image asset.`);
     if (!panel.narration.trim()) throw new Error(`Panel #${panel.order} has empty narration.`);
 
-    const imageAsset = await storage.mediaAssets.get(panel.assetId);
-    const imagePath = imageAsset?.path ?? imageAsset?.url;
-    if (!imagePath) throw new Error(`Panel #${panel.order} image has no file path or URL.`);
-
     const paddedOrder = String(panel.order).padStart(3, '0');
+    const imageAsset = await storage.mediaAssets.get(panel.assetId);
+    const imagePath = await resolvePanelImagePath({
+      panel,
+      asset: imageAsset,
+      outputPath: `${settings.mediaRoot}/images/panel-${paddedOrder}.${imageExtension(imageAsset?.mimeType)}`,
+      commands,
+    });
     const audioPath = `${settings.mediaRoot}/audio/panel-${paddedOrder}.mp3`;
+    await deleteAssetFileAndRecord(panel.ttsAssetId, storage, commands);
+    await deleteAssetFileAndRecord(panel.segmentAssetId, storage, commands);
     await storage.comicPanels.update(panel.id, {
       ttsStatus: 'generating',
+      ttsAssetId: undefined,
+      ttsDurationMs: undefined,
       ttsErrorMessage: undefined,
+      segmentAssetId: undefined,
       updatedAt: Date.now(),
     });
 
@@ -155,4 +169,59 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
   });
 
   return videoAsset;
+}
+
+async function deleteAssetFileAndRecord(
+  assetId: string | undefined,
+  storage: VideoRendererStorage,
+  commands: Commands,
+): Promise<void> {
+  if (!assetId) return;
+
+  const asset = await storage.mediaAssets.get(assetId);
+  if (asset?.path) {
+    await commands.deleteMediaFile({ path: asset.path });
+  }
+  await storage.mediaAssets.delete(assetId);
+}
+
+async function resolvePanelImagePath({
+  panel,
+  asset,
+  outputPath,
+  commands,
+}: {
+  panel: ComicPanel;
+  asset: MediaAsset | undefined;
+  outputPath: string;
+  commands: Commands;
+}): Promise<string> {
+  if (asset?.path) return asset.path;
+  if (!asset?.url?.startsWith('data:')) {
+    throw new Error(`Panel #${panel.order} image has no file path or data URL.`);
+  }
+
+  await commands.writeBinaryFile({
+    path: outputPath,
+    bytes: dataUrlToBytes(asset.url),
+  });
+  return outputPath;
+}
+
+function dataUrlToBytes(url: string): number[] {
+  const match = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(url);
+  if (!match) {
+    throw new Error('Invalid data URL image asset.');
+  }
+
+  const isBase64 = Boolean(match[2]);
+  const payload = match[3];
+  const binary = isBase64 ? atob(payload) : decodeURIComponent(payload);
+  return Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+function imageExtension(mimeType: string | undefined): string {
+  if (mimeType === 'image/jpeg') return 'jpg';
+  if (mimeType === 'image/webp') return 'webp';
+  return 'png';
 }
