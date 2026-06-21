@@ -78,6 +78,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [edgeTtsBin, setEdgeTtsBin] = useState('edge-tts');
   const [ffmpegBin, setFfmpegBin] = useState('ffmpeg');
   const [ffprobeBin, setFfprobeBin] = useState('ffprobe');
+  const [panelDurationDraft, setPanelDurationDraft] = useState<Record<string, string>>({});
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -637,6 +638,26 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     } finally {
       setBusy(false);
     }
+  };
+
+  const updatePanelDurationDraft = (panel: ComicPanel, value: string) => {
+    setPanelDurationDraft((current) => ({ ...current, [panel.id]: value }));
+    if (value.trim() === '') {
+      void updatePanel(panel, { durationSec: 0 });
+      return;
+    }
+
+    const durationSec = Number(value);
+    if (!Number.isFinite(durationSec) || durationSec < 0) return;
+    void updatePanel(panel, { durationSec });
+  };
+
+  const clearPanelDurationDraft = (panel: ComicPanel) => {
+    setPanelDurationDraft((current) => {
+      const next = { ...current };
+      delete next[panel.id];
+      return next;
+    });
   };
 
   const movePanel = async (panelId: string, targetPanelId: string) => {
@@ -1396,8 +1417,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                       type="number"
                       min={0}
                       step={0.5}
-                      value={selectedPanel.durationSec}
-                      onChange={(event) => void updatePanel(selectedPanel, { durationSec: Number(event.target.value) || 0 })}
+                      value={panelDurationDraft[selectedPanel.id] ?? String(selectedPanel.durationSec ?? 0)}
+                      onChange={(event) => updatePanelDurationDraft(selectedPanel, event.target.value)}
+                      onBlur={() => clearPanelDurationDraft(selectedPanel)}
                     />
                   </label>
                   <small>每格顯示長度 = max(TTS 音訊長度, 手動秒數) + 格間停頓。</small>

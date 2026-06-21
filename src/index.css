@@ -1789,6 +1789,10 @@ input:focus, select:focus, textarea:focus {
 .comic-video-number-field input {
   min-width: 0;
 }
+.comic-video-export-grid select option {
+  color: #111827;
+  background: #ffffff;
+}
 @media (max-width: 1100px) {
   .comic-video-export-grid {
     grid-template-columns: 1fr;
