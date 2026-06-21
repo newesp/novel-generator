@@ -26,7 +26,7 @@ import { desktopComicVideoCommands } from '../../lib/comic/video/desktop-command
 import { cleanupPanelVideoArtifacts } from '../../lib/comic/video/panel-cleanup';
 import { edgeTtsProvider } from '../../lib/comic/video/tts-provider';
 import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
-import { createDefaultSceneVisual, filterSceneVisuals, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
+import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Modal } from '../common/Modal';
@@ -886,16 +886,30 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   };
 
   const deleteScene = async (scene: SceneVisual) => {
-    const usedPanels = panels.filter((panel) => panel.sceneSlug === scene.slug);
+    const projectComics = (await storage.comics.listAll()).filter((item) => item.projectId === project.id);
+    const projectComicIds = new Set(projectComics.map((item) => item.id));
+    const projectPanels = (await storage.comicPanels.listAll()).filter((panel) => projectComicIds.has(panel.comicId));
+    const usedPanels = findPanelsUsingScene(projectPanels, scene.slug);
     const message = usedPanels.length
-      ? `刪除場景「${scene.title}」？${usedPanels.length} 格分鏡會清除這個場景設定。`
+      ? `場景「${scene.title}」目前被 ${usedPanels.length} 格分鏡引用。刪除後這些分鏡會清除場景設定。確定要刪除？`
       : `刪除場景「${scene.title}」？`;
     if (!window.confirm(message)) return;
-    for (const panel of usedPanels) {
-      await updatePanel(panel, { sceneSlug: undefined });
+    const usedPanelIds = new Set(usedPanels.map((panel) => panel.id));
+    const now = Date.now();
+    try {
+      await Promise.all(usedPanels.map((panel) => (
+        storage.comicPanels.update(panel.id, { sceneSlug: undefined, updatedAt: now })
+      )));
+      await storage.sceneVisuals.delete(scene.id);
+      setPanels((current) => current.map((panel) => (
+        usedPanelIds.has(panel.id) ? { ...panel, sceneSlug: undefined, updatedAt: now } : panel
+      )));
+      await refreshScenes();
+      setMessage(`已刪除場景「${scene.title}」。`);
+    } catch (error) {
+      setMessage(errorMessage(error));
+      await refreshScenes();
     }
-    await storage.sceneVisuals.delete(scene.id);
-    setScenes((current) => current.filter((item) => item.id !== scene.id));
   };
 
   const sceneReferenceList = (scene: SceneVisual) => (

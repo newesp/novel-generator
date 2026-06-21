@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSceneVisual, filterSceneVisuals, removeSceneReferenceAssetId, slugifySceneTitle } from './scene-visuals';
+import { createDefaultSceneVisual, findPanelsUsingScene, filterSceneVisuals, removeSceneReferenceAssetId, slugifySceneTitle } from './scene-visuals';
 
 describe('scene visuals', () => {
   it('creates a reusable project-level scene visual', () => {
@@ -54,5 +54,17 @@ describe('scene visuals', () => {
   it('removes one reference asset id while preserving the remaining order', () => {
     expect(removeSceneReferenceAssetId(['asset-1', 'asset-2', 'asset-3'], 'asset-2')).toEqual(['asset-1', 'asset-3']);
     expect(removeSceneReferenceAssetId(['asset-1', 'asset-2'], 'asset-missing')).toEqual(['asset-1', 'asset-2']);
+  });
+
+  it('finds panels that reference a scene slug', () => {
+    const panels = [
+      { id: 'panel-1', sceneSlug: 'mist-market', order: 1 },
+      { id: 'panel-2', sceneSlug: 'dock', order: 2 },
+      { id: 'panel-3', sceneSlug: 'mist-market', order: 3 },
+      { id: 'panel-4', order: 4 },
+    ];
+
+    expect(findPanelsUsingScene(panels, 'mist-market').map((panel) => panel.id)).toEqual(['panel-1', 'panel-3']);
+    expect(findPanelsUsingScene(panels, 'missing')).toEqual([]);
   });
 });

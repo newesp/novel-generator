@@ -2,6 +2,7 @@
 
 ## 2026-06-21 - Comic single-panel video export
 
+- Fixed scene visual deletion so project-wide panel references are detected, users get a warning before deleting referenced scenes, and ComicModal scene lists refresh after deletion.
 - Fixed the ComicModal reference-image section so chapter group labels and thumbnail alt text use 1-based chapter numbering.
 - Fixed the ComicModal chapter selector display so chapter numbering starts at 1 instead of showing the internal 0-based order.
 - Reordered the ComicModal right sidebar so `場景` sits next to `場景視覺設定`, with `參考圖` above them.
@@ -12,6 +13,7 @@
 - Added responsive popup/footer styling so global video settings do not crowd the selected-panel editor.
 
 **Verification**
+- `vitest run src/lib/scene-visuals.test.ts` passed: 1 file, 5 tests.
 - `vitest run src/lib/comic/storyboard.test.ts src/lib/comic/storyboard-generate.test.ts` passed: 2 files, 20 tests.
 - `vitest run src/lib/comic/video/video-renderer.test.ts` passed: 1 file, 3 tests.
 - `tsc -b` passed.

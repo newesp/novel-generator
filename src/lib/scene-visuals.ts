@@ -1,5 +1,10 @@
 import type { SceneVisual } from '../types';
 
+export interface ScenePanelReference {
+  id: string;
+  sceneSlug?: string;
+}
+
 export function createDefaultSceneVisual(input: {
   id: string;
   projectId: string;
@@ -55,4 +60,8 @@ export function filterSceneVisuals(scenes: SceneVisual[], query: string): SceneV
 
 export function removeSceneReferenceAssetId(referenceAssetIds: string[], assetId: string): string[] {
   return referenceAssetIds.filter((id) => id !== assetId);
+}
+
+export function findPanelsUsingScene<T extends ScenePanelReference>(panels: T[], sceneSlug: string): T[] {
+  return panels.filter((panel) => panel.sceneSlug === sceneSlug);
 }
