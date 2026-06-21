@@ -1425,7 +1425,6 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           <Button variant="secondary" onClick={() => setVideoLibraryOpen(true)} disabled={!comic}>
             影片庫
           </Button>
-          {videoMessage && <span className="comic-footer-message" aria-live="polite">{videoMessage}</span>}
           <Button variant="primary" onClick={() => void renderVideo()} disabled={busy || !comic || panels.length === 0}>
             整章輸出 MP4
           </Button>
@@ -1443,6 +1442,19 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         >
           ×
         </button>
+        {videoMessage && (
+          <div className="comic-top-message" role="status" aria-live="polite">
+            <span>{videoMessage}</span>
+            <button
+              type="button"
+              onClick={() => setVideoMessage('')}
+              aria-label="關閉訊息"
+              title="關閉訊息"
+            >
+              ×
+            </button>
+          </div>
+        )}
         <section className="comic-settings">
           <div className="comic-provider-summary">
             <FieldLabel label="圖片提供商" help="圖片 provider 在「偏好設定 → 圖片生成」調整。這裡只顯示目前使用的全域設定。" />
@@ -1468,7 +1480,6 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         </section>
 
         {message && <p className="comic-message">{message}</p>}
-        {videoMessage && <p className="comic-message">{videoMessage}</p>}
         {downloadNotice && <p className="comic-download-notice" aria-live="polite">{downloadNotice.label}</p>}
 
         <div className="comic-workspace">

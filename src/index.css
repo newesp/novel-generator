@@ -1038,13 +1038,49 @@ input:focus, select:focus, textarea:focus {
   color: #86efac;
   font-size: 12px;
 }
-.comic-footer-message {
-  flex: 1 1 260px;
-  min-width: 220px;
+.comic-top-message {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  z-index: 1250;
+  width: min(720px, calc(100vw - 112px));
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(139, 92, 246, 0.5);
+  border-radius: 8px;
+  background: rgba(23, 23, 31, 0.96);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
   color: var(--accent);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.45;
+  transform: translateX(-50%);
+}
+.comic-top-message span {
+  min-width: 0;
+  flex: 1;
   overflow-wrap: anywhere;
+}
+.comic-top-message button {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+.comic-top-message button:hover {
+  border-color: var(--accent);
 }
 .comic-workspace {
   min-height: min(760px, calc(100vh - 230px));

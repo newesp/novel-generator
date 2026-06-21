@@ -4,6 +4,7 @@
 
 - Fixed full-chapter MP4 export feedback so missing panel images or narration show a visible message next to the export action.
 - Added full-chapter video input validation that lists every missing panel image, instead of stopping silently or reporting only the first missing panel.
+- Moved the full-chapter MP4 feedback out of the footer button row into a dismissible top notice layer.
 
 **Verification**
 - `vitest run src/lib/comic/video/video-validation.test.ts` passed: 1 file, 2 tests.
