@@ -4,12 +4,12 @@
 
 ## 功能列表
 
-| 功能            | 描述                        | 技術方案                                   | Phase |
-| ------------- | ------------------------- | -------------------------------------- | ----- |
-| 封面圖生成         | 一鍵生成專業小說封面                | 尚未實作；可復用 image provider 架構 | 4 |
-| 章節轉漫畫圖片 MVP | 章節 → 可編輯分鏡 → 批次生成連續漫畫圖 | ComfyUI / OpenAI-compatible image / DeepInfra FLUX / Google Gemini Image | 6 |
-| 語音朗讀          | 章節轉 TTS（支援多角色不同音色）        | Edge-TTS / ElevenLabs                  | 4     |
-| 漫畫 + TTS → 影片 | 連續漫畫圖 + AI 念稿 → 合成 mp4    | ffmpeg sidecar（Tauri 桌面）               | 6     |
+| 功能            | 描述                     | 技術方案                                                                     | Phase |
+| ------------- | ---------------------- | ------------------------------------------------------------------------ | ----- |
+| 封面圖生成         | 一鍵生成專業小說封面             | 尚未實作；可復用 image provider 架構                                               | 4     |
+| 章節轉漫畫圖片 MVP   | 章節 → 可編輯分鏡 → 批次生成連續漫畫圖 | ComfyUI / OpenAI-compatible image / DeepInfra FLUX / Google Gemini Image | 6     |
+| 語音朗讀          | 章節轉 TTS（支援多角色不同音色）     | Edge-TTS / ElevenLabs                                                    | 4     |
+| 漫畫 + TTS → 影片 | 連續漫畫圖 + AI 念稿 → 合成 mp4 | ffmpeg sidecar（Tauri 桌面）                                                 | 6     |
 
 ---
 
