@@ -1,5 +1,20 @@
 # 開發日誌
 
+## 2026-06-16 - Comic TTS video MVP
+
+- Added panel-level TTS metadata, chapter video status metadata, and timing helpers where `durationSec: 0` uses measured TTS duration and manual estimates never truncate audio.
+- Updated comic storyboard generation so `panels[].narration` is a chapter-complete spoken script distributed across ordered panels.
+- Added Edge-TTS/ffprobe/ffmpeg Tauri command wrappers, concat-list generation, per-panel segment rendering orchestration, app-data media root resolution, and concat mp4 export.
+- Added data URL image materialization before ffmpeg segment rendering, and constrained desktop file write/delete/render paths to the Tauri app-data media root.
+- Added cleanup for panel-owned TTS and segment files when a panel is deleted, on rerender, and when regenerating a storyboard; existing chapter video metadata is reset when panels are replaced.
+- Added ComicModal controls for narration editing, manual duration fallback, voice/padding/bin settings, and MP4 export.
+
+**Verification**
+- `vitest run src/lib/comic/video/timing.test.ts src/lib/comic/video/concat-list.test.ts src/lib/comic/video/panel-cleanup.test.ts src/lib/comic/video/video-renderer.test.ts src/lib/comic/storyboard.test.ts src/lib/comic/storyboard-generate.test.ts src/lib/comic/storage-types.test.ts src/lib/tauri-migrations.test.ts` passed: 8 files, 30 tests.
+- `tsc -b` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed.
+- Browser visual QA opened ComicModal at `http://127.0.0.1:5173/`; empty/modal state remained usable, but selected-panel video controls could not be visually exercised because the local browser profile had no existing comic panels and no API key to generate a storyboard.
+
 ## 2026-06-16 - Comic TTS video implementation plan
 
 - Added the implementation plan for the comic TTS video MVP: `docs/superpowers/plans/2026-06-16-comic-tts-video.md`.

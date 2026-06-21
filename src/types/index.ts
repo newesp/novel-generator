@@ -122,6 +122,8 @@ export type WikiSyncStatus = 'unsynced' | 'synced' | 'stale' | 'partial' | 'part
 export type ChapterComicStatus = 'draft' | 'storyboard_ready' | 'generating' | 'ready' | 'partial' | 'failed';
 export type ComicPanelStatus = 'draft' | 'queued' | 'generating' | 'ready' | 'failed';
 export type ComicPanelImageVariantStatus = 'ready' | 'failed';
+export type ComicPanelTtsStatus = 'idle' | 'queued' | 'generating' | 'ready' | 'failed';
+export type ChapterComicVideoStatus = 'idle' | 'generating_audio' | 'rendering_segments' | 'concatenating' | 'ready' | 'failed';
 export type MediaAssetKind = 'comic_panel_image' | 'character_reference_image' | 'scene_reference_image' | 'tts_audio' | 'video';
 export type ComicPanelExtraRole = 'crowd' | 'guards' | 'civilians' | 'creatures' | 'vehicles' | 'background';
 export type ComicPanelExtraPriority = 'low' | 'medium';
@@ -144,6 +146,11 @@ export interface ChapterComic {
   providerId: string;
   targetPanelCount?: number;
   visualContinuityBibleJson: string;
+  videoStatus?: ChapterComicVideoStatus;
+  videoAssetId?: string;
+  videoProviderId?: string;
+  videoSettingsJson?: string;
+  videoErrorMessage?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -172,6 +179,13 @@ export interface ComicPanel {
   seed?: number;
   assetId?: string;
   status: ComicPanelStatus;
+  ttsStatus?: ComicPanelTtsStatus;
+  ttsAssetId?: string;
+  ttsDurationMs?: number;
+  ttsProviderId?: string;
+  ttsVoice?: string;
+  ttsErrorMessage?: string;
+  segmentAssetId?: string;
   errorMessage?: string;
   createdAt: number;
   updatedAt: number;
