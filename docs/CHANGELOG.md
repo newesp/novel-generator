@@ -2,12 +2,14 @@
 
 ## 2026-06-21 - Comic single-panel video export
 
+- Fixed storyboard normalization so generated panels always start with `durationSec: 0`; manual seconds now remain user-entered only.
 - Added a panel-scoped `單格輸出 MP4` flow that validates only the selected comic panel and writes reusable TTS/segment metadata.
 - Moved full-chapter video controls into a footer-level `整章影片設定` popup plus `整章輸出 MP4` action.
 - Updated chapter video rendering to reuse matching panel segments instead of regenerating every TTS/audio segment on each full export.
 - Added responsive popup/footer styling so global video settings do not crowd the selected-panel editor.
 
 **Verification**
+- `vitest run src/lib/comic/storyboard.test.ts src/lib/comic/storyboard-generate.test.ts` passed: 2 files, 20 tests.
 - `vitest run src/lib/comic/video/video-renderer.test.ts` passed: 1 file, 3 tests.
 - `tsc -b` passed.
 

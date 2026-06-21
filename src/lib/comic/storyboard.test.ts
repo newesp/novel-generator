@@ -36,18 +36,18 @@ describe('normalizeStoryboardDraft', () => {
       negativePrompt: 'extra fingers',
       dialogue: '阿飛：退後。',
       narration: '霧壓低了街聲。',
-      durationSec: 4,
+      durationSec: 0,
       status: 'draft',
     });
   });
 
-  it('clamps duration and fills missing prompt fallbacks', () => {
+  it('defaults generated storyboard duration to 0 and fills missing prompt fallbacks', () => {
     const result = normalizeStoryboardDraft({
       chapterTitle: '測試章',
       panels: [{ panelNumber: 1, beat: '開場', action: '主角看見城市', durationSec: 90 }],
     });
 
-    expect(result.panels[0].durationSec).toBe(60);
+    expect(result.panels[0].durationSec).toBe(0);
     expect(result.panels[0].visualPrompt).toContain('主角看見城市');
     expect(result.visualContinuityBibleJson).toContain('測試章');
   });

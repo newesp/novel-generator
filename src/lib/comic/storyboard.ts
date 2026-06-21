@@ -118,14 +118,9 @@ function numberValue(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
 function normalizeDurationSec(value: unknown): number {
-  const duration = numberValue(value, 0);
-  if (duration <= 0) return 0;
-  return clamp(duration, 2, 60);
+  void value;
+  return 0;
 }
 
 function dialogueToText(value: unknown): string {
