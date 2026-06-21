@@ -2,6 +2,7 @@
 
 ## 2026-06-21 - Comic single-panel video export
 
+- Fixed the ComicModal chapter selector display so chapter numbering starts at 1 instead of showing the internal 0-based order.
 - Reordered the ComicModal right sidebar so `場景` sits next to `場景視覺設定`, with `參考圖` above them.
 - Fixed storyboard normalization so generated panels always start with `durationSec: 0`; manual seconds now remain user-entered only.
 - Added a panel-scoped `單格輸出 MP4` flow that validates only the selected comic panel and writes reusable TTS/segment metadata.

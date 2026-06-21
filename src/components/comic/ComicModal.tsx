@@ -1268,7 +1268,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               >
                 {chapters.map((item) => (
                   <option value={item.id} key={item.id}>
-                    第 {item.order} 章｜{item.title}
+                    第 {item.order + 1} 章｜{item.title}
                   </option>
                 ))}
               </select>
