@@ -70,7 +70,7 @@ struct ResolveMediaRootArgs {
   chapter_id: String,
 }
 
-fn app_media_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+fn app_media_root_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
   let root = app
     .path()
     .app_data_dir()
@@ -78,6 +78,11 @@ fn app_media_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     .join("media");
   fs::create_dir_all(&root)
     .map_err(|err| format!("Failed to create media root {}: {err}", root.display()))?;
+  Ok(root)
+}
+
+fn app_media_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+  let root = app_media_root_path(app)?;
   root
     .canonicalize()
     .map_err(|err| format!("Failed to canonicalize media root {}: {err}", root.display()))
@@ -122,7 +127,7 @@ fn safe_media_file_path(
   let file_name = input
     .file_name()
     .ok_or_else(|| format!("Path has no file name: {path}"))?;
-  Ok(canonical_parent.join(file_name))
+  Ok(parent.join(file_name))
 }
 
 fn ensure_safe_media_component(value: &str, label: &str) -> Result<(), String> {
@@ -307,7 +312,7 @@ fn resolve_media_root(
   ensure_safe_media_component(&args.project_id, "projectId")?;
   ensure_safe_media_component(&args.chapter_id, "chapterId")?;
 
-  let dir = app_media_root(&app)?
+  let dir = app_media_root_path(&app)?
     .join(args.project_id)
     .join("chapters")
     .join(args.chapter_id)
