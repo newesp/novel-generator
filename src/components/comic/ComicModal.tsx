@@ -1609,49 +1609,6 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
 
             {selectedPanel && (
               <section className="comic-side-section">
-                <h3>場景</h3>
-                <details className="comic-scene-picker" open>
-                  <summary>
-                    <span className="comic-scene-summary-text">{activeScene(selectedPanel)?.title ?? '無場景'}</span>
-                  </summary>
-                  <div className="comic-scene-picker-menu">
-                    <label className="comic-checkbox-row">
-                      <input
-                        type="radio"
-                        name={`scene-${selectedPanel.id}`}
-                        checked={!selectedPanel.sceneSlug}
-                        onChange={() => updatePanel(selectedPanel, { sceneSlug: undefined })}
-                      />
-                      <VisualReferenceThumb label="無場景" />
-                      <span>無場景</span>
-                    </label>
-                    {filteredScenes.map((scene) => (
-                      <label className="comic-checkbox-row" key={scene.id}>
-                        <input
-                          type="radio"
-                          name={`scene-${selectedPanel.id}`}
-                          checked={selectedPanel.sceneSlug === scene.slug}
-                          onChange={() => updatePanel(selectedPanel, { sceneSlug: scene.slug })}
-                        />
-                        <VisualReferenceThumb
-                          url={referenceThumbnail(scene)}
-                          label={scene.title}
-                          onPreview={(url) => previewImageUrl(url, scene.title)}
-                        />
-                        <span>{scene.title}</span>
-                        <small>{scene.referenceAssetIds.length} 張</small>
-                      </label>
-                    ))}
-                  </div>
-                </details>
-                <Button variant="secondary" onClick={() => createSceneFromPanel(selectedPanel)} disabled={busy}>
-                  從此格建立場景
-                </Button>
-              </section>
-            )}
-
-            {selectedPanel && (
-              <section className="comic-side-section">
                 <h3>參考圖</h3>
                 <details className="comic-reference-picker" open>
                   <summary>已選 {selectedPanel.referenceAssetIds?.length ?? 0} 張</summary>
@@ -1694,6 +1651,49 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                     }) : <p className="comic-message">尚無可用的已生成分鏡圖</p>}
                   </div>
                 </details>
+              </section>
+            )}
+
+            {selectedPanel && (
+              <section className="comic-side-section">
+                <h3>場景</h3>
+                <details className="comic-scene-picker" open>
+                  <summary>
+                    <span className="comic-scene-summary-text">{activeScene(selectedPanel)?.title ?? '無場景'}</span>
+                  </summary>
+                  <div className="comic-scene-picker-menu">
+                    <label className="comic-checkbox-row">
+                      <input
+                        type="radio"
+                        name={`scene-${selectedPanel.id}`}
+                        checked={!selectedPanel.sceneSlug}
+                        onChange={() => updatePanel(selectedPanel, { sceneSlug: undefined })}
+                      />
+                      <VisualReferenceThumb label="無場景" />
+                      <span>無場景</span>
+                    </label>
+                    {filteredScenes.map((scene) => (
+                      <label className="comic-checkbox-row" key={scene.id}>
+                        <input
+                          type="radio"
+                          name={`scene-${selectedPanel.id}`}
+                          checked={selectedPanel.sceneSlug === scene.slug}
+                          onChange={() => updatePanel(selectedPanel, { sceneSlug: scene.slug })}
+                        />
+                        <VisualReferenceThumb
+                          url={referenceThumbnail(scene)}
+                          label={scene.title}
+                          onPreview={(url) => previewImageUrl(url, scene.title)}
+                        />
+                        <span>{scene.title}</span>
+                        <small>{scene.referenceAssetIds.length} 張</small>
+                      </label>
+                    ))}
+                  </div>
+                </details>
+                <Button variant="secondary" onClick={() => createSceneFromPanel(selectedPanel)} disabled={busy}>
+                  從此格建立場景
+                </Button>
               </section>
             )}
 
