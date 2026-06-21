@@ -103,14 +103,15 @@ fn safe_media_file_path(
   create_parent: bool,
 ) -> Result<PathBuf, String> {
   let input = PathBuf::from(path);
-  let root = app_media_root()?;
+  let root_path = app_media_root_path()?;
+  let canonical_root = app_media_root()?;
   if !input.is_absolute() {
     return Err(format!("Path must be absolute: {path}"));
   }
   if path_has_parent_dir(&input) {
     return Err(format!("Path escapes media root: {path}"));
   }
-  if !input.starts_with(&root) {
+  if !input.starts_with(&root_path) {
     return Err(format!("Path is outside media root: {path}"));
   }
 
@@ -125,7 +126,7 @@ fn safe_media_file_path(
   let canonical_parent = parent
     .canonicalize()
     .map_err(|err| format!("Failed to canonicalize {}: {err}", parent.display()))?;
-  if !canonical_parent.starts_with(&root) {
+  if !canonical_parent.starts_with(&canonical_root) {
     return Err(format!("Path is outside media root: {path}"));
   }
 
