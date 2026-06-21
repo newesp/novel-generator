@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-21 - Comic workspace resume
+
+- Added per-book ComicModal workspace resume state so `轉漫畫` reopens the last edited chapter and panel.
+- Persisted the active comic chapter/panel through panel selection, chapter switching, and panel edits using the existing `StorageAdapter.appMeta` store.
+- Auto-scroll the ComicModal reference-image picker to the current chapter group when editing a panel, reducing manual scrolling in large reference libraries.
+
+**Verification**
+- `vitest run src/lib/comic/comic-workspace-state.test.ts` passed: 1 file, 3 tests.
+- `tsc -b` passed.
+
 ## 2026-06-21 - Comic single-panel video export
 
 - Fixed scene visual deletion so project-wide panel references are detected, users get a warning before deleting referenced scenes, and ComicModal scene lists refresh after deletion.

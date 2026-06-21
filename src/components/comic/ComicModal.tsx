@@ -1,4 +1,4 @@
-import { type PointerEvent, useEffect, useMemo, useState } from 'react';
+import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import type { Chapter, ChapterComic, Character, ComicPanel, ComicPanelImageVariant, ImageProviderConfig, MediaAsset, Project, SceneVisual } from '../../types';
 import { storage } from '../../lib/storage';
@@ -26,6 +26,7 @@ import { desktopComicVideoCommands } from '../../lib/comic/video/desktop-command
 import { cleanupPanelVideoArtifacts } from '../../lib/comic/video/panel-cleanup';
 import { edgeTtsProvider } from '../../lib/comic/video/tts-provider';
 import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
+import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -68,6 +69,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [panelVariantNotice, setPanelVariantNotice] = useState<Record<string, string>>({});
   const [selectorSearch, setSelectorSearch] = useState('');
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
+  const [pendingWorkspaceState, setPendingWorkspaceState] = useState<ComicWorkspaceState | null>(null);
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
   const [dragTargetPanelId, setDragTargetPanelId] = useState<string | null>(null);
   const [downloadNotice, setDownloadNotice] = useState<{ key: string; label: string } | null>(null);
@@ -82,6 +84,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [ffmpegBin, setFfmpegBin] = useState('ffmpeg');
   const [ffprobeBin, setFfprobeBin] = useState('ffprobe');
   const [panelDurationDraft, setPanelDurationDraft] = useState<Record<string, string>>({});
+  const restoredWorkspaceProjectRef = useRef<string | null>(null);
+  const referencePickerMenuRef = useRef<HTMLDivElement | null>(null);
+  const activeReferenceChapterRef = useRef<HTMLElement | null>(null);
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -116,10 +121,47 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     setExpandedPromptDraft(config.value);
   };
 
+  const persistComicWorkspaceState = useCallback((state: ComicWorkspaceState) => {
+    void storage.appMeta.put(comicWorkspaceStateKey(project.id), {
+      chapterId: state.chapterId ?? chapter.id,
+      panelId: state.panelId,
+    });
+  }, [chapter.id, project.id]);
+
+  const selectPanel = useCallback((panelId: string) => {
+    setSelectedPanelId(panelId);
+    persistComicWorkspaceState({ panelId });
+  }, [persistComicWorkspaceState]);
+
   const markDownloadStarted = (key: string, fileName: string) => {
     setDownloadNotice({ key, label: `已開始下載 ${fileName}` });
     setMessage(`已開始下載 ${fileName}。若瀏覽器詢問，請確認儲存位置。`);
   };
+
+  useEffect(() => {
+    if (!open) {
+      setPendingWorkspaceState(null);
+      restoredWorkspaceProjectRef.current = null;
+      return;
+    }
+    if (restoredWorkspaceProjectRef.current === project.id) return;
+    restoredWorkspaceProjectRef.current = project.id;
+    let cancelled = false;
+    void (async () => {
+      const saved = await storage.appMeta.get<ComicWorkspaceState>(comicWorkspaceStateKey(project.id));
+      if (cancelled || !saved) return;
+      const savedChapterId = saved.chapterId && chapters.some((item) => item.id === saved.chapterId)
+        ? saved.chapterId
+        : undefined;
+      setPendingWorkspaceState({ chapterId: savedChapterId, panelId: saved.panelId });
+      if (savedChapterId && savedChapterId !== chapter.id) {
+        onChapterChange?.(savedChapterId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [chapter.id, chapters, onChapterChange, open, project.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -156,10 +198,17 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       setSelectedPanelId(null);
       return;
     }
+    if (pendingWorkspaceState?.chapterId && pendingWorkspaceState.chapterId !== chapter.id) return;
+    if (pendingWorkspaceState) {
+      const resolved = resolveComicWorkspaceState(pendingWorkspaceState, { chapters, panels });
+      if (resolved.panelId) setSelectedPanelId(resolved.panelId);
+      setPendingWorkspaceState(null);
+      return;
+    }
     if (!selectedPanelId || !panels.some((panel) => panel.id === selectedPanelId)) {
       setSelectedPanelId(panels[0].id);
     }
-  }, [panels, selectedPanelId]);
+  }, [chapter.id, chapters, panels, pendingWorkspaceState, selectedPanelId]);
 
   useEffect(() => {
     if (!open) return;
@@ -454,6 +503,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   };
 
   const updatePanel = (panel: ComicPanel, patch: Partial<ComicPanel>): Promise<void> => {
+    persistComicWorkspaceState({ panelId: panel.id });
     const persistedPatch = { ...patch, updatedAt: new Date().getTime() };
     setPanels((current) => current.map((item) => (
       item.id === panel.id ? { ...item, ...persistedPatch } : item
@@ -503,7 +553,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       nextPanel,
       ...panels.slice(insertAt),
     ]);
-    setSelectedPanelId(nextPanel.id);
+    selectPanel(nextPanel.id);
     await storage.comicPanels.add(nextPanel);
     await persistPanelOrder(nextPanels);
     setMessage(`已新增分鏡 #${nextPanels.find((panel) => panel.id === nextPanel.id)?.order ?? nextPanel.order}。`);
@@ -541,9 +591,13 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     }
 
     const nextPanels = removePanelById(panels, panel.id);
-    setSelectedPanelId((current) => (
-      current === panel.id ? nextPanels[Math.min(panel.order - 1, nextPanels.length - 1)]?.id ?? null : current
-    ));
+    setSelectedPanelId((current) => {
+      const nextSelectedPanelId = current === panel.id
+        ? nextPanels[Math.min(panel.order - 1, nextPanels.length - 1)]?.id ?? null
+        : current;
+      if (nextSelectedPanelId) persistComicWorkspaceState({ panelId: nextSelectedPanelId });
+      return nextSelectedPanelId;
+    });
     setPanelAssets((current) => {
       const next = { ...current };
       delete next[panel.id];
@@ -820,7 +874,22 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const filteredScenes = filterSceneVisuals(scenes, selectorSearch);
   const selectedPanel = panels.find((panel) => panel.id === selectedPanelId) ?? panels[0];
   const selectedPanelReferenceOptions = selectedPanel ? referenceOptionsForPanel(selectedPanel) : [];
+  const referenceChapterKey = selectedPanelReferenceOptions.map((option) => option.chapter.id).join('|');
   const selectedPanelAsset = selectedPanel ? panelAssets[selectedPanel.id] : undefined;
+
+  useEffect(() => {
+    if (!open || !selectedPanel) return;
+    const container = referencePickerMenuRef.current;
+    const target = activeReferenceChapterRef.current;
+    if (!container || !target) return;
+    const frameId = window.requestAnimationFrame(() => {
+      container.scrollTo({
+        top: Math.max(0, target.offsetTop - container.offsetTop),
+        behavior: 'smooth',
+      });
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [chapter.id, open, referenceChapterKey, selectedPanel?.id]);
 
   const refreshScenes = async () => {
     setScenes(await storage.sceneVisuals.listByProject(project.id));
@@ -1277,7 +1346,10 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               <select
                 className="toolbar-input"
                 value={chapter.id}
-                onChange={(event) => onChapterChange?.(event.target.value)}
+                onChange={(event) => {
+                  persistComicWorkspaceState({ chapterId: event.target.value });
+                  onChapterChange?.(event.target.value);
+                }}
                 disabled={busy || !onChapterChange}
               >
                 {chapters.map((item) => (
@@ -1308,11 +1380,11 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                     key={panel.id}
                     role="button"
                     tabIndex={0}
-                    onClick={() => setSelectedPanelId(panel.id)}
+                    onClick={() => selectPanel(panel.id)}
                     onKeyDown={(event) => {
                       if (event.key !== 'Enter' && event.key !== ' ') return;
                       event.preventDefault();
-                      setSelectedPanelId(panel.id);
+                      selectPanel(panel.id);
                     }}
                     onPointerEnter={() => enterPanelPointerDropTarget(panel.id)}
                     onPointerUp={stopPanelPointerDrag}
@@ -1626,13 +1698,17 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                 <h3>參考圖</h3>
                 <details className="comic-reference-picker" open>
                   <summary>已選 {selectedPanel.referenceAssetIds?.length ?? 0} 張</summary>
-                  <div className="comic-reference-picker-menu">
+                  <div className="comic-reference-picker-menu" ref={referencePickerMenuRef}>
                     {selectedPanelReferenceOptions.length ? Array.from(new Set(
                       selectedPanelReferenceOptions.map((option) => option.chapter.id),
                     )).map((chapterId) => {
                       const chapterOptions = selectedPanelReferenceOptions.filter((option) => option.chapter.id === chapterId);
                       return (
-                        <section className="comic-reference-chapter" key={chapterId}>
+                        <section
+                          className="comic-reference-chapter"
+                          key={chapterId}
+                          ref={chapterId === chapter.id ? activeReferenceChapterRef : undefined}
+                        >
                           <strong>第 {chapterOptions[0].chapter.order + 1} 章 · {chapterOptions[0].chapter.title}</strong>
                           <div className="comic-reference-grid">
                             {chapterOptions.map((option) => (
