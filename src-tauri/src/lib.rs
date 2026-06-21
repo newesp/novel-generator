@@ -50,6 +50,18 @@ struct DeleteMediaFileArgs {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct OpenMediaFileArgs {
+  path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RevealMediaFileArgs {
+  path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct WriteTextFileArgs {
   path: String,
   content: String,
@@ -299,6 +311,67 @@ fn delete_media_file(args: DeleteMediaFileArgs) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn open_media_file(args: OpenMediaFileArgs) -> Result<(), String> {
+  let path = safe_media_file_path(&args.path, false)?;
+  if !path.exists() {
+    return Err(format!("Media file does not exist: {}", path.display()));
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    let mut command = Command::new("cmd");
+    command.arg("/C").arg("start").arg("").arg(path);
+    run_command(command, "open media file")
+  }
+
+  #[cfg(target_os = "macos")]
+  {
+    let mut command = Command::new("open");
+    command.arg(path);
+    run_command(command, "open media file")
+  }
+
+  #[cfg(all(unix, not(target_os = "macos")))]
+  {
+    let mut command = Command::new("xdg-open");
+    command.arg(path);
+    run_command(command, "open media file")
+  }
+}
+
+#[tauri::command]
+fn reveal_media_file(args: RevealMediaFileArgs) -> Result<(), String> {
+  let path = safe_media_file_path(&args.path, false)?;
+  if !path.exists() {
+    return Err(format!("Media file does not exist: {}", path.display()));
+  }
+
+  #[cfg(target_os = "windows")]
+  {
+    let mut command = Command::new("explorer");
+    command.arg(format!("/select,{}", path.display()));
+    run_command(command, "reveal media file")
+  }
+
+  #[cfg(target_os = "macos")]
+  {
+    let mut command = Command::new("open");
+    command.arg("-R").arg(path);
+    run_command(command, "reveal media file")
+  }
+
+  #[cfg(all(unix, not(target_os = "macos")))]
+  {
+    let parent = path
+      .parent()
+      .ok_or_else(|| format!("Media file has no parent: {}", path.display()))?;
+    let mut command = Command::new("xdg-open");
+    command.arg(parent);
+    run_command(command, "reveal media file")
+  }
+}
+
+#[tauri::command]
 fn write_text_file(args: WriteTextFileArgs) -> Result<(), String> {
   let path = safe_media_file_path(&args.path, true)?;
   fs::write(&path, args.content).map_err(|err| format!("Failed to write {}: {err}", path.display()))
@@ -383,6 +456,8 @@ pub fn run() {
       render_comic_video_segment,
       concat_comic_video,
       delete_media_file,
+      open_media_file,
+      reveal_media_file,
       write_text_file,
       write_binary_file,
       resolve_media_root,

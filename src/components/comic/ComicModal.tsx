@@ -25,6 +25,7 @@ import { movePanelById, removePanelById, reindexPanels } from '../../lib/comic/p
 import { desktopComicVideoCommands } from '../../lib/comic/video/desktop-commands';
 import { cleanupPanelVideoArtifacts } from '../../lib/comic/video/panel-cleanup';
 import { edgeTtsProvider } from '../../lib/comic/video/tts-provider';
+import { buildComicVideoLibrary, type ComicVideoLibraryItem } from '../../lib/comic/video/video-library';
 import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
@@ -80,6 +81,10 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [videoAsset, setVideoAsset] = useState<MediaAsset | null>(null);
   const [panelVideoAsset, setPanelVideoAsset] = useState<MediaAsset | null>(null);
   const [chapterVideoSettingsOpen, setChapterVideoSettingsOpen] = useState(false);
+  const [videoLibraryOpen, setVideoLibraryOpen] = useState(false);
+  const [videoLibraryMessage, setVideoLibraryMessage] = useState('');
+  const [videoLibraryAssets, setVideoLibraryAssets] = useState<Record<string, MediaAsset>>({});
+  const [videoLibraryRevision, setVideoLibraryRevision] = useState(0);
   const [edgeTtsBin, setEdgeTtsBin] = useState('edge-tts');
   const [ffmpegBin, setFfmpegBin] = useState('ffmpeg');
   const [ffprobeBin, setFfprobeBin] = useState('ffprobe');
@@ -357,6 +362,33 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     };
   }, [open, comic, panels]);
 
+  useEffect(() => {
+    if (!open) return;
+    const assetIds = Array.from(new Set([
+      comic?.videoAssetId,
+      ...panels.map((panel) => panel.segmentAssetId),
+    ].filter((id): id is string => Boolean(id))));
+    let cancelled = false;
+    if (!assetIds.length) {
+      queueMicrotask(() => {
+        if (!cancelled) setVideoLibraryAssets({});
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    void Promise.all(assetIds.map((id) => storage.mediaAssets.get(id))).then((assets) => {
+      if (cancelled) return;
+      setVideoLibraryAssets(assets.filter((asset): asset is MediaAsset => Boolean(asset)).reduce<Record<string, MediaAsset>>((acc, asset) => {
+        acc[asset.id] = asset;
+        return acc;
+      }, {}));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, comic?.videoAssetId, panels, videoLibraryRevision]);
+
   const persistGeneratedPanel = async (
     panel: ComicPanel,
     config: ImageProviderConfig,
@@ -627,27 +659,28 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     await storage.mediaAssets.delete(assetId);
   };
 
-  const renderSelectedPanelVideo = async () => {
-    if (!comic || !selectedPanel) return;
-    if (!selectedPanel.assetId) {
-      setPanelVideoMessage(`分鏡 #${selectedPanel.order} 尚未建立圖片。`);
+  const renderPanelVideo = async (targetPanel: ComicPanel) => {
+    if (!comic) return;
+    if (!targetPanel.assetId) {
+      setPanelVideoMessage(`分鏡 #${targetPanel.order} 尚未建立圖片。`);
       return;
     }
-    if (!selectedPanel.narration.trim()) {
-      setPanelVideoMessage(`分鏡 #${selectedPanel.order} 尚未填寫旁白。`);
+    if (!targetPanel.narration.trim()) {
+      setPanelVideoMessage(`分鏡 #${targetPanel.order} 尚未填寫旁白。`);
       return;
     }
 
     try {
       setBusy(true);
-      setPanelVideoMessage(`正在輸出分鏡 #${selectedPanel.order} MP4...`);
+      setPanelVideoMessage(`正在輸出分鏡 #${targetPanel.order} MP4...`);
+      setVideoLibraryMessage(`正在輸出 ${targetPanel.order} 號分鏡 MP4...`);
       const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
         projectId: comic.projectId,
         chapterId: comic.chapterId,
       });
       const asset = await renderComicPanelSegment({
         comic,
-        panel: selectedPanel,
+        panel: targetPanel,
         storage,
         ttsProvider: edgeTtsProvider,
         commands: desktopComicVideoCommands,
@@ -663,34 +696,43 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           fps: 30,
         },
       });
-      const refreshedPanel = await storage.comicPanels.get(selectedPanel.id);
+      const refreshedPanel = await storage.comicPanels.get(targetPanel.id);
       if (refreshedPanel) {
         setPanels((current) => current.map((panel) => (
           panel.id === refreshedPanel.id ? refreshedPanel : panel
         )));
       } else {
         setPanels((current) => current.map((panel) => (
-          panel.id === selectedPanel.id ? { ...panel, segmentAssetId: asset.id, updatedAt: Date.now() } : panel
+          panel.id === targetPanel.id ? { ...panel, segmentAssetId: asset.id, updatedAt: Date.now() } : panel
         )));
       }
-      setPanelVideoAsset(asset);
-      setPanelVideoMessage(`分鏡 #${selectedPanel.order} MP4 已輸出完成。`);
+      setVideoLibraryAssets((current) => ({ ...current, [asset.id]: asset }));
+      setVideoLibraryRevision((current) => current + 1);
+      if (selectedPanel?.id === targetPanel.id) setPanelVideoAsset(asset);
+      setPanelVideoMessage(`分鏡 #${targetPanel.order} MP4 已輸出完成。`);
+      setVideoLibraryMessage(`分鏡 #${targetPanel.order} MP4 已輸出完成。`);
     } catch (error) {
       const message = errorMessage(error);
       setPanelVideoMessage(message);
-      await storage.comicPanels.update(selectedPanel.id, {
+      setVideoLibraryMessage(message);
+      await storage.comicPanels.update(targetPanel.id, {
         ttsStatus: 'failed',
         ttsErrorMessage: message,
         updatedAt: Date.now(),
       });
       setPanels((current) => current.map((panel) => (
-        panel.id === selectedPanel.id
+        panel.id === targetPanel.id
           ? { ...panel, ttsStatus: 'failed', ttsErrorMessage: message, updatedAt: Date.now() }
           : panel
       )));
     } finally {
       setBusy(false);
     }
+  };
+
+  const renderSelectedPanelVideo = async () => {
+    if (!selectedPanel) return;
+    await renderPanelVideo(selectedPanel);
   };
 
   const renderVideo = async () => {
@@ -710,6 +752,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     try {
       setBusy(true);
       setVideoMessage('正在輸出旁白影片...');
+      setVideoLibraryMessage('正在輸出整章 MP4...');
       const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
         projectId: comic.projectId,
         chapterId: comic.chapterId,
@@ -734,6 +777,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         },
       });
       setVideoAsset(asset);
+      setVideoLibraryAssets((current) => ({ ...current, [asset.id]: asset }));
+      setVideoLibraryRevision((current) => current + 1);
       setComic((current) => current ? {
         ...current,
         videoStatus: 'ready',
@@ -744,9 +789,11 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         updatedAt: Date.now(),
       } : current);
       setVideoMessage('影片已輸出完成。');
+      setVideoLibraryMessage('整章 MP4 已輸出完成。');
     } catch (error) {
       const message = errorMessage(error);
       setVideoMessage(message);
+      setVideoLibraryMessage(message);
       await storage.comics.update(comic.id, {
         videoStatus: 'failed',
         videoErrorMessage: message,
@@ -761,6 +808,85 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     } finally {
       setBusy(false);
     }
+  };
+
+  const openVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
+    if (!item.path) {
+      setVideoLibraryMessage(`${item.label} 找不到影片檔路徑。`);
+      return;
+    }
+    try {
+      await desktopComicVideoCommands.openMediaFile({ path: item.path });
+      setVideoLibraryMessage(`已開啟 ${item.label}。`);
+    } catch (error) {
+      setVideoLibraryMessage(errorMessage(error));
+    }
+  };
+
+  const revealVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
+    if (!item.path) {
+      setVideoLibraryMessage(`${item.label} 找不到影片檔路徑。`);
+      return;
+    }
+    try {
+      await desktopComicVideoCommands.revealMediaFile({ path: item.path });
+      setVideoLibraryMessage(`已定位 ${item.label}。`);
+    } catch (error) {
+      setVideoLibraryMessage(errorMessage(error));
+    }
+  };
+
+  const deleteVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
+    if (!item.assetId) return;
+    if (!window.confirm(`刪除 ${item.label}？這會移除影片檔與資料庫紀錄。`)) return;
+    try {
+      await cleanupMediaAssetFile(item.assetId);
+      setVideoLibraryAssets((current) => {
+        const next = { ...current };
+        delete next[item.assetId as string];
+        return next;
+      });
+      if (item.kind === 'chapter' && comic) {
+        const patch: Partial<ChapterComic> = {
+          videoStatus: 'idle',
+          videoAssetId: undefined,
+          videoProviderId: undefined,
+          videoSettingsJson: undefined,
+          videoErrorMessage: undefined,
+          updatedAt: Date.now(),
+        };
+        await storage.comics.update(comic.id, patch);
+        setComic((current) => current ? { ...current, ...patch } : current);
+        setVideoAsset(null);
+      }
+      if (item.kind === 'panel' && item.panelId) {
+        await storage.comicPanels.update(item.panelId, {
+          segmentAssetId: undefined,
+          updatedAt: Date.now(),
+        });
+        setPanels((current) => current.map((panel) => (
+          panel.id === item.panelId ? { ...panel, segmentAssetId: undefined, updatedAt: Date.now() } : panel
+        )));
+        if (selectedPanel?.id === item.panelId) setPanelVideoAsset(null);
+      }
+      setVideoLibraryRevision((current) => current + 1);
+      setVideoLibraryMessage(`已刪除 ${item.label}。`);
+    } catch (error) {
+      setVideoLibraryMessage(errorMessage(error));
+    }
+  };
+
+  const rerenderVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
+    if (item.kind === 'chapter') {
+      await renderVideo();
+      return;
+    }
+    const panel = panels.find((candidate) => candidate.id === item.panelId);
+    if (!panel) {
+      setVideoLibraryMessage(`${item.label} 找不到對應分鏡。`);
+      return;
+    }
+    await renderPanelVideo(panel);
   };
 
   const updatePanelDurationDraft = (panel: ComicPanel, value: string) => {
@@ -876,6 +1002,11 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const selectedPanelReferenceOptions = selectedPanel ? referenceOptionsForPanel(selectedPanel) : [];
   const referenceChapterKey = selectedPanelReferenceOptions.map((option) => option.chapter.id).join('|');
   const selectedPanelAsset = selectedPanel ? panelAssets[selectedPanel.id] : undefined;
+  const videoLibraryItems = buildComicVideoLibrary({
+    comic,
+    panels,
+    assets: Object.values(videoLibraryAssets),
+  });
 
   useEffect(() => {
     if (!open || !selectedPanel) return;
@@ -1293,6 +1424,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           </Button>
           <Button variant="secondary" onClick={() => setChapterVideoSettingsOpen(true)} disabled={busy || !comic}>
             整章影片設定
+          </Button>
+          <Button variant="secondary" onClick={() => setVideoLibraryOpen(true)} disabled={!comic}>
+            影片庫
           </Button>
           <Button variant="primary" onClick={() => void renderVideo()} disabled={busy || !comic || panels.length === 0}>
             整章輸出 MP4
@@ -1924,6 +2058,67 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                   完成
                 </Button>
               </footer>
+            </div>
+          </div>
+        )}
+        {videoLibraryOpen && (
+          <div className="comic-video-settings-modal" role="dialog" aria-modal="true" onClick={() => setVideoLibraryOpen(false)}>
+            <div className="comic-video-settings-content comic-video-library-content" onClick={(event) => event.stopPropagation()}>
+              <header>
+                <div>
+                  <strong>影片庫</strong>
+                  <span>管理此章已輸出的整章 MP4 與單格 MP4 segment</span>
+                </div>
+                <button
+                  type="button"
+                  className="comic-video-settings-close"
+                  onClick={() => setVideoLibraryOpen(false)}
+                  aria-label="關閉影片庫"
+                  title="關閉"
+                >
+                  ×
+                </button>
+              </header>
+              {videoLibraryMessage && <p className="comic-message">{videoLibraryMessage}</p>}
+              {videoLibraryItems.length ? (
+                <div className="comic-video-library-list">
+                  {videoLibraryItems.map((item) => (
+                    <article className={`comic-video-library-item ${item.status}`} key={item.id}>
+                      <div className="comic-video-library-main">
+                        <strong>{item.label}</strong>
+                        <span>{item.kind === 'chapter' ? '整章影片' : '單格影片'}</span>
+                        <small title={item.path ?? item.assetId ?? ''}>
+                          {item.path ?? '影片檔案遺失'}
+                        </small>
+                      </div>
+                      <div className="comic-video-library-meta">
+                        <span className={`comic-video-library-status ${item.status}`}>
+                          {item.status === 'ready' ? '可用' : '遺失'}
+                        </span>
+                        <span>{item.createdAt ? new Date(item.createdAt).toLocaleString() : '無建立時間'}</span>
+                      </div>
+                      <div className="comic-video-library-actions">
+                        <button type="button" onClick={() => void openVideoLibraryItem(item)} disabled={busy || !item.path}>
+                          開啟
+                        </button>
+                        <button type="button" onClick={() => void revealVideoLibraryItem(item)} disabled={busy || !item.path}>
+                          定位
+                        </button>
+                        <button type="button" onClick={() => void rerenderVideoLibraryItem(item)} disabled={busy}>
+                          重新輸出
+                        </button>
+                        <button type="button" className="danger" onClick={() => void deleteVideoLibraryItem(item)} disabled={busy || !item.assetId}>
+                          刪除
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="comic-empty-state">
+                  尚未輸出 MP4。可先使用「單格輸出 MP4」或「整章輸出 MP4」建立影片。
+                </div>
+              )}
             </div>
           </div>
         )}

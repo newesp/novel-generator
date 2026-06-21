@@ -34,6 +34,14 @@ export interface DeleteMediaFileArgs {
   path: string;
 }
 
+export interface OpenMediaFileArgs {
+  path: string;
+}
+
+export interface RevealMediaFileArgs {
+  path: string;
+}
+
 export interface WriteTextFileArgs {
   path: string;
   content: string;
@@ -60,6 +68,10 @@ export const desktopComicVideoCommands = {
     invoke<void>('concat_comic_video', { args }),
   deleteMediaFile: (args: DeleteMediaFileArgs) =>
     invoke<void>('delete_media_file', { args }),
+  openMediaFile: (args: OpenMediaFileArgs) =>
+    invoke<void>('open_media_file', { args }),
+  revealMediaFile: (args: RevealMediaFileArgs) =>
+    invoke<void>('reveal_media_file', { args }),
   writeTextFile: (args: WriteTextFileArgs) =>
     invoke<void>('write_text_file', { args }),
   writeBinaryFile: (args: WriteBinaryFileArgs) =>

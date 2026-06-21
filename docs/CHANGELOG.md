@@ -1,5 +1,17 @@
 # 開發日誌
 
+## 2026-06-21 - Comic video library
+
+- Added a ComicModal video library popup for browsing generated chapter MP4 files and per-panel MP4 segments.
+- Added open, reveal in folder, delete, and rerender actions for video library items.
+- Added safe Tauri media commands for opening and revealing files under the app media root.
+- Added a focused video-library view-model helper and tests for ready and missing video assets.
+
+**Verification**
+- `vitest run src/lib/comic/video/video-library.test.ts` passed: 1 file, 2 tests.
+- `tsc -b` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed.
+
 ## 2026-06-21 - Comic workspace resume
 
 - Added per-book ComicModal workspace resume state so `轉漫畫` reopens the last edited chapter and panel.
