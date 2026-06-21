@@ -25,7 +25,7 @@ import { movePanelById, removePanelById, reindexPanels } from '../../lib/comic/p
 import { desktopComicVideoCommands } from '../../lib/comic/video/desktop-commands';
 import { cleanupPanelVideoArtifacts } from '../../lib/comic/video/panel-cleanup';
 import { edgeTtsProvider } from '../../lib/comic/video/tts-provider';
-import { renderComicVideo } from '../../lib/comic/video/video-renderer';
+import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
 import { createDefaultSceneVisual, filterSceneVisuals, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -74,7 +74,10 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [videoVoice, setVideoVoice] = useState('zh-TW-HsiaoChenNeural');
   const [panelPauseMs, setPanelPauseMs] = useState(400);
   const [videoMessage, setVideoMessage] = useState('');
+  const [panelVideoMessage, setPanelVideoMessage] = useState('');
   const [videoAsset, setVideoAsset] = useState<MediaAsset | null>(null);
+  const [panelVideoAsset, setPanelVideoAsset] = useState<MediaAsset | null>(null);
+  const [chapterVideoSettingsOpen, setChapterVideoSettingsOpen] = useState(false);
   const [edgeTtsBin, setEdgeTtsBin] = useState('edge-tts');
   const [ffmpegBin, setFfmpegBin] = useState('ffmpeg');
   const [ffprobeBin, setFfprobeBin] = useState('ffprobe');
@@ -568,6 +571,72 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       await desktopComicVideoCommands.deleteMediaFile({ path: asset.path });
     }
     await storage.mediaAssets.delete(assetId);
+  };
+
+  const renderSelectedPanelVideo = async () => {
+    if (!comic || !selectedPanel) return;
+    if (!selectedPanel.assetId) {
+      setPanelVideoMessage(`分鏡 #${selectedPanel.order} 尚未建立圖片。`);
+      return;
+    }
+    if (!selectedPanel.narration.trim()) {
+      setPanelVideoMessage(`分鏡 #${selectedPanel.order} 尚未填寫旁白。`);
+      return;
+    }
+
+    try {
+      setBusy(true);
+      setPanelVideoMessage(`正在輸出分鏡 #${selectedPanel.order} MP4...`);
+      const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
+        projectId: comic.projectId,
+        chapterId: comic.chapterId,
+      });
+      const asset = await renderComicPanelSegment({
+        comic,
+        panel: selectedPanel,
+        storage,
+        ttsProvider: edgeTtsProvider,
+        commands: desktopComicVideoCommands,
+        settings: {
+          mediaRoot,
+          edgeTtsBin,
+          ffmpegBin,
+          ffprobeBin,
+          voice: videoVoice,
+          panelPauseMs,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+        },
+      });
+      const refreshedPanel = await storage.comicPanels.get(selectedPanel.id);
+      if (refreshedPanel) {
+        setPanels((current) => current.map((panel) => (
+          panel.id === refreshedPanel.id ? refreshedPanel : panel
+        )));
+      } else {
+        setPanels((current) => current.map((panel) => (
+          panel.id === selectedPanel.id ? { ...panel, segmentAssetId: asset.id, updatedAt: Date.now() } : panel
+        )));
+      }
+      setPanelVideoAsset(asset);
+      setPanelVideoMessage(`分鏡 #${selectedPanel.order} MP4 已輸出完成。`);
+    } catch (error) {
+      const message = errorMessage(error);
+      setPanelVideoMessage(message);
+      await storage.comicPanels.update(selectedPanel.id, {
+        ttsStatus: 'failed',
+        ttsErrorMessage: message,
+        updatedAt: Date.now(),
+      });
+      setPanels((current) => current.map((panel) => (
+        panel.id === selectedPanel.id
+          ? { ...panel, ttsStatus: 'failed', ttsErrorMessage: message, updatedAt: Date.now() }
+          : panel
+      )));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const renderVideo = async () => {
@@ -1139,6 +1208,12 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           <Button variant="primary" onClick={generateImages} disabled={busy || !panels.length || !provider}>
             開始生圖
           </Button>
+          <Button variant="secondary" onClick={() => setChapterVideoSettingsOpen(true)} disabled={busy || !comic}>
+            整章影片設定
+          </Button>
+          <Button variant="primary" onClick={() => void renderVideo()} disabled={busy || !comic || panels.length === 0}>
+            整章輸出 MP4
+          </Button>
         </>
       }
     >
@@ -1178,6 +1253,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         </section>
 
         {message && <p className="comic-message">{message}</p>}
+        {videoMessage && <p className="comic-message">{videoMessage}</p>}
         {downloadNotice && <p className="comic-download-notice" aria-live="polite">{downloadNotice.label}</p>}
 
         <div className="comic-workspace">
@@ -1423,52 +1499,16 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                     />
                   </label>
                   <small>每格顯示長度 = max(TTS 音訊長度, 手動秒數) + 格間停頓。</small>
-                </section>
-
-                <section className="comic-video-export">
-                  <header>
-                    <h3>旁白影片</h3>
-                    <span>{comic?.videoStatus ?? 'idle'}</span>
-                  </header>
-                  <div className="comic-video-export-grid">
-                    <label>
-                      <FieldLabel label="旁白音色" help="MVP 使用單一 Edge-TTS 音色輸出整章旁白。" />
-                      <select value={videoVoice} onChange={(event) => setVideoVoice(event.target.value)}>
-                        <option value="zh-TW-HsiaoChenNeural">zh-TW-HsiaoChenNeural</option>
-                        <option value="zh-TW-YunJheNeural">zh-TW-YunJheNeural</option>
-                        <option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural</option>
-                      </select>
-                    </label>
-                    <label>
-                      <FieldLabel label="格間停頓" help="加在每格音訊後的靜音長度，用於分鏡之間的呼吸感。" />
-                      <select value={panelPauseMs} onChange={(event) => setPanelPauseMs(Number(event.target.value))}>
-                        <option value={0}>0ms</option>
-                        <option value={250}>250ms</option>
-                        <option value={400}>400ms</option>
-                        <option value={600}>600ms</option>
-                        <option value={1000}>1000ms</option>
-                      </select>
-                    </label>
-                    <label>
-                      <FieldLabel label="Edge-TTS" help="Edge-TTS CLI 指令或完整路徑。" />
-                      <input value={edgeTtsBin} onChange={(event) => setEdgeTtsBin(event.target.value)} />
-                    </label>
-                    <label>
-                      <FieldLabel label="ffmpeg" help="ffmpeg CLI 指令或完整路徑。" />
-                      <input value={ffmpegBin} onChange={(event) => setFfmpegBin(event.target.value)} />
-                    </label>
-                    <label>
-                      <FieldLabel label="ffprobe" help="ffprobe CLI 指令或完整路徑，用於量測 TTS 音訊長度。" />
-                      <input value={ffprobeBin} onChange={(event) => setFfprobeBin(event.target.value)} />
-                    </label>
-                  </div>
-                  <div className="comic-video-actions">
-                    <Button variant="secondary" disabled={busy || !comic || panels.length === 0} onClick={() => void renderVideo()}>
-                      輸出 MP4
+                  <div className="comic-panel-video-actions">
+                    <Button variant="secondary" disabled={busy || !comic || !selectedPanel} onClick={() => void renderSelectedPanelVideo()}>
+                      單格輸出 MP4
                     </Button>
-                    {videoAsset?.path && <span title={videoAsset.path}>輸出：{videoAsset.path}</span>}
+                    <span className="comic-panel-video-status">
+                      {selectedPanel.segmentAssetId ? '此格已有 MP4 segment' : '此格尚未輸出 MP4'}
+                    </span>
                   </div>
-                  {videoMessage && <p className="comic-message">{videoMessage}</p>}
+                  {panelVideoAsset?.path && <small title={panelVideoAsset.path}>單格輸出：{panelVideoAsset.path}</small>}
+                  {panelVideoMessage && <p className="comic-message">{panelVideoMessage}</p>}
                 </section>
 
                 <section className="comic-editor-grid">
@@ -1738,6 +1778,65 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             )}
           </aside>
         </div>
+        {chapterVideoSettingsOpen && (
+          <div className="comic-video-settings-modal" role="dialog" aria-modal="true" onClick={() => setChapterVideoSettingsOpen(false)}>
+            <div className="comic-video-settings-content" onClick={(event) => event.stopPropagation()}>
+              <header>
+                <div>
+                  <strong>整章影片設定</strong>
+                  <span>套用於單格輸出與整章輸出 MP4</span>
+                </div>
+                <button
+                  type="button"
+                  className="comic-video-settings-close"
+                  onClick={() => setChapterVideoSettingsOpen(false)}
+                  aria-label="關閉整章影片設定"
+                  title="關閉"
+                >
+                  ×
+                </button>
+              </header>
+              <div className="comic-video-settings-grid">
+                <label>
+                  <FieldLabel label="旁白音色" help="MVP 使用單一 Edge-TTS 音色輸出旁白。" />
+                  <select value={videoVoice} onChange={(event) => setVideoVoice(event.target.value)}>
+                    <option value="zh-TW-HsiaoChenNeural">zh-TW-HsiaoChenNeural</option>
+                    <option value="zh-TW-YunJheNeural">zh-TW-YunJheNeural</option>
+                    <option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural</option>
+                  </select>
+                </label>
+                <label>
+                  <FieldLabel label="格間停頓" help="加在每格音訊後的靜音長度，用於分鏡之間的呼吸感。" />
+                  <select value={panelPauseMs} onChange={(event) => setPanelPauseMs(Number(event.target.value))}>
+                    <option value={0}>0ms</option>
+                    <option value={250}>250ms</option>
+                    <option value={400}>400ms</option>
+                    <option value={600}>600ms</option>
+                    <option value={1000}>1000ms</option>
+                  </select>
+                </label>
+                <label>
+                  <FieldLabel label="Edge-TTS" help="Edge-TTS CLI 指令或完整路徑。" />
+                  <input value={edgeTtsBin} onChange={(event) => setEdgeTtsBin(event.target.value)} />
+                </label>
+                <label>
+                  <FieldLabel label="ffmpeg" help="ffmpeg CLI 指令或完整路徑。" />
+                  <input value={ffmpegBin} onChange={(event) => setFfmpegBin(event.target.value)} />
+                </label>
+                <label>
+                  <FieldLabel label="ffprobe" help="ffprobe CLI 指令或完整路徑，用於量測 TTS 音訊長度。" />
+                  <input value={ffprobeBin} onChange={(event) => setFfprobeBin(event.target.value)} />
+                </label>
+              </div>
+              <footer>
+                {videoAsset?.path && <span title={videoAsset.path}>整章輸出：{videoAsset.path}</span>}
+                <Button variant="primary" onClick={() => setChapterVideoSettingsOpen(false)}>
+                  完成
+                </Button>
+              </footer>
+            </div>
+          </div>
+        )}
         {previewAsset?.url && (
           <div className="comic-image-preview" role="dialog" aria-modal="true" onClick={() => setPreviewAsset(null)}>
             <div className="comic-image-preview-content" onClick={(event) => event.stopPropagation()}>

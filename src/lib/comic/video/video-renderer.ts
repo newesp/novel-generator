@@ -37,6 +37,15 @@ export interface RenderComicVideoInput {
   settings: ComicVideoSettings;
 }
 
+export interface RenderComicPanelSegmentInput {
+  comic: ChapterComic;
+  panel: ComicPanel;
+  storage: VideoRendererStorage;
+  ttsProvider: TTSProvider;
+  commands: Commands;
+  settings: ComicVideoSettings;
+}
+
 export async function renderComicVideo(input: RenderComicVideoInput): Promise<MediaAsset> {
   const { comic, storage, ttsProvider, commands, settings } = input;
   const panels = [...input.panels].sort((a, b) => a.order - b.order);
@@ -55,86 +64,21 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
     if (!panel.assetId) throw new Error(`Panel #${panel.order} has no image asset.`);
     if (!panel.narration.trim()) throw new Error(`Panel #${panel.order} has empty narration.`);
 
-    const paddedOrder = String(panel.order).padStart(3, '0');
-    const imageAsset = await storage.mediaAssets.get(panel.assetId);
-    const imagePath = await resolvePanelImagePath({
+    const reusableSegment = await findReusableSegment(panel, storage, settings);
+    if (reusableSegment?.path) {
+      segmentPaths.push(reusableSegment.path);
+      continue;
+    }
+
+    const segmentAsset = await renderComicPanelSegment({
+      comic,
       panel,
-      asset: imageAsset,
-      outputPath: `${settings.mediaRoot}/images/panel-${paddedOrder}.${imageExtension(imageAsset?.mimeType)}`,
+      storage,
+      ttsProvider,
       commands,
+      settings,
     });
-    const audioPath = `${settings.mediaRoot}/audio/panel-${paddedOrder}.mp3`;
-    await deleteAssetFileAndRecord(panel.ttsAssetId, storage, commands);
-    await deleteAssetFileAndRecord(panel.segmentAssetId, storage, commands);
-    await storage.comicPanels.update(panel.id, {
-      ttsStatus: 'generating',
-      ttsAssetId: undefined,
-      ttsDurationMs: undefined,
-      ttsErrorMessage: undefined,
-      segmentAssetId: undefined,
-      updatedAt: Date.now(),
-    });
-
-    const tts = await ttsProvider.generate({
-      projectId: comic.projectId,
-      chapterId: comic.chapterId,
-      text: panel.narration,
-      voice: settings.voice,
-      outputPath: audioPath,
-      edgeTtsBin: settings.edgeTtsBin,
-      ffprobeBin: settings.ffprobeBin,
-    });
-    await storage.mediaAssets.add(tts.asset);
-    await storage.comicPanels.update(panel.id, {
-      ttsStatus: 'ready',
-      ttsAssetId: tts.asset.id,
-      ttsDurationMs: tts.durationMs,
-      ttsProviderId: tts.providerId,
-      ttsVoice: tts.voice,
-      updatedAt: Date.now(),
-    });
-
-    const timing = calculatePanelTiming({
-      audioDurationMs: tts.durationMs,
-      durationSec: panel.durationSec,
-      panelPauseMs: settings.panelPauseMs,
-    });
-    const segmentPath = `${settings.mediaRoot}/segments/segment-${paddedOrder}.mp4`;
-    await storage.comics.update(comic.id, { videoStatus: 'rendering_segments', updatedAt: Date.now() });
-    await commands.renderSegment({
-      ffmpegBin: settings.ffmpegBin,
-      imagePath,
-      audioPath,
-      outputPath: segmentPath,
-      durationMs: timing.effectiveDurationMs,
-      trailingSilenceMs: timing.trailingSilenceMs,
-      width: settings.width,
-      height: settings.height,
-      fps: settings.fps,
-    });
-
-    const segmentAsset: MediaAsset = {
-      id: crypto.randomUUID(),
-      projectId: comic.projectId,
-      chapterId: comic.chapterId,
-      kind: 'video',
-      path: segmentPath,
-      mimeType: 'video/mp4',
-      providerId: 'ffmpeg',
-      generationParamsJson: JSON.stringify({
-        panelId: panel.id,
-        audioDurationMs: timing.audioDurationMs,
-        durationMs: timing.effectiveDurationMs,
-        trailingSilenceMs: timing.trailingSilenceMs,
-      }),
-      createdAt: Date.now(),
-    };
-    await storage.mediaAssets.add(segmentAsset);
-    await storage.comicPanels.update(panel.id, {
-      segmentAssetId: segmentAsset.id,
-      updatedAt: Date.now(),
-    });
-    segmentPaths.push(segmentPath);
+    segmentPaths.push(segmentAsset.path ?? `${settings.mediaRoot}/segments/segment-${String(panel.order).padStart(3, '0')}.mp4`);
   }
 
   const concatListPath = `${settings.mediaRoot}/concat.txt`;
@@ -169,6 +113,193 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
   });
 
   return videoAsset;
+}
+
+export async function renderComicPanelSegment(input: RenderComicPanelSegmentInput): Promise<MediaAsset> {
+  const { comic, panel, storage, ttsProvider, commands, settings } = input;
+
+  if (!panel.assetId) throw new Error(`Panel #${panel.order} has no image asset.`);
+  if (!panel.narration.trim()) throw new Error(`Panel #${panel.order} has empty narration.`);
+
+  const reusableSegment = await findReusableSegment(panel, storage, settings);
+  if (reusableSegment) return reusableSegment;
+
+  const paddedOrder = String(panel.order).padStart(3, '0');
+  const imageAsset = await storage.mediaAssets.get(panel.assetId);
+  const imagePath = await resolvePanelImagePath({
+      panel,
+      asset: imageAsset,
+      outputPath: `${settings.mediaRoot}/images/panel-${paddedOrder}.${imageExtension(imageAsset?.mimeType)}`,
+      commands,
+    });
+
+  await deleteAssetFileAndRecord(panel.segmentAssetId, storage, commands);
+
+  const reusableTts = await findReusableTts(panel, storage, settings);
+  const tts = reusableTts ?? await generatePanelTts({
+    comic,
+    panel,
+    storage,
+    ttsProvider,
+    commands,
+    settings,
+    audioPath: `${settings.mediaRoot}/audio/panel-${paddedOrder}.mp3`,
+  });
+
+  const timing = calculatePanelTiming({
+    audioDurationMs: tts.durationMs,
+    durationSec: panel.durationSec,
+    panelPauseMs: settings.panelPauseMs,
+  });
+  const segmentPath = `${settings.mediaRoot}/segments/segment-${paddedOrder}.mp4`;
+  await commands.renderSegment({
+    ffmpegBin: settings.ffmpegBin,
+    imagePath,
+    audioPath: tts.asset.path ?? `${settings.mediaRoot}/audio/panel-${paddedOrder}.mp3`,
+    outputPath: segmentPath,
+    durationMs: timing.effectiveDurationMs,
+    trailingSilenceMs: timing.trailingSilenceMs,
+    width: settings.width,
+    height: settings.height,
+    fps: settings.fps,
+  });
+
+  const segmentAsset: MediaAsset = {
+    id: crypto.randomUUID(),
+    projectId: comic.projectId,
+    chapterId: comic.chapterId,
+    kind: 'video',
+    path: segmentPath,
+    mimeType: 'video/mp4',
+    providerId: 'ffmpeg',
+    generationParamsJson: JSON.stringify({
+      panelId: panel.id,
+      sourceImageAssetId: panel.assetId,
+      ttsAssetId: tts.asset.id,
+      ttsVoice: tts.voice,
+      durationSec: panel.durationSec,
+      panelPauseMs: settings.panelPauseMs,
+      width: settings.width,
+      height: settings.height,
+      fps: settings.fps,
+      narrationHash: hashNarration(panel.narration),
+      audioDurationMs: timing.audioDurationMs,
+      durationMs: timing.effectiveDurationMs,
+      trailingSilenceMs: timing.trailingSilenceMs,
+    }),
+    createdAt: Date.now(),
+  };
+  await storage.mediaAssets.add(segmentAsset);
+  await storage.comicPanels.update(panel.id, {
+    segmentAssetId: segmentAsset.id,
+    updatedAt: Date.now(),
+  });
+
+  return segmentAsset;
+}
+
+async function generatePanelTts({
+  comic,
+  panel,
+  storage,
+  ttsProvider,
+  commands,
+  settings,
+  audioPath,
+}: {
+  comic: ChapterComic;
+  panel: ComicPanel;
+  storage: VideoRendererStorage;
+  ttsProvider: TTSProvider;
+  commands: Commands;
+  settings: ComicVideoSettings;
+  audioPath: string;
+}) {
+    await deleteAssetFileAndRecord(panel.ttsAssetId, storage, commands);
+    await storage.comicPanels.update(panel.id, {
+      ttsStatus: 'generating',
+      ttsAssetId: undefined,
+      ttsDurationMs: undefined,
+      ttsErrorMessage: undefined,
+      segmentAssetId: undefined,
+      updatedAt: Date.now(),
+    });
+
+    const tts = await ttsProvider.generate({
+      projectId: comic.projectId,
+      chapterId: comic.chapterId,
+      text: panel.narration,
+      voice: settings.voice,
+      outputPath: audioPath,
+      edgeTtsBin: settings.edgeTtsBin,
+      ffprobeBin: settings.ffprobeBin,
+    });
+    await storage.mediaAssets.add(tts.asset);
+    await storage.comicPanels.update(panel.id, {
+      ttsStatus: 'ready',
+      ttsAssetId: tts.asset.id,
+      ttsDurationMs: tts.durationMs,
+      ttsProviderId: tts.providerId,
+      ttsVoice: tts.voice,
+      updatedAt: Date.now(),
+    });
+
+  return tts;
+}
+
+async function findReusableTts(panel: ComicPanel, storage: VideoRendererStorage, settings: ComicVideoSettings) {
+  if (!panel.ttsAssetId || panel.ttsVoice !== settings.voice || !panel.ttsDurationMs) return null;
+  const asset = await storage.mediaAssets.get(panel.ttsAssetId);
+  if (!asset?.path) return null;
+  return {
+    asset,
+    durationMs: panel.ttsDurationMs,
+    providerId: panel.ttsProviderId ?? 'edge-tts',
+    voice: panel.ttsVoice,
+  };
+}
+
+async function findReusableSegment(
+  panel: ComicPanel,
+  storage: VideoRendererStorage,
+  settings: ComicVideoSettings,
+): Promise<MediaAsset | null> {
+  if (!panel.segmentAssetId) return null;
+  const asset = await storage.mediaAssets.get(panel.segmentAssetId);
+  if (!asset?.path || !asset.generationParamsJson) return null;
+  let metadata: Partial<SegmentMetadata>;
+  try {
+    metadata = JSON.parse(asset.generationParamsJson) as Partial<SegmentMetadata>;
+  } catch {
+    return null;
+  }
+  if (
+    metadata.panelId !== panel.id ||
+    metadata.sourceImageAssetId !== panel.assetId ||
+    metadata.ttsVoice !== settings.voice ||
+    metadata.durationSec !== panel.durationSec ||
+    metadata.panelPauseMs !== settings.panelPauseMs ||
+    metadata.width !== settings.width ||
+    metadata.height !== settings.height ||
+    metadata.fps !== settings.fps ||
+    metadata.narrationHash !== hashNarration(panel.narration)
+  ) {
+    return null;
+  }
+  return asset;
+}
+
+interface SegmentMetadata {
+  panelId: string;
+  sourceImageAssetId: string;
+  ttsAssetId: string;
+  ttsVoice: string;
+  durationSec: number;
+  panelPauseMs: number;
+  width: number;
+  height: number;
+  fps: number;
+  narrationHash: string;
 }
 
 async function deleteAssetFileAndRecord(
@@ -224,4 +355,13 @@ function imageExtension(mimeType: string | undefined): string {
   if (mimeType === 'image/jpeg') return 'jpg';
   if (mimeType === 'image/webp') return 'webp';
   return 'png';
+}
+
+function hashNarration(text: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
 }

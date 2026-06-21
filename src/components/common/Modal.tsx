@@ -42,7 +42,7 @@ export function Modal({ open, onClose, title, children, footer, width = 480, ful
         <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 16 }}>{title}</div>
         <div>{children}</div>
         {footer && (
-          <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+          <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>
             {footer}
           </div>
         )}

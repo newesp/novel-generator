@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { ChapterComic, ComicPanel, MediaAsset } from '../../../types';
-import { renderComicVideo } from './video-renderer';
+import { renderComicPanelSegment, renderComicVideo } from './video-renderer';
 
 const comic: ChapterComic = {
   id: 'comic',
@@ -38,6 +38,208 @@ const panel = (patch: Partial<ComicPanel>): ComicPanel => ({
 });
 
 describe('renderComicVideo', () => {
+  it('renders one panel segment without validating other panels', async () => {
+    const imageAsset: MediaAsset = {
+      id: 'image-1',
+      projectId: 'book',
+      chapterId: 'chapter',
+      kind: 'comic_panel_image',
+      path: 'C:/media/panel-001.png',
+      mimeType: 'image/png',
+      createdAt: 1,
+    };
+    const assets: Record<string, MediaAsset> = { 'image-1': imageAsset };
+    const storage = {
+      mediaAssets: {
+        get: vi.fn(async (id: string) => assets[id]),
+        add: vi.fn(async (asset: MediaAsset) => {
+          assets[asset.id] = asset;
+        }),
+        delete: vi.fn(async () => undefined),
+      },
+      comicPanels: {
+        update: vi.fn(async () => undefined),
+      },
+      comics: {
+        update: vi.fn(async () => undefined),
+      },
+    };
+    const ttsProvider = {
+      id: 'edge-tts',
+      label: 'Edge-TTS',
+      generate: vi.fn(async () => ({
+        asset: {
+          id: 'tts-1',
+          projectId: 'book',
+          chapterId: 'chapter',
+          kind: 'tts_audio' as const,
+          path: 'C:/media/audio.mp3',
+          mimeType: 'audio/mpeg',
+          createdAt: 2,
+        },
+        durationMs: 2200,
+        providerId: 'edge-tts',
+        voice: 'zh-TW-HsiaoChenNeural',
+      })),
+    };
+    const commands = {
+      renderSegment: vi.fn(async () => undefined),
+      concatVideo: vi.fn(async () => undefined),
+      deleteMediaFile: vi.fn(async () => undefined),
+      writeBinaryFile: vi.fn(async () => undefined),
+    };
+
+    const result = await renderComicPanelSegment({
+      comic,
+      panel: panel({ id: 'panel-1', narration: '這一格有旁白。' }),
+      storage,
+      ttsProvider,
+      commands,
+      settings: {
+        mediaRoot: 'C:/media/book/chapter/comic-video',
+        edgeTtsBin: 'edge-tts',
+        ffmpegBin: 'ffmpeg',
+        ffprobeBin: 'ffprobe',
+        voice: 'zh-TW-HsiaoChenNeural',
+        panelPauseMs: 400,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+      },
+    });
+
+    expect(result.path).toBe('C:/media/book/chapter/comic-video/segments/segment-001.mp4');
+    expect(ttsProvider.generate).toHaveBeenCalledTimes(1);
+    expect(commands.renderSegment).toHaveBeenCalledTimes(1);
+    expect(storage.comicPanels.update).toHaveBeenCalledWith(
+      'panel-1',
+      expect.objectContaining({
+        ttsStatus: 'ready',
+        ttsAssetId: 'tts-1',
+        ttsDurationMs: 2200,
+        ttsVoice: 'zh-TW-HsiaoChenNeural',
+      }),
+    );
+    expect(storage.comicPanels.update).toHaveBeenCalledWith(
+      'panel-1',
+      expect.objectContaining({ segmentAssetId: result.id }),
+    );
+    expect(JSON.parse(result.generationParamsJson ?? '{}')).toMatchObject({
+      panelId: 'panel-1',
+      sourceImageAssetId: 'image-1',
+      ttsAssetId: 'tts-1',
+      ttsVoice: 'zh-TW-HsiaoChenNeural',
+      durationSec: 0,
+      panelPauseMs: 400,
+      width: 1920,
+      height: 1080,
+      fps: 30,
+    });
+  });
+
+  it('reuses matching panel segments when rendering the chapter video', async () => {
+    const reusableSegment: MediaAsset = {
+      id: 'segment-1',
+      projectId: 'book',
+      chapterId: 'chapter',
+      kind: 'video',
+      path: 'C:/media/segments/segment-001.mp4',
+      mimeType: 'video/mp4',
+      providerId: 'ffmpeg',
+      generationParamsJson: JSON.stringify({
+        panelId: 'panel-1',
+        sourceImageAssetId: 'image-1',
+        ttsAssetId: 'tts-1',
+        ttsVoice: 'zh-TW-HsiaoChenNeural',
+        durationSec: 0,
+        panelPauseMs: 400,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+        narrationHash: '5254267',
+      }),
+      createdAt: 1,
+    };
+    const assets: Record<string, MediaAsset> = {
+      'image-1': {
+        id: 'image-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'comic_panel_image',
+        path: 'C:/media/panel-001.png',
+        mimeType: 'image/png',
+        createdAt: 1,
+      },
+      'segment-1': reusableSegment,
+      'old-video': {
+        id: 'old-video',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'video',
+        path: 'C:/media/old-video.mp4',
+        mimeType: 'video/mp4',
+        createdAt: 1,
+      },
+    };
+    const storage = {
+      mediaAssets: {
+        get: vi.fn(async (id: string) => assets[id]),
+        add: vi.fn(async (asset: MediaAsset) => {
+          assets[asset.id] = asset;
+        }),
+        delete: vi.fn(async () => undefined),
+      },
+      comicPanels: {
+        update: vi.fn(async () => undefined),
+      },
+      comics: {
+        update: vi.fn(async () => undefined),
+      },
+    };
+    const ttsProvider = {
+      id: 'edge-tts',
+      label: 'Edge-TTS',
+      generate: vi.fn(async () => {
+        throw new Error('TTS should not regenerate');
+      }),
+    };
+    const commands = {
+      renderSegment: vi.fn(async () => undefined),
+      concatVideo: vi.fn(async () => undefined),
+      deleteMediaFile: vi.fn(async () => undefined),
+      writeBinaryFile: vi.fn(async () => undefined),
+    };
+    const writeTextFile = vi.fn(async () => undefined);
+
+    await renderComicVideo({
+      comic,
+      panels: [panel({ id: 'panel-1', segmentAssetId: 'segment-1', narration: '完整章節旁白從這裡開始。' })],
+      storage,
+      ttsProvider,
+      commands,
+      writeTextFile,
+      settings: {
+        mediaRoot: 'C:/media/book/chapter/comic-video',
+        edgeTtsBin: 'edge-tts',
+        ffmpegBin: 'ffmpeg',
+        ffprobeBin: 'ffprobe',
+        voice: 'zh-TW-HsiaoChenNeural',
+        panelPauseMs: 400,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+      },
+    });
+
+    expect(ttsProvider.generate).not.toHaveBeenCalled();
+    expect(commands.renderSegment).not.toHaveBeenCalled();
+    expect(writeTextFile).toHaveBeenCalledWith(
+      'C:/media/book/chapter/comic-video/concat.txt',
+      "file 'C:/media/segments/segment-001.mp4'\n",
+    );
+    expect(commands.concatVideo).toHaveBeenCalledTimes(1);
+  });
+
   it('uses max audio/manual duration plus panel pause for segment duration', async () => {
     const imageAsset: MediaAsset = {
       id: 'image-1',
