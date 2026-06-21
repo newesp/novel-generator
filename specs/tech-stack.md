@@ -17,14 +17,14 @@
 | 本地存儲（桌面版） | SQLite（native，透過 `tauri-plugin-sql`，已落地 2026-05） |
 | 本地存儲（Phase 7，Web 版回部署） | wa-sqlite + OPFS（與桌面共用 SQL schema） |
 | 桌面殼層（Phase 5+） | Tauri 2.x（Rust + 系統 webview，比 Electron 輕量；Windows 已落地 2026-05） |
-| 影片合成（Phase 6，桌面） | ffmpeg sidecar（native） |
+| 影片合成（Phase 6，桌面） | Edge-TTS + ffmpeg sidecar（native，透過 Tauri 安全命令） |
 | 影片合成（Phase 7，Web） | ffmpeg.wasm（功能降級，或介接後端 API） |
 | LLM 呼叫 | 自製 adapter（OpenAI-compatible / Google Gemini / Grok） |
 | 全文檢索 | SQLite FTS5 + trigram tokenizer — Phase 2（未來真有 vector 需求改用 sqlite-vec，不引入 Ollama / LanceDB） |
 | Graph 關係層 | 由 characters + wiki pages 即時計算 JSON graph；Wiki 面板可查 2-hop neighborhood |
 | 電子書生成 | epub-gen 或手寫 EPUB 結構 — Phase 3 |
 | 圖像生成 | `ImageGenerationProvider`：ComfyUI / OpenAI-compatible image / DeepInfra FLUX / Google Gemini Image |
-| TTS | Edge-TTS / ElevenLabs API — Phase 4 |
+| TTS | Edge-TTS（桌面已接入漫畫影片 MVP）/ ElevenLabs API（可擴充） |
 
 ---
 
@@ -36,7 +36,7 @@
 
 **儲存層 Adapter 抽象（Phase 5 起）：** UI 與 business logic 僅依賴 `StorageAdapter` interface；底層可換 Dexie / SQLite (Tauri) / wa-sqlite (Web) 三種實作。SQL schema 設計需確保 Tauri native SQLite 與 wa-sqlite 都能執行相同語句，僅在薄 wrapper 層統一 transaction API 差異。
 
-**媒體檔案儲存規則（Phase 6）：** metadata（章節 ↔ 圖片/音檔的關聯、prompt、provider params、圖片歷史）進 adapter 管理的資料表；目前生成圖片會正規化為可持久化的 URL/data URL 並以 `MediaAsset` metadata 追蹤。大型 binary 長期仍應移往本機檔案系統，避免 DB 或瀏覽器儲存膨脹。
+**媒體檔案儲存規則（Phase 6）：** metadata（章節 ↔ 圖片 / TTS / 影片的關聯、prompt、provider params、圖片歷史、輸出狀態）進 adapter 管理的資料表；目前生成圖片會正規化為可持久化的 URL/data URL 並以 `MediaAsset` metadata 追蹤。桌面版 TTS / MP4 binary 透過 Tauri 安全命令寫入 app/project output media root，路徑記錄在 `MediaAsset.path`；單格影片掛在 `ComicPanel.segmentAssetId`，整章影片掛在 `ChapterComic.videoAssetId`。目前已有 ComicModal 章節內影片庫；全書級「媒體庫」仍是 TODO。大型 binary 不應塞進 SQLite，避免 DB 或瀏覽器儲存膨脹。
 
 **Phase 5b 已落地細節（2026-05，Windows）：**
 - `src-tauri/` 內含 migrations `001_initial.sql` 到 `006_comic_panel_image_variants.sql`

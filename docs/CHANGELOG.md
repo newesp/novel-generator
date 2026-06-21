@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-21 - Documentation refresh for comic video library
+
+- Updated README, multimedia module docs, roadmap, and tech-stack notes against the current ComicModal TTS / MP4 / video-library implementation.
+- Documented `tts_audio` / `video` media assets, `ComicPanel.segmentAssetId`, `ChapterComic.videoAssetId`, chapter-scoped video library actions, and full-chapter MP4 validation feedback.
+- Added the full-book media library as a TODO for cross-chapter browsing, filtering, open/reveal, delete, orphan cleanup, and batch export.
+
+**Verification**
+- Documentation-only change; skipped `tsc -b` per AGENTS.md.
+- Cross-checked against `package.json`, `src/types/index.ts`, `src/lib/storage/types.ts`, `src/components/comic/ComicModal.tsx`, `src/lib/comic/video/*`, and `src-tauri/src/lib.rs`.
+
 ## 2026-06-21 - Comic chapter video validation
 
 - Fixed full-chapter MP4 export feedback so missing panel images or narration show a visible message next to the export action.

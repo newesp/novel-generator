@@ -109,12 +109,12 @@ StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
 
 ---
 
-## Phase 6 — 漫畫圖片 MVP（🟡 foundation implemented；advanced polish remaining）
+## Phase 6 — 漫畫圖片 / TTS / MP4（🟡 chapter workflow implemented；advanced polish remaining）
 
 > 目標：選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片。  
 > 設計：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`  
 > Phase 6.1 Visual Bible：`docs/superpowers/specs/2026-05-29-phase-6-visual-bible-design.md`  
-> TTS / 影片合成留後續獨立 spec，先只保留資料結構擴充點。
+> 2026-06 已補上桌面版 Edge-TTS / ffmpeg MP4 輸出、單格 segment、整章影片與章節內影片庫。
 
 ### 任務
 
@@ -126,6 +126,7 @@ StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
 6. ✅ **UI 整合**：章節工具列「轉漫畫」→ storyboard editor → batch progress → comic preview
 7. ✅ **單格重生、手動上傳、圖片歷史與單圖下載**：panel variant history、目前圖片切換、目前圖片保護、上傳圖片與下載回饋已接入
 8. 🟡 **Visual Bible / Prompt Composer**：角色/場景 reference、scene visuals、continuity reference、`extraGroupsJson`、final prompt snapshot 已接入；完整 Visual Bible 管理仍待 polish
+9. ✅ **TTS / MP4 MVP（桌面）**：Edge-TTS、ffmpeg sidecar、單格 MP4 segment、整章 MP4 concat、輸出驗證與章節內影片庫已接入
 
 ### 2026-06 Phase 6 progress
 
@@ -136,7 +137,11 @@ StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
 - Added panel-level continuity reference control so a panel can use the previous panel image, including previous-chapter fallback for chapter-opening panels.
 - Added an explicit per-panel reference image picker grouped by chapter and panel order. Selected generated panels are persisted on the target panel, merged with character/scene/automatic previous-panel references, and sent as real image inputs to reference-capable providers.
 - Added panel insertion, deletion, pointer-based reordering, title editing, manual panel image upload, per-panel image history, and download feedback.
-- Remaining advanced polish: richer Visual Bible management UI, provider-specific reference weighting controls, bulk image package download, TTS, and video assembly.
+- Added panel narration / timing metadata, `MediaAsset(kind='tts_audio' | 'video')`, `ComicPanel.segmentAssetId`, and `ChapterComic.videoAssetId`.
+- Added panel-scoped `單格輸出 MP4` and full-chapter `整章輸出 MP4`; full export reuses compatible panel segments where possible.
+- Added full-chapter MP4 input validation with a dismissible top notice for missing panel images or narration.
+- Added ComicModal chapter-scoped `影片庫` popup with open, reveal in folder, delete, and rerender actions.
+- Remaining advanced polish: richer Visual Bible management UI, provider-specific reference weighting controls, bulk image/video package download, full-book media library, video orphan cleanup, and Web ffmpeg.wasm fallback.
 
 ### Phase 6.1 Visual Bible 重點
 
@@ -149,8 +154,9 @@ StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
 
 ### 後續延伸
 
-- TTS pipeline：章節旁白 / 對話拆段 → TTS API → 存檔（多角色不同音色可選）
-- 影片合成：桌面呼叫 ffmpeg sidecar；Web 版以 ffmpeg.wasm 降級或提示桌面版
+- 新增全書級「媒體庫」：跨章節彙整圖片、TTS、單格 MP4 segment、整章 MP4，支援搜尋 / 篩選、開啟 / 定位、刪除、孤兒檔清理與批次匯出。
+- 進一步擴充 TTS pipeline：章節旁白 / 對話拆段、多角色音色、provider 切換與批次管理。
+- Web 版影片合成以 ffmpeg.wasm 降級或提示使用桌面版。
 
 ### 為何強烈傾向桌面
 
