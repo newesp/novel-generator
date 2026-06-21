@@ -2,7 +2,6 @@ use serde::Deserialize;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
-use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 #[derive(Debug, Deserialize)]
@@ -70,19 +69,26 @@ struct ResolveMediaRootArgs {
   chapter_id: String,
 }
 
-fn app_media_root_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-  let root = app
-    .path()
-    .app_data_dir()
-    .map_err(|err| format!("Failed to resolve app data dir: {err}"))?
-    .join("media");
+fn project_output_root() -> Result<PathBuf, String> {
+  let cwd = std::env::current_dir().map_err(|err| format!("Failed to resolve current dir: {err}"))?;
+  if cwd.file_name().is_some_and(|name| name == "src-tauri") {
+    return cwd
+      .parent()
+      .map(|parent| parent.to_path_buf())
+      .ok_or_else(|| format!("Failed to resolve project dir from {}", cwd.display()));
+  }
+  Ok(cwd)
+}
+
+fn app_media_root_path() -> Result<PathBuf, String> {
+  let root = project_output_root()?.join("output").join("media");
   fs::create_dir_all(&root)
     .map_err(|err| format!("Failed to create media root {}: {err}", root.display()))?;
   Ok(root)
 }
 
-fn app_media_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-  let root = app_media_root_path(app)?;
+fn app_media_root() -> Result<PathBuf, String> {
+  let root = app_media_root_path()?;
   root
     .canonicalize()
     .map_err(|err| format!("Failed to canonicalize media root {}: {err}", root.display()))
@@ -93,12 +99,11 @@ fn path_has_parent_dir(path: &Path) -> bool {
 }
 
 fn safe_media_file_path(
-  app: &tauri::AppHandle,
   path: &str,
   create_parent: bool,
 ) -> Result<PathBuf, String> {
   let input = PathBuf::from(path);
-  let root = app_media_root(app)?;
+  let root = app_media_root()?;
   if !input.is_absolute() {
     return Err(format!("Path must be absolute: {path}"));
   }
@@ -161,8 +166,8 @@ fn seconds_arg(ms: u64) -> String {
 }
 
 #[tauri::command]
-fn generate_tts_audio(app: tauri::AppHandle, args: GenerateTtsAudioArgs) -> Result<(), String> {
-  let output_path = safe_media_file_path(&app, &args.output_path, true)?;
+fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<(), String> {
+  let output_path = safe_media_file_path(&args.output_path, true)?;
 
   let mut command = Command::new(args.edge_tts_bin);
   command
@@ -177,8 +182,8 @@ fn generate_tts_audio(app: tauri::AppHandle, args: GenerateTtsAudioArgs) -> Resu
 }
 
 #[tauri::command]
-fn probe_audio_duration(app: tauri::AppHandle, args: ProbeAudioDurationArgs) -> Result<u64, String> {
-  let input_path = safe_media_file_path(&app, &args.input_path, false)?;
+fn probe_audio_duration(args: ProbeAudioDurationArgs) -> Result<u64, String> {
+  let input_path = safe_media_file_path(&args.input_path, false)?;
   let output = Command::new(args.ffprobe_bin)
     .arg("-v")
     .arg("error")
@@ -209,10 +214,10 @@ fn probe_audio_duration(app: tauri::AppHandle, args: ProbeAudioDurationArgs) -> 
 }
 
 #[tauri::command]
-fn render_comic_video_segment(app: tauri::AppHandle, args: RenderSegmentArgs) -> Result<(), String> {
-  let image_path = safe_media_file_path(&app, &args.image_path, false)?;
-  let audio_path = safe_media_file_path(&app, &args.audio_path, false)?;
-  let output_path = safe_media_file_path(&app, &args.output_path, true)?;
+fn render_comic_video_segment(args: RenderSegmentArgs) -> Result<(), String> {
+  let image_path = safe_media_file_path(&args.image_path, false)?;
+  let audio_path = safe_media_file_path(&args.audio_path, false)?;
+  let output_path = safe_media_file_path(&args.output_path, true)?;
 
   let duration = seconds_arg(args.duration_ms);
   let trailing_silence = seconds_arg(args.trailing_silence_ms.max(1));
@@ -261,9 +266,9 @@ fn render_comic_video_segment(app: tauri::AppHandle, args: RenderSegmentArgs) ->
 }
 
 #[tauri::command]
-fn concat_comic_video(app: tauri::AppHandle, args: ConcatVideoArgs) -> Result<(), String> {
-  let concat_list_path = safe_media_file_path(&app, &args.concat_list_path, false)?;
-  let output_path = safe_media_file_path(&app, &args.output_path, true)?;
+fn concat_comic_video(args: ConcatVideoArgs) -> Result<(), String> {
+  let concat_list_path = safe_media_file_path(&args.concat_list_path, false)?;
+  let output_path = safe_media_file_path(&args.output_path, true)?;
 
   let mut command = Command::new(args.ffmpeg_bin);
   command
@@ -282,37 +287,36 @@ fn concat_comic_video(app: tauri::AppHandle, args: ConcatVideoArgs) -> Result<()
 }
 
 #[tauri::command]
-fn delete_media_file(app: tauri::AppHandle, args: DeleteMediaFileArgs) -> Result<(), String> {
+fn delete_media_file(args: DeleteMediaFileArgs) -> Result<(), String> {
   let raw_path = Path::new(&args.path);
   if !raw_path.exists() {
     return Ok(());
   }
-  let path = safe_media_file_path(&app, &args.path, false)?;
+  let path = safe_media_file_path(&args.path, false)?;
 
   fs::remove_file(&path).map_err(|err| format!("Failed to delete {}: {err}", path.display()))
 }
 
 #[tauri::command]
-fn write_text_file(app: tauri::AppHandle, args: WriteTextFileArgs) -> Result<(), String> {
-  let path = safe_media_file_path(&app, &args.path, true)?;
+fn write_text_file(args: WriteTextFileArgs) -> Result<(), String> {
+  let path = safe_media_file_path(&args.path, true)?;
   fs::write(&path, args.content).map_err(|err| format!("Failed to write {}: {err}", path.display()))
 }
 
 #[tauri::command]
-fn write_binary_file(app: tauri::AppHandle, args: WriteBinaryFileArgs) -> Result<(), String> {
-  let path = safe_media_file_path(&app, &args.path, true)?;
+fn write_binary_file(args: WriteBinaryFileArgs) -> Result<(), String> {
+  let path = safe_media_file_path(&args.path, true)?;
   fs::write(&path, args.bytes).map_err(|err| format!("Failed to write {}: {err}", path.display()))
 }
 
 #[tauri::command]
 fn resolve_media_root(
-  app: tauri::AppHandle,
   args: ResolveMediaRootArgs,
 ) -> Result<String, String> {
   ensure_safe_media_component(&args.project_id, "projectId")?;
   ensure_safe_media_component(&args.chapter_id, "chapterId")?;
 
-  let dir = app_media_root_path(&app)?
+  let dir = app_media_root_path()?
     .join(args.project_id)
     .join("chapters")
     .join(args.chapter_id)
