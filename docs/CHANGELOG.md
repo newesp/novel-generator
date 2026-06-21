@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-21 - Comic chapter video validation
+
+- Fixed full-chapter MP4 export feedback so missing panel images or narration show a visible message next to the export action.
+- Added full-chapter video input validation that lists every missing panel image, instead of stopping silently or reporting only the first missing panel.
+
+**Verification**
+- `vitest run src/lib/comic/video/video-validation.test.ts` passed: 1 file, 2 tests.
+- `tsc -b` passed.
+
 ## 2026-06-21 - Comic video library
 
 - Added a ComicModal video library popup for browsing generated chapter MP4 files and per-panel MP4 segments.

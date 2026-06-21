@@ -26,6 +26,7 @@ import { desktopComicVideoCommands } from '../../lib/comic/video/desktop-command
 import { cleanupPanelVideoArtifacts } from '../../lib/comic/video/panel-cleanup';
 import { edgeTtsProvider } from '../../lib/comic/video/tts-provider';
 import { buildComicVideoLibrary, type ComicVideoLibraryItem } from '../../lib/comic/video/video-library';
+import { validateComicVideoInputs } from '../../lib/comic/video/video-validation';
 import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
@@ -738,14 +739,10 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const renderVideo = async () => {
     if (!comic) return;
     const orderedPanels = [...panels].sort((a, b) => a.order - b.order);
-    const missingImage = orderedPanels.find((panel) => !panel.assetId);
-    if (missingImage) {
-      setVideoMessage(`分鏡 #${missingImage.order} 尚未建立圖片。`);
-      return;
-    }
-    const missingNarration = orderedPanels.find((panel) => !panel.narration.trim());
-    if (missingNarration) {
-      setVideoMessage(`分鏡 #${missingNarration.order} 尚未填寫旁白。`);
+    const validation = validateComicVideoInputs(orderedPanels);
+    if (!validation.ok) {
+      setVideoMessage(validation.message);
+      setVideoLibraryMessage(validation.message);
       return;
     }
 
@@ -1428,6 +1425,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           <Button variant="secondary" onClick={() => setVideoLibraryOpen(true)} disabled={!comic}>
             影片庫
           </Button>
+          {videoMessage && <span className="comic-footer-message" aria-live="polite">{videoMessage}</span>}
           <Button variant="primary" onClick={() => void renderVideo()} disabled={busy || !comic || panels.length === 0}>
             整章輸出 MP4
           </Button>

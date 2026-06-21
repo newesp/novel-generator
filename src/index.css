@@ -1038,6 +1038,14 @@ input:focus, select:focus, textarea:focus {
   color: #86efac;
   font-size: 12px;
 }
+.comic-footer-message {
+  flex: 1 1 260px;
+  min-width: 220px;
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
 .comic-workspace {
   min-height: min(760px, calc(100vh - 230px));
   display: grid;
