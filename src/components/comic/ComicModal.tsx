@@ -808,7 +808,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const referenceOptionsForPanel = (panel: ComicPanel) => (
     panelReferenceOptions.filter((option) => option.panel.id !== panel.id).filter((option) => (
       !selectorSearch.trim()
-      || `${option.chapter.title} ${option.chapter.order} ${option.panel.order} ${option.panel.beat}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
+      || `${option.chapter.title} ${option.chapter.order + 1} ${option.panel.order} ${option.panel.beat}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
     ))
   );
 
@@ -1619,7 +1619,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                       const chapterOptions = selectedPanelReferenceOptions.filter((option) => option.chapter.id === chapterId);
                       return (
                         <section className="comic-reference-chapter" key={chapterId}>
-                          <strong>第 {chapterOptions[0].chapter.order} 章 · {chapterOptions[0].chapter.title}</strong>
+                          <strong>第 {chapterOptions[0].chapter.order + 1} 章 · {chapterOptions[0].chapter.title}</strong>
                           <div className="comic-reference-grid">
                             {chapterOptions.map((option) => (
                               <label className="comic-reference-option" key={option.asset.id}>
@@ -1639,7 +1639,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                                     }}
                                     title="預覽參考圖"
                                   >
-                                    <img src={option.asset.url} alt={`第 ${option.chapter.order} 章第 ${option.panel.order} 格`} loading="lazy" />
+                                    <img src={option.asset.url} alt={`第 ${option.chapter.order + 1} 章第 ${option.panel.order} 格`} loading="lazy" />
                                   </button>
                                 )}
                                 <span>第 {option.panel.order} 格</span>

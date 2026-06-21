@@ -2,6 +2,7 @@
 
 ## 2026-06-21 - Comic single-panel video export
 
+- Fixed the ComicModal reference-image section so chapter group labels and thumbnail alt text use 1-based chapter numbering.
 - Fixed the ComicModal chapter selector display so chapter numbering starts at 1 instead of showing the internal 0-based order.
 - Reordered the ComicModal right sidebar so `場景` sits next to `場景視覺設定`, with `參考圖` above them.
 - Fixed storyboard normalization so generated panels always start with `durationSec: 0`; manual seconds now remain user-entered only.
