@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-23 - Fix comic video reveal on Windows
+
+- Fixed the ComicModal video library "定位" action on Windows by quoting the Explorer `/select` target path and normalizing mixed path separators.
+- Added Rust tests for the Windows reveal argument, including existing MP4 paths that contain `comic-video/segments/`.
+
+**Verification**
+- `cargo test --manifest-path src-tauri/Cargo.toml windows_reveal_arg` passed with a separate Cargo target dir: 2 tests.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed with the same separate target dir.
+- `tsc -b` passed.
+
 ## 2026-06-22 - Expand comic narration voices
 
 - Expanded ComicModal video narration voice choices from three hard-coded options to grouped Taiwan Mandarin, China Mandarin, and China regional Mandarin Edge-TTS voices.

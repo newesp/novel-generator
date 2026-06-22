@@ -41,3 +41,4 @@ Thumbs.db
 
 # Tauri build artifacts
 src-tauri/target/
+src-tauri/target-codex*/
