@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-22 - Expand comic narration voices
+
+- Expanded ComicModal video narration voice choices from three hard-coded options to grouped Taiwan Mandarin, China Mandarin, and China regional Mandarin Edge-TTS voices.
+- Added a shared `voices.ts` list for ComicModal and a focused test that locks the supported voice ids and default voice availability.
+
+**Verification**
+- `vitest run src/lib/comic/video/voices.test.ts` passed: 1 file, 2 tests.
+- `tsc -b` passed.
+
 ## 2026-06-21 - Documentation refresh for comic video library
 
 - Updated README, multimedia module docs, roadmap, and tech-stack notes against the current ComicModal TTS / MP4 / video-library implementation.

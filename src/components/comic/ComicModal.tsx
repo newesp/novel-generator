@@ -28,6 +28,7 @@ import { edgeTtsProvider } from '../../lib/comic/video/tts-provider';
 import { buildComicVideoLibrary, type ComicVideoLibraryItem } from '../../lib/comic/video/video-library';
 import { validateComicVideoInputs } from '../../lib/comic/video/video-validation';
 import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
+import { COMIC_VIDEO_VOICE_GROUPS } from '../../lib/comic/video/voices';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
@@ -2033,9 +2034,13 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                 <label>
                   <FieldLabel label="旁白音色" help="MVP 使用單一 Edge-TTS 音色輸出旁白。" />
                   <select value={videoVoice} onChange={(event) => setVideoVoice(event.target.value)}>
-                    <option value="zh-TW-HsiaoChenNeural">zh-TW-HsiaoChenNeural</option>
-                    <option value="zh-TW-YunJheNeural">zh-TW-YunJheNeural</option>
-                    <option value="zh-CN-XiaoxiaoNeural">zh-CN-XiaoxiaoNeural</option>
+                    {COMIC_VIDEO_VOICE_GROUPS.map((group) => (
+                      <optgroup key={group.label} label={group.label}>
+                        {group.voices.map((voice) => (
+                          <option key={voice.id} value={voice.id}>{voice.label}</option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </label>
                 <label>
