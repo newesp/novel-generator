@@ -178,8 +178,8 @@ fn windows_path_arg(path: &Path) -> String {
   path.to_string_lossy().replace('/', "\\")
 }
 
-fn build_windows_reveal_arg(path: &Path) -> String {
-  format!(r#"/select,"{}""#, windows_path_arg(path))
+fn build_windows_reveal_folder_arg(path: &Path) -> Option<String> {
+  path.parent().map(windows_path_arg)
 }
 
 fn seconds_arg(ms: u64) -> String {
@@ -356,8 +356,10 @@ fn reveal_media_file(args: RevealMediaFileArgs) -> Result<(), String> {
 
   #[cfg(target_os = "windows")]
   {
+    let parent = build_windows_reveal_folder_arg(&path)
+      .ok_or_else(|| format!("Media file has no parent: {}", path.display()))?;
     let mut command = Command::new("explorer");
-    command.arg(build_windows_reveal_arg(&path));
+    command.arg(parent);
     run_command(command, "reveal media file")
   }
 
@@ -494,22 +496,12 @@ mod tests {
   use super::*;
 
   #[test]
-  fn windows_reveal_arg_quotes_selected_path() {
-    let path = PathBuf::from(r"C:\Leo\Project\novel-generator\output\media\book\chapters\chapter\comic-video\segments\segment-001.mp4");
-
-    assert_eq!(
-      build_windows_reveal_arg(&path),
-      r#"/select,"C:\Leo\Project\novel-generator\output\media\book\chapters\chapter\comic-video\segments\segment-001.mp4""#,
-    );
-  }
-
-  #[test]
-  fn windows_reveal_arg_normalizes_mixed_separators() {
+  fn windows_reveal_folder_arg_opens_parent_directory() {
     let path = PathBuf::from(r"C:\Leo\Project\novel-generator\output\media\book\chapters\chapter\comic-video/segments/segment-001.mp4");
 
     assert_eq!(
-      build_windows_reveal_arg(&path),
-      r#"/select,"C:\Leo\Project\novel-generator\output\media\book\chapters\chapter\comic-video\segments\segment-001.mp4""#,
+      build_windows_reveal_folder_arg(&path).as_deref(),
+      Some(r"C:\Leo\Project\novel-generator\output\media\book\chapters\chapter\comic-video\segments"),
     );
   }
 }

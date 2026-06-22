@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-23 - Open comic video folder directly
+
+- Changed the ComicModal video library "定位" action on Windows to open the MP4 parent folder directly instead of using Explorer `/select`.
+- Kept mixed-separator normalization so existing paths containing `comic-video/segments/` open the correct `segments` directory.
+
+**Verification**
+- `cargo test --manifest-path src-tauri/Cargo.toml windows_reveal_folder_arg` passed: 1 test.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed.
+- `tsc -b` passed.
+
 ## 2026-06-23 - Fix comic video reveal on Windows
 
 - Fixed the ComicModal video library "定位" action on Windows by quoting the Explorer `/select` target path and normalizing mixed path separators.
