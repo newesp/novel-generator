@@ -75,4 +75,38 @@ describe('loadComicVideoState', () => {
     expect(result.panels.map((item) => item.segmentAssetId)).toEqual(['fresh-segment']);
     expect(Object.keys(result.assets).sort()).toEqual(['chapter-video', 'fresh-segment', 'subtitle-1']);
   });
+
+  it('recovers a panel segment asset path from the deterministic segment file when the asset record is stale', async () => {
+    const storage = {
+      comics: {
+        get: vi.fn(async () => comic),
+      },
+      comicPanels: {
+        listByComic: vi.fn(async () => [
+          panel({ id: 'panel-1', order: 1, segmentAssetId: 'stale-segment' }),
+        ]),
+      },
+      mediaAssets: {
+        get: vi.fn(async (id: string) => (id === 'chapter-video'
+          ? asset({ id: 'chapter-video', path: 'C:/media/book/chapter/comic-video/chapter-video.mp4' })
+          : undefined)),
+      },
+    };
+    const commands = {
+      resolveMediaRoot: vi.fn(async () => 'C:/media/book/chapter/comic-video'),
+      mediaFileExists: vi.fn(async ({ path }: { path: string }) => path.endsWith('/segments/segment-001.mp4')),
+    };
+
+    const result = await loadComicVideoState({ comicId: 'comic-1', storage, commands });
+
+    expect(commands.mediaFileExists).toHaveBeenCalledWith({
+      path: 'C:/media/book/chapter/comic-video/segments/segment-001.mp4',
+    });
+    expect(result.assets['stale-segment']).toMatchObject({
+      id: 'stale-segment',
+      kind: 'video',
+      path: 'C:/media/book/chapter/comic-video/segments/segment-001.mp4',
+      providerId: 'ffmpeg',
+    });
+  });
 });

@@ -367,13 +367,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
 
   useEffect(() => {
     if (!open) return;
-    const assetIds = Array.from(new Set([
-      comic?.videoAssetId,
-      comic?.subtitleAssetId,
-      ...panels.map((panel) => panel.segmentAssetId),
-    ].filter((id): id is string => Boolean(id))));
     let cancelled = false;
-    if (!assetIds.length) {
+    if (!comic) {
       queueMicrotask(() => {
         if (!cancelled) setVideoLibraryAssets({});
       });
@@ -381,17 +376,14 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         cancelled = true;
       };
     }
-    void Promise.all(assetIds.map((id) => storage.mediaAssets.get(id))).then((assets) => {
+    void loadComicVideoState({ comicId: comic.id, storage, commands: desktopComicVideoCommands }).then((state) => {
       if (cancelled) return;
-      setVideoLibraryAssets(assets.filter((asset): asset is MediaAsset => Boolean(asset)).reduce<Record<string, MediaAsset>>((acc, asset) => {
-        acc[asset.id] = asset;
-        return acc;
-      }, {}));
+      setVideoLibraryAssets(state.assets);
     });
     return () => {
       cancelled = true;
     };
-  }, [open, comic?.videoAssetId, comic?.subtitleAssetId, panels, videoLibraryRevision]);
+  }, [open, comic?.id, comic?.videoAssetId, comic?.subtitleAssetId, panels, videoLibraryRevision]);
 
   const persistGeneratedPanel = async (
     panel: ComicPanel,
@@ -669,7 +661,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   };
 
   const refreshVideoState = async (comicId: string): Promise<ChapterComic | null> => {
-    const nextState = await loadComicVideoState({ comicId, storage });
+    const nextState = await loadComicVideoState({ comicId, storage, commands: desktopComicVideoCommands });
     if (!nextState.comic) return null;
     setComic(nextState.comic);
     setPanels(nextState.panels);

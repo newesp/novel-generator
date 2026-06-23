@@ -34,6 +34,10 @@ export interface DeleteMediaFileArgs {
   path: string;
 }
 
+export interface MediaFileExistsArgs {
+  path: string;
+}
+
 export interface OpenMediaFileArgs {
   path: string;
 }
@@ -68,6 +72,8 @@ export const desktopComicVideoCommands = {
     invoke<void>('concat_comic_video', { args }),
   deleteMediaFile: (args: DeleteMediaFileArgs) =>
     invoke<void>('delete_media_file', { args }),
+  mediaFileExists: (args: MediaFileExistsArgs) =>
+    invoke<boolean>('media_file_exists', { args }),
   openMediaFile: (args: OpenMediaFileArgs) =>
     invoke<void>('open_media_file', { args }),
   revealMediaFile: (args: RevealMediaFileArgs) =>

@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-23 - Recover stale comic video segments
+
+- Fixed ComicModal video library segment rows that showed `媒體檔案遺失` when the database media asset record was stale but the deterministic `segments/segment-00N.mp4` file still existed.
+- Added a safe Tauri `media_file_exists` command and wired ComicModal video state refresh to recover segment paths from the chapter `comic-video/segments` folder.
+
+**Verification**
+- `vitest run src/lib/comic/video/video-state-refresh.test.ts src/lib/comic/video/video-library.test.ts src/lib/comic/video/video-renderer.test.ts` passed: 3 files, 8 tests.
+- `tsc -b` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml media_file_exists_reports_existing_safe_media_file` passed: 1 test.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed.
+
 ## 2026-06-23 - Refresh comic video segments in UI
 
 - Refreshed ComicModal video state from storage after single-panel and full-chapter MP4 exports, so the video library shows newly generated segment assets instead of stale missing references.

@@ -50,6 +50,12 @@ struct DeleteMediaFileArgs {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct MediaFileExistsArgs {
+  path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OpenMediaFileArgs {
   path: String,
 }
@@ -146,6 +152,40 @@ fn safe_media_file_path(
     .file_name()
     .ok_or_else(|| format!("Path has no file name: {path}"))?;
   Ok(parent.join(file_name))
+}
+
+fn safe_media_query_path(path: &str) -> Result<Option<PathBuf>, String> {
+  let input = PathBuf::from(path);
+  let root_path = app_media_root_path()?;
+  let canonical_root = app_media_root()?;
+  if !input.is_absolute() {
+    return Err(format!("Path must be absolute: {path}"));
+  }
+  if path_has_parent_dir(&input) {
+    return Err(format!("Path escapes media root: {path}"));
+  }
+  if !input.starts_with(&root_path) {
+    return Err(format!("Path is outside media root: {path}"));
+  }
+
+  let parent = input
+    .parent()
+    .ok_or_else(|| format!("Path has no parent: {path}"))?;
+  if !parent.exists() {
+    return Ok(None);
+  }
+
+  let canonical_parent = parent
+    .canonicalize()
+    .map_err(|err| format!("Failed to canonicalize {}: {err}", parent.display()))?;
+  if !canonical_parent.starts_with(&canonical_root) {
+    return Err(format!("Path is outside media root: {path}"));
+  }
+
+  let file_name = input
+    .file_name()
+    .ok_or_else(|| format!("Path has no file name: {path}"))?;
+  Ok(Some(parent.join(file_name)))
 }
 
 fn ensure_safe_media_component(value: &str, label: &str) -> Result<(), String> {
@@ -319,6 +359,14 @@ fn delete_media_file(args: DeleteMediaFileArgs) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn media_file_exists(args: MediaFileExistsArgs) -> Result<bool, String> {
+  let Some(path) = safe_media_query_path(&args.path)? else {
+    return Ok(false);
+  };
+  Ok(path.is_file())
+}
+
+#[tauri::command]
 fn open_media_file(args: OpenMediaFileArgs) -> Result<(), String> {
   let path = safe_media_file_path(&args.path, false)?;
   if !path.exists() {
@@ -466,6 +514,7 @@ pub fn run() {
       render_comic_video_segment,
       concat_comic_video,
       delete_media_file,
+      media_file_exists,
       open_media_file,
       reveal_media_file,
       write_text_file,
@@ -503,5 +552,22 @@ mod tests {
       build_windows_reveal_folder_arg(&path).as_deref(),
       Some(r"C:\Leo\Project\novel-generator\output\media\book\chapters\chapter\comic-video\segments"),
     );
+  }
+
+  #[test]
+  fn media_file_exists_reports_existing_safe_media_file() {
+    let path = app_media_root_path()
+      .unwrap()
+      .join("rust-test-media-file-exists")
+      .join("segment-001.mp4");
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, b"video").unwrap();
+
+    let exists = media_file_exists(MediaFileExistsArgs {
+      path: path.to_string_lossy().to_string(),
+    });
+
+    fs::remove_file(&path).unwrap();
+    assert_eq!(exists, Ok(true));
   }
 }
