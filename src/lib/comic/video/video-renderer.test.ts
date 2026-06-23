@@ -240,6 +240,120 @@ describe('renderComicVideo', () => {
     expect(commands.concatVideo).toHaveBeenCalledTimes(1);
   });
 
+  it('writes a sidecar SRT subtitle asset when rendering the chapter video', async () => {
+    const assets: Record<string, MediaAsset> = {
+      'image-1': {
+        id: 'image-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'comic_panel_image',
+        path: 'C:/media/panel-001.png',
+        mimeType: 'image/png',
+        createdAt: 1,
+      },
+      'old-subtitle': {
+        id: 'old-subtitle',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'subtitle',
+        path: 'C:/media/old-subtitle.srt',
+        mimeType: 'application/x-subrip',
+        createdAt: 1,
+      },
+    };
+    const storage = {
+      mediaAssets: {
+        get: vi.fn(async (id: string) => assets[id]),
+        add: vi.fn(async (asset: MediaAsset) => {
+          assets[asset.id] = asset;
+        }),
+        delete: vi.fn(async () => undefined),
+      },
+      comicPanels: {
+        update: vi.fn(async () => undefined),
+      },
+      comics: {
+        update: vi.fn(async () => undefined),
+      },
+    };
+    const ttsProvider = {
+      id: 'edge-tts',
+      label: 'Edge-TTS',
+      generate: vi.fn(async () => ({
+        asset: {
+          id: 'tts-1',
+          projectId: 'book',
+          chapterId: 'chapter',
+          kind: 'tts_audio' as const,
+          path: 'C:/media/audio.mp3',
+          mimeType: 'audio/mpeg',
+          createdAt: 2,
+        },
+        durationMs: 2200,
+        providerId: 'edge-tts',
+        voice: 'zh-TW-HsiaoChenNeural',
+      })),
+    };
+    const commands = {
+      renderSegment: vi.fn(async () => undefined),
+      concatVideo: vi.fn(async () => undefined),
+      deleteMediaFile: vi.fn(async () => undefined),
+      writeBinaryFile: vi.fn(async () => undefined),
+    };
+    const writeTextFile = vi.fn(async () => undefined);
+
+    await renderComicVideo({
+      comic: { ...comic, subtitleAssetId: 'old-subtitle' },
+      panels: [
+        panel({ id: 'panel-1', order: 1, narration: '第一格旁白。' }),
+        panel({ id: 'panel-2', order: 2, narration: '第二格旁白。', durationSec: 1 }),
+      ],
+      storage,
+      ttsProvider,
+      commands,
+      writeTextFile,
+      settings: {
+        mediaRoot: 'C:/media/book/chapter/comic-video',
+        edgeTtsBin: 'edge-tts',
+        ffmpegBin: 'ffmpeg',
+        ffprobeBin: 'ffprobe',
+        voice: 'zh-TW-HsiaoChenNeural',
+        panelPauseMs: 400,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+      },
+    });
+
+    expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/media/old-subtitle.srt' });
+    expect(storage.mediaAssets.delete).toHaveBeenCalledWith('old-subtitle');
+    expect(writeTextFile).toHaveBeenCalledWith(
+      'C:/media/book/chapter/comic-video/chapter-video.srt',
+      [
+        '1',
+        '00:00:00,000 --> 00:00:02,600',
+        '第一格旁白。',
+        '',
+        '2',
+        '00:00:02,600 --> 00:00:05,200',
+        '第二格旁白。',
+        '',
+      ].join('\n'),
+    );
+    expect(storage.mediaAssets.add).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'subtitle',
+      path: 'C:/media/book/chapter/comic-video/chapter-video.srt',
+      mimeType: 'application/x-subrip',
+      providerId: 'srt',
+    }));
+    expect(storage.comics.update).toHaveBeenCalledWith(
+      'comic',
+      expect.objectContaining({
+        subtitleAssetId: expect.any(String),
+      }),
+    );
+  });
+
   it('uses max audio/manual duration plus panel pause for segment duration', async () => {
     const imageAsset: MediaAsset = {
       id: 'image-1',

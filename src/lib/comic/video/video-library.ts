@@ -1,6 +1,6 @@
 import type { ChapterComic, ComicPanel, MediaAsset } from '../../../types';
 
-export type ComicVideoLibraryItemKind = 'chapter' | 'panel';
+export type ComicVideoLibraryItemKind = 'chapter' | 'panel' | 'subtitle';
 export type ComicVideoLibraryItemStatus = 'ready' | 'missing';
 
 export interface ComicVideoLibraryItem {
@@ -25,7 +25,11 @@ export function buildComicVideoLibrary({
   assets: MediaAsset[];
 }): ComicVideoLibraryItem[] {
   if (!comic) return [];
-  const assetById = new Map(assets.filter((asset) => asset.kind === 'video').map((asset) => [asset.id, asset]));
+  const assetById = new Map(
+    assets
+      .filter((asset) => asset.kind === 'video' || asset.kind === 'subtitle')
+      .map((asset) => [asset.id, asset]),
+  );
   const items: ComicVideoLibraryItem[] = [];
 
   if (comic.videoAssetId) {
@@ -35,6 +39,16 @@ export function buildComicVideoLibrary({
       label: '整章 MP4',
       assetId: comic.videoAssetId,
       asset: assetById.get(comic.videoAssetId),
+    }));
+  }
+
+  if (comic.subtitleAssetId) {
+    items.push(videoItem({
+      id: `subtitle:${comic.id}`,
+      kind: 'subtitle',
+      label: '整章字幕 SRT',
+      assetId: comic.subtitleAssetId,
+      asset: assetById.get(comic.subtitleAssetId),
     }));
   }
 

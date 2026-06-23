@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-23 - Comic sidecar subtitle MVP
+
+- Added full-chapter SRT subtitle generation for comic video export. `整章輸出 MP4` now writes `chapter-video.srt` from panel narration and segment timing, without burning subtitles into the MP4.
+- Added `MediaAsset(kind='subtitle')` and `ChapterComic.subtitleAssetId` so SRT files are stored as sidecar media assets for YouTube-style toggleable captions.
+- Updated the ComicModal video library to list, open, reveal, delete, and rerender chapter SRT subtitle assets alongside MP4 assets.
+- Updated multimedia, roadmap, tech-stack, and README docs for the MP4/SRT workflow.
+
+**Verification**
+- `vitest run src/lib/comic/video/subtitles.test.ts src/lib/comic/video/video-renderer.test.ts src/lib/comic/video/video-library.test.ts src/lib/comic/storage-types.test.ts src/lib/tauri-migrations.test.ts` passed: 5 files, 10 tests.
+- `tsc -b` passed.
+
 ## 2026-06-23 - Open comic video folder directly
 
 - Changed the ComicModal video library "定位" action on Windows to open the MP4 parent folder directly instead of using Explorer `/select`.

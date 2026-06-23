@@ -2,6 +2,7 @@ import type { ChapterComic, ComicPanel, MediaAsset } from '../../../types';
 import type { StorageAdapter } from '../../storage/types';
 import { buildConcatList } from './concat-list';
 import type { desktopComicVideoCommands } from './desktop-commands';
+import { buildComicSrt, type ComicSubtitleCueInput } from './subtitles';
 import { calculatePanelTiming } from './timing';
 import type { TTSProvider } from './tts-provider';
 
@@ -50,12 +51,15 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
   const { comic, storage, ttsProvider, commands, settings } = input;
   const panels = [...input.panels].sort((a, b) => a.order - b.order);
   const segmentPaths: string[] = [];
+  const subtitleCues: ComicSubtitleCueInput[] = [];
 
   await deleteAssetFileAndRecord(comic.videoAssetId, storage, commands);
+  await deleteAssetFileAndRecord(comic.subtitleAssetId, storage, commands);
 
   await storage.comics.update(comic.id, {
     videoStatus: 'generating_audio',
     videoAssetId: undefined,
+    subtitleAssetId: undefined,
     videoErrorMessage: undefined,
     updatedAt: Date.now(),
   });
@@ -67,6 +71,7 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
     const reusableSegment = await findReusableSegment(panel, storage, settings);
     if (reusableSegment?.path) {
       segmentPaths.push(reusableSegment.path);
+      subtitleCues.push({ panel, durationMs: segmentDurationMs(reusableSegment) });
       continue;
     }
 
@@ -79,6 +84,7 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
       settings,
     });
     segmentPaths.push(segmentAsset.path ?? `${settings.mediaRoot}/segments/segment-${String(panel.order).padStart(3, '0')}.mp4`);
+    subtitleCues.push({ panel, durationMs: segmentDurationMs(segmentAsset) });
   }
 
   const concatListPath = `${settings.mediaRoot}/concat.txt`;
@@ -87,6 +93,26 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
   const outputPath = `${settings.mediaRoot}/chapter-video.mp4`;
   await storage.comics.update(comic.id, { videoStatus: 'concatenating', updatedAt: Date.now() });
   await commands.concatVideo({ ffmpegBin: settings.ffmpegBin, concatListPath, outputPath });
+
+  const subtitlePath = `${settings.mediaRoot}/chapter-video.srt`;
+  const subtitleText = buildComicSrt(subtitleCues);
+  await input.writeTextFile(subtitlePath, subtitleText);
+  const subtitleAsset: MediaAsset = {
+    id: crypto.randomUUID(),
+    projectId: comic.projectId,
+    chapterId: comic.chapterId,
+    kind: 'subtitle',
+    path: subtitlePath,
+    mimeType: 'application/x-subrip',
+    providerId: 'srt',
+    generationParamsJson: JSON.stringify({
+      sourcePanelIds: panels.map((panel) => panel.id),
+      panelPauseMs: settings.panelPauseMs,
+      voice: settings.voice,
+      format: 'srt',
+    }),
+    createdAt: Date.now(),
+  };
 
   const videoAsset: MediaAsset = {
     id: crypto.randomUUID(),
@@ -102,10 +128,12 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
     }),
     createdAt: Date.now(),
   };
+  await storage.mediaAssets.add(subtitleAsset);
   await storage.mediaAssets.add(videoAsset);
   await storage.comics.update(comic.id, {
     videoStatus: 'ready',
     videoAssetId: videoAsset.id,
+    subtitleAssetId: subtitleAsset.id,
     videoProviderId: 'ffmpeg',
     videoSettingsJson: videoAsset.generationParamsJson,
     videoErrorMessage: undefined,
@@ -300,6 +328,19 @@ interface SegmentMetadata {
   height: number;
   fps: number;
   narrationHash: string;
+  durationMs?: number;
+}
+
+function segmentDurationMs(asset: MediaAsset): number {
+  if (!asset.generationParamsJson) return 0;
+  try {
+    const metadata = JSON.parse(asset.generationParamsJson) as Partial<SegmentMetadata>;
+    return typeof metadata.durationMs === 'number' && Number.isFinite(metadata.durationMs)
+      ? Math.max(0, metadata.durationMs)
+      : 0;
+  } catch {
+    return 0;
+  }
 }
 
 async function deleteAssetFileAndRecord(

@@ -1,8 +1,8 @@
 # 小說產生器（Novel Generator）
 
-> 版本：1.8（Phase 6 comic image / TTS / video library implemented）　更新：2026-06-21
+> 版本：1.9（Phase 6 comic image / TTS / MP4 / SRT library implemented）　更新：2026-06-23
 
-本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 輸出與章節內影片庫。
+本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出與章節內影片庫。
 
 - 目標語言：中文小說（優先）
 - 使用方式：本機瀏覽器或 Windows 桌面版
@@ -64,7 +64,7 @@ npm run tauri build
 | [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager（Wiki 摘要 + pick-pages + 摘要品質 ✅） | 1 / 2.5 | 04 |
 | [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM 適配層 | 1 / 2 | tech-stack |
 | [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎（未實作） | 4（選做） | 04, 07 |
-| [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（漫畫圖片、TTS、MP4 與章節內影片庫） | 6 / 4（選做） | 00, tech-stack |
+| [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（漫畫圖片、TTS、MP4、SRT 與章節內影片庫） | 6 / 4（選做） | 00, tech-stack |
 
 ---
 

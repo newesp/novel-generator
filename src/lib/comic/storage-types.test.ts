@@ -26,6 +26,7 @@ describe('comic sqlite row helpers', () => {
       visualContinuityBibleJson: '{}',
       videoStatus: 'ready',
       videoAssetId: 'video-asset',
+      subtitleAssetId: 'subtitle-asset',
       videoProviderId: 'ffmpeg',
       videoSettingsJson: '{"panelPauseMs":400}',
       videoErrorMessage: 'video warning',
@@ -61,10 +62,10 @@ describe('comic sqlite row helpers', () => {
       id: 'asset',
       projectId: 'book',
       chapterId: 'ch1',
-      kind: 'comic_panel_image',
-      url: 'data:image/png;base64,abc',
-      mimeType: 'image/png',
-      providerId: 'comfyui',
+      kind: 'subtitle',
+      path: 'C:/media/chapter-video.srt',
+      mimeType: 'application/x-subrip',
+      providerId: 'srt',
       createdAt: 3,
     };
     const scene: SceneVisual = {

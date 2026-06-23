@@ -17,7 +17,7 @@
 
 - 章節工具列已提供「轉漫畫」流程（ComicModal）
 - 生成後可預覽、單格重生、切換歷史圖、手動上傳替換、單圖下載
-- 桌面版 ComicModal 已提供單格 MP4、整章 MP4、整章影片設定與章節內「影片庫」
+- 桌面版 ComicModal 已提供單格 MP4、整章 MP4、自動旁掛 SRT 字幕、整章影片設定與章節內「影片庫」
 - EPUB 輸出時可選擇嵌入封面與插圖
 
 ---
@@ -26,7 +26,7 @@
 
 > 設計：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`  
 > Visual Bible：`docs/superpowers/specs/2026-05-29-phase-6-visual-bible-design.md`  
-> MVP 先做「選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片」。2026-06 已接上桌面版 TTS / MP4 輸出與章節內影片庫。
+> MVP 先做「選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片」。2026-06 已接上桌面版 TTS / MP4 / SRT 輸出與章節內影片庫。
 
 ```
 章節文本
@@ -78,15 +78,16 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - Desktop video export uses Edge-TTS for panel narration audio and ffmpeg sidecar commands for MP4 rendering.
 - Per-panel `單格輸出 MP4` writes a reusable `MediaAsset(kind='video')` and stores the id on `ComicPanel.segmentAssetId`.
 - `整章輸出 MP4` reuses matching panel segments where possible, concatenates them into a chapter MP4, and stores the id on `ChapterComic.videoAssetId`.
+- Full-chapter export also writes a sidecar `chapter-video.srt` file from panel narration and segment timing. The SRT is stored as `MediaAsset(kind='subtitle')` and linked by `ChapterComic.subtitleAssetId`, so it can be uploaded to YouTube as toggleable captions.
 - Full-chapter export validates every panel first. Missing images or narration are shown in a dismissible top notice instead of failing silently.
-- ComicModal includes a chapter-scoped `影片庫` popup for current chapter MP4 files and panel segments, with open, reveal in folder, delete, and rerender actions.
+- ComicModal includes a chapter-scoped `影片庫` popup for current chapter MP4 files, SRT subtitles, and panel segments, with open, reveal in folder, delete, and rerender actions.
 
 ### 儲存規則
 
 - **metadata 進 StorageAdapter**：ChapterComic、ComicPanel、ComicPanelImageVariant、MediaAsset、SceneVisual、provider params、seed、錯誤狀態。
 - **圖片 metadata**：生成或上傳圖片以 `MediaAsset` + `ComicPanelImageVariant` 追蹤；需要時會把遠端 URL 正規化為可持久化 data URL。
-- **桌面版 TTS / MP4 binary**：透過 Tauri 安全命令寫入 app/project output media root，路徑記錄於 `MediaAsset.path`；TTS 使用 `kind='tts_audio'`，影片使用 `kind='video'`。
-- **關聯欄位**：單格影片掛在 `ComicPanel.segmentAssetId`；整章影片掛在 `ChapterComic.videoAssetId`。
+- **桌面版 TTS / MP4 / SRT binary**：透過 Tauri 安全命令寫入 app/project output media root，路徑記錄於 `MediaAsset.path`；TTS 使用 `kind='tts_audio'`，影片使用 `kind='video'`，字幕使用 `kind='subtitle'`。
+- **關聯欄位**：單格影片掛在 `ComicPanel.segmentAssetId`；整章影片掛在 `ChapterComic.videoAssetId`；整章旁掛字幕掛在 `ChapterComic.subtitleAssetId`。
 - 大型 binary 不應長期塞進 SQLite；跨章節全書級媒體管理仍需補完整媒體庫 UI。
 
 ### TODO / advanced polish

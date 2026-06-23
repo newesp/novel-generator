@@ -48,15 +48,28 @@ const videoAsset = (patch: Partial<MediaAsset>): MediaAsset => ({
   ...patch,
 });
 
+const subtitleAsset = (patch: Partial<MediaAsset>): MediaAsset => ({
+  id: 'subtitle-1',
+  projectId: 'book-1',
+  chapterId: 'chapter-1',
+  kind: 'subtitle',
+  path: 'C:/media/chapter-video.srt',
+  mimeType: 'application/x-subrip',
+  providerId: 'srt',
+  createdAt: 10,
+  ...patch,
+});
+
 describe('buildComicVideoLibrary', () => {
-  it('lists the chapter video and panel segments with ready asset paths', () => {
+  it('lists the chapter video, subtitle, and panel segments with ready asset paths', () => {
     const result = buildComicVideoLibrary({
-      comic: comic({ videoStatus: 'ready', videoAssetId: 'chapter-video' }),
+      comic: comic({ videoStatus: 'ready', videoAssetId: 'chapter-video', subtitleAssetId: 'subtitle-1' }),
       panels: [
         panel({ id: 'panel-2', order: 2, beat: 'Second panel', segmentAssetId: 'segment-2' }),
       ],
       assets: [
         videoAsset({ id: 'chapter-video', path: 'C:/media/chapter-video.mp4', createdAt: 20 }),
+        subtitleAsset({ id: 'subtitle-1', path: 'C:/media/chapter-video.srt', createdAt: 25 }),
         videoAsset({ id: 'segment-2', path: 'C:/media/segment-002.mp4', createdAt: 30 }),
       ],
     });
@@ -74,6 +87,12 @@ describe('buildComicVideoLibrary', () => {
         path: 'C:/media/chapter-video.mp4',
       },
       {
+        kind: 'subtitle',
+        label: '整章字幕 SRT',
+        status: 'ready',
+        path: 'C:/media/chapter-video.srt',
+      },
+      {
         kind: 'panel',
         label: '#2 Second panel',
         status: 'ready',
@@ -84,7 +103,7 @@ describe('buildComicVideoLibrary', () => {
 
   it('marks referenced videos as missing when the media asset is gone', () => {
     const result = buildComicVideoLibrary({
-      comic: comic({ videoStatus: 'ready', videoAssetId: 'missing-video' }),
+      comic: comic({ videoStatus: 'ready', videoAssetId: 'missing-video', subtitleAssetId: 'missing-subtitle' }),
       panels: [panel({ segmentAssetId: 'missing-segment' })],
       assets: [],
     });
@@ -96,6 +115,7 @@ describe('buildComicVideoLibrary', () => {
       path: item.path,
     }))).toEqual([
       { kind: 'chapter', assetId: 'missing-video', status: 'missing', path: undefined },
+      { kind: 'subtitle', assetId: 'missing-subtitle', status: 'missing', path: undefined },
       { kind: 'panel', assetId: 'missing-segment', status: 'missing', path: undefined },
     ]);
   });

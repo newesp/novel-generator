@@ -368,6 +368,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     if (!open) return;
     const assetIds = Array.from(new Set([
       comic?.videoAssetId,
+      comic?.subtitleAssetId,
       ...panels.map((panel) => panel.segmentAssetId),
     ].filter((id): id is string => Boolean(id))));
     let cancelled = false;
@@ -389,7 +390,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     return () => {
       cancelled = true;
     };
-  }, [open, comic?.videoAssetId, panels, videoLibraryRevision]);
+  }, [open, comic?.videoAssetId, comic?.subtitleAssetId, panels, videoLibraryRevision]);
 
   const persistGeneratedPanel = async (
     panel: ComicPanel,
@@ -483,6 +484,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         visualContinuityBibleJson: draft.visualContinuityBibleJson,
         videoStatus: 'idle',
         videoAssetId: undefined,
+        subtitleAssetId: undefined,
         videoProviderId: undefined,
         videoSettingsJson: undefined,
         videoErrorMessage: undefined,
@@ -491,6 +493,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       };
       if (currentComic) {
         await cleanupMediaAssetFile(currentComic.videoAssetId);
+        await cleanupMediaAssetFile(currentComic.subtitleAssetId);
         for (const panel of panels) {
           await cleanupPanelVideoArtifacts({
             panel,
@@ -613,13 +616,16 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     await storage.comicPanelImageVariants.deleteByPanel(panel.id);
     await storage.comicPanels.delete(panel.id);
     await Promise.all(assetIds.map((assetId) => storage.mediaAssets.delete(assetId)));
-    if (comic.videoAssetId || comic.videoStatus === 'ready') {
+    if (comic.videoAssetId || comic.subtitleAssetId || comic.videoStatus === 'ready') {
       const staleVideoPatch: Partial<ChapterComic> = {
         videoStatus: 'idle',
         videoAssetId: undefined,
+        subtitleAssetId: undefined,
         videoErrorMessage: '刪除分鏡後，影片需重新輸出。',
         updatedAt: Date.now(),
       };
+      await cleanupMediaAssetFile(comic.videoAssetId);
+      await cleanupMediaAssetFile(comic.subtitleAssetId);
       setComic((current) => current ? { ...current, ...staleVideoPatch } : current);
       await storage.comics.update(comic.id, staleVideoPatch);
     }
@@ -774,13 +780,22 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           fps: 30,
         },
       });
+      const refreshedComic = await storage.comics.get(comic.id);
+      const subtitleAsset = refreshedComic?.subtitleAssetId
+        ? await storage.mediaAssets.get(refreshedComic.subtitleAssetId)
+        : undefined;
       setVideoAsset(asset);
-      setVideoLibraryAssets((current) => ({ ...current, [asset.id]: asset }));
+      setVideoLibraryAssets((current) => ({
+        ...current,
+        [asset.id]: asset,
+        ...(subtitleAsset ? { [subtitleAsset.id]: subtitleAsset } : {}),
+      }));
       setVideoLibraryRevision((current) => current + 1);
       setComic((current) => current ? {
         ...current,
         videoStatus: 'ready',
         videoAssetId: asset.id,
+        subtitleAssetId: refreshedComic?.subtitleAssetId,
         videoProviderId: 'ffmpeg',
         videoSettingsJson: asset.generationParamsJson,
         videoErrorMessage: undefined,
@@ -810,7 +825,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
 
   const openVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
     if (!item.path) {
-      setVideoLibraryMessage(`${item.label} 找不到影片檔路徑。`);
+      setVideoLibraryMessage(`${item.label} 找不到媒體檔路徑。`);
       return;
     }
     try {
@@ -823,7 +838,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
 
   const revealVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
     if (!item.path) {
-      setVideoLibraryMessage(`${item.label} 找不到影片檔路徑。`);
+      setVideoLibraryMessage(`${item.label} 找不到媒體檔路徑。`);
       return;
     }
     try {
@@ -836,7 +851,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
 
   const deleteVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
     if (!item.assetId) return;
-    if (!window.confirm(`刪除 ${item.label}？這會移除影片檔與資料庫紀錄。`)) return;
+    if (!window.confirm(`刪除 ${item.label}？這會移除媒體檔與資料庫紀錄。`)) return;
     try {
       await cleanupMediaAssetFile(item.assetId);
       setVideoLibraryAssets((current) => {
@@ -857,6 +872,14 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         setComic((current) => current ? { ...current, ...patch } : current);
         setVideoAsset(null);
       }
+      if (item.kind === 'subtitle' && comic) {
+        const patch: Partial<ChapterComic> = {
+          subtitleAssetId: undefined,
+          updatedAt: Date.now(),
+        };
+        await storage.comics.update(comic.id, patch);
+        setComic((current) => current ? { ...current, ...patch } : current);
+      }
       if (item.kind === 'panel' && item.panelId) {
         await storage.comicPanels.update(item.panelId, {
           segmentAssetId: undefined,
@@ -875,7 +898,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   };
 
   const rerenderVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
-    if (item.kind === 'chapter') {
+    if (item.kind === 'chapter' || item.kind === 'subtitle') {
       await renderVideo();
       return;
     }
@@ -2100,9 +2123,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                     <article className={`comic-video-library-item ${item.status}`} key={item.id}>
                       <div className="comic-video-library-main">
                         <strong>{item.label}</strong>
-                        <span>{item.kind === 'chapter' ? '整章影片' : '單格影片'}</span>
+                        <span>{item.kind === 'chapter' ? '整章影片' : item.kind === 'subtitle' ? '旁掛字幕' : '單格影片'}</span>
                         <small title={item.path ?? item.assetId ?? ''}>
-                          {item.path ?? '影片檔案遺失'}
+                          {item.path ?? '媒體檔案遺失'}
                         </small>
                       </div>
                       <div className="comic-video-library-meta">
@@ -2130,7 +2153,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                 </div>
               ) : (
                 <div className="comic-empty-state">
-                  尚未輸出 MP4。可先使用「單格輸出 MP4」或「整章輸出 MP4」建立影片。
+                  尚未輸出 MP4 / SRT。可先使用「單格輸出 MP4」或「整章輸出 MP4」建立影片與字幕。
                 </div>
               )}
             </div>
