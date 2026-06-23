@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ComicPanel } from '../../../types';
-import { buildComicSrt } from './subtitles';
+import { buildComicSrt, buildOffsetSrt, parseSrt } from './subtitles';
 
 const panel = (patch: Partial<ComicPanel>): ComicPanel => ({
   id: 'panel-1',
@@ -54,6 +54,36 @@ describe('buildComicSrt', () => {
       '2',
       '00:00:01,500 --> 00:00:02,500',
       '第三格旁白。',
+      '',
+    ].join('\n'));
+  });
+
+  it('parses sentence-level SRT cues and offsets them for chapter composition', () => {
+    const parsed = parseSrt([
+      '1',
+      '00:00:00,120 --> 00:00:01,600',
+      '第一句旁白。',
+      '',
+      '2',
+      '00:00:01,700 --> 00:00:03,000',
+      '第二句旁白。',
+      '',
+    ].join('\n'));
+
+    expect(parsed).toEqual([
+      { startMs: 120, endMs: 1600, text: '第一句旁白。' },
+      { startMs: 1700, endMs: 3000, text: '第二句旁白。' },
+    ]);
+    expect(buildOffsetSrt([
+      { offsetMs: 2600, cues: parsed },
+    ])).toBe([
+      '1',
+      '00:00:02,720 --> 00:00:04,200',
+      '第一句旁白。',
+      '',
+      '2',
+      '00:00:04,300 --> 00:00:05,600',
+      '第二句旁白。',
       '',
     ].join('\n'));
   });

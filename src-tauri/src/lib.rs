@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
@@ -11,6 +11,13 @@ struct GenerateTtsAudioArgs {
   text: String,
   voice: String,
   output_path: String,
+  subtitle_path: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GenerateTtsAudioResult {
+  subtitle_text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -227,8 +234,13 @@ fn seconds_arg(ms: u64) -> String {
 }
 
 #[tauri::command]
-fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<(), String> {
+fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<GenerateTtsAudioResult, String> {
   let output_path = safe_media_file_path(&args.output_path, true)?;
+  let subtitle_path = args
+    .subtitle_path
+    .as_deref()
+    .map(|path| safe_media_file_path(path, true))
+    .transpose()?;
 
   let mut command = Command::new(args.edge_tts_bin);
   command
@@ -238,8 +250,16 @@ fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<(), String> {
     .arg(args.text)
     .arg("--write-media")
     .arg(output_path);
+  if let Some(path) = &subtitle_path {
+    command.arg("--write-subtitles").arg(path);
+  }
 
-  run_command(command, "edge-tts")
+  run_command(command, "edge-tts")?;
+  let subtitle_text = subtitle_path
+    .map(|path| fs::read_to_string(&path)
+      .map_err(|err| format!("Failed to read subtitle file {}: {err}", path.display())))
+    .transpose()?;
+  Ok(GenerateTtsAudioResult { subtitle_text })
 }
 
 #[tauri::command]

@@ -110,6 +110,10 @@ describe('renderComicVideo', () => {
 
     expect(result.path).toBe('C:/media/book/chapter/comic-video/segments/segment-001.mp4');
     expect(ttsProvider.generate).toHaveBeenCalledTimes(1);
+    expect(ttsProvider.generate).toHaveBeenCalledWith(expect.objectContaining({
+      outputPath: 'C:/media/book/chapter/comic-video/audio/panel-001.mp3',
+      subtitlePath: 'C:/media/book/chapter/comic-video/subtitles/panel-001.srt',
+    }));
     expect(commands.renderSegment).toHaveBeenCalledTimes(1);
     expect(storage.comicPanels.update).toHaveBeenCalledWith(
       'panel-1',
@@ -157,6 +161,10 @@ describe('renderComicVideo', () => {
         height: 1080,
         fps: 30,
         narrationHash: '5254267',
+        durationMs: 2600,
+        subtitleCues: [
+          { startMs: 100, endMs: 1200, text: '完整章節旁白從這裡開始。' },
+        ],
       }),
       createdAt: 1,
     };
@@ -279,7 +287,7 @@ describe('renderComicVideo', () => {
     const ttsProvider = {
       id: 'edge-tts',
       label: 'Edge-TTS',
-      generate: vi.fn(async () => ({
+      generate: vi.fn(async (request: { text: string }) => ({
         asset: {
           id: 'tts-1',
           projectId: 'book',
@@ -292,6 +300,19 @@ describe('renderComicVideo', () => {
         durationMs: 2200,
         providerId: 'edge-tts',
         voice: 'zh-TW-HsiaoChenNeural',
+        subtitleText: request.text === '第一格旁白。'
+          ? [
+            '1',
+            '00:00:00,100 --> 00:00:01,200',
+            '第一格旁白。',
+            '',
+          ].join('\n')
+          : [
+            '1',
+            '00:00:00,200 --> 00:00:00,900',
+            '第二格旁白。',
+            '',
+          ].join('\n'),
       })),
     };
     const commands = {
@@ -331,11 +352,11 @@ describe('renderComicVideo', () => {
       'C:/media/book/chapter/comic-video/chapter-video.srt',
       [
         '1',
-        '00:00:00,000 --> 00:00:02,600',
+        '00:00:00,100 --> 00:00:01,200',
         '第一格旁白。',
         '',
         '2',
-        '00:00:02,600 --> 00:00:05,200',
+        '00:00:02,800 --> 00:00:03,500',
         '第二格旁白。',
         '',
       ].join('\n'),

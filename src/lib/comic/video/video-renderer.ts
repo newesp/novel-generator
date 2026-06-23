@@ -2,9 +2,9 @@ import type { ChapterComic, ComicPanel, MediaAsset } from '../../../types';
 import type { StorageAdapter } from '../../storage/types';
 import { buildConcatList } from './concat-list';
 import type { desktopComicVideoCommands } from './desktop-commands';
-import { buildComicSrt, type ComicSubtitleCueInput } from './subtitles';
+import { buildOffsetSrt, parseSrt, type OffsetSubtitleCueGroup, type SubtitleCue } from './subtitles';
 import { calculatePanelTiming } from './timing';
-import type { TTSProvider } from './tts-provider';
+import type { TTSGenerationResult, TTSProvider } from './tts-provider';
 
 type Commands = Pick<
   typeof desktopComicVideoCommands,
@@ -51,7 +51,8 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
   const { comic, storage, ttsProvider, commands, settings } = input;
   const panels = [...input.panels].sort((a, b) => a.order - b.order);
   const segmentPaths: string[] = [];
-  const subtitleCues: ComicSubtitleCueInput[] = [];
+  const subtitleGroups: OffsetSubtitleCueGroup[] = [];
+  let subtitleOffsetMs = 0;
 
   await deleteAssetFileAndRecord(comic.videoAssetId, storage, commands);
   await deleteAssetFileAndRecord(comic.subtitleAssetId, storage, commands);
@@ -70,8 +71,13 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
 
     const reusableSegment = await findReusableSegment(panel, storage, settings);
     if (reusableSegment?.path) {
+      const durationMs = segmentDurationMs(reusableSegment);
       segmentPaths.push(reusableSegment.path);
-      subtitleCues.push({ panel, durationMs: segmentDurationMs(reusableSegment) });
+      subtitleGroups.push({
+        offsetMs: subtitleOffsetMs,
+        cues: segmentSubtitleCues(reusableSegment) ?? narrationFallbackCue(panel, durationMs),
+      });
+      subtitleOffsetMs += durationMs;
       continue;
     }
 
@@ -83,8 +89,13 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
       commands,
       settings,
     });
+    const durationMs = segmentDurationMs(segmentAsset);
     segmentPaths.push(segmentAsset.path ?? `${settings.mediaRoot}/segments/segment-${String(panel.order).padStart(3, '0')}.mp4`);
-    subtitleCues.push({ panel, durationMs: segmentDurationMs(segmentAsset) });
+    subtitleGroups.push({
+      offsetMs: subtitleOffsetMs,
+      cues: segmentSubtitleCues(segmentAsset) ?? narrationFallbackCue(panel, durationMs),
+    });
+    subtitleOffsetMs += durationMs;
   }
 
   const concatListPath = `${settings.mediaRoot}/concat.txt`;
@@ -95,7 +106,7 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
   await commands.concatVideo({ ffmpegBin: settings.ffmpegBin, concatListPath, outputPath });
 
   const subtitlePath = `${settings.mediaRoot}/chapter-video.srt`;
-  const subtitleText = buildComicSrt(subtitleCues);
+  const subtitleText = buildOffsetSrt(subtitleGroups);
   await input.writeTextFile(subtitlePath, subtitleText);
   const subtitleAsset: MediaAsset = {
     id: crypto.randomUUID(),
@@ -172,6 +183,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
     commands,
     settings,
     audioPath: `${settings.mediaRoot}/audio/panel-${paddedOrder}.mp3`,
+    subtitlePath: `${settings.mediaRoot}/subtitles/panel-${paddedOrder}.srt`,
   });
 
   const timing = calculatePanelTiming({
@@ -214,6 +226,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
       audioDurationMs: timing.audioDurationMs,
       durationMs: timing.effectiveDurationMs,
       trailingSilenceMs: timing.trailingSilenceMs,
+      subtitleCues: ttsSubtitleCues(tts, panel, timing.effectiveDurationMs),
     }),
     createdAt: Date.now(),
   };
@@ -234,6 +247,7 @@ async function generatePanelTts({
   commands,
   settings,
   audioPath,
+  subtitlePath,
 }: {
   comic: ChapterComic;
   panel: ComicPanel;
@@ -242,7 +256,8 @@ async function generatePanelTts({
   commands: Commands;
   settings: ComicVideoSettings;
   audioPath: string;
-}) {
+  subtitlePath: string;
+}): Promise<TTSGenerationResult> {
     await deleteAssetFileAndRecord(panel.ttsAssetId, storage, commands);
     await storage.comicPanels.update(panel.id, {
       ttsStatus: 'generating',
@@ -259,6 +274,7 @@ async function generatePanelTts({
       text: panel.narration,
       voice: settings.voice,
       outputPath: audioPath,
+      subtitlePath,
       edgeTtsBin: settings.edgeTtsBin,
       ffprobeBin: settings.ffprobeBin,
     });
@@ -279,11 +295,14 @@ async function findReusableTts(panel: ComicPanel, storage: VideoRendererStorage,
   if (!panel.ttsAssetId || panel.ttsVoice !== settings.voice || !panel.ttsDurationMs) return null;
   const asset = await storage.mediaAssets.get(panel.ttsAssetId);
   if (!asset?.path) return null;
+  const subtitleText = ttsAssetSubtitleText(asset);
+  if (!subtitleText) return null;
   return {
     asset,
     durationMs: panel.ttsDurationMs,
     providerId: panel.ttsProviderId ?? 'edge-tts',
     voice: panel.ttsVoice,
+    subtitleText,
   };
 }
 
@@ -314,6 +333,7 @@ async function findReusableSegment(
   ) {
     return null;
   }
+  if (!Array.isArray(metadata.subtitleCues) || !metadata.subtitleCues.length) return null;
   return asset;
 }
 
@@ -329,6 +349,7 @@ interface SegmentMetadata {
   fps: number;
   narrationHash: string;
   durationMs?: number;
+  subtitleCues?: SubtitleCue[];
 }
 
 function segmentDurationMs(asset: MediaAsset): number {
@@ -343,6 +364,50 @@ function segmentDurationMs(asset: MediaAsset): number {
   }
 }
 
+function segmentSubtitleCues(asset: MediaAsset): SubtitleCue[] | null {
+  if (!asset.generationParamsJson) return null;
+  try {
+    const metadata = JSON.parse(asset.generationParamsJson) as Partial<SegmentMetadata>;
+    if (!Array.isArray(metadata.subtitleCues)) return null;
+    const cues = metadata.subtitleCues.filter(isSubtitleCue);
+    return cues.length ? cues : null;
+  } catch {
+    return null;
+  }
+}
+
+function ttsSubtitleCues(tts: TTSGenerationResult, panel: ComicPanel, durationMs: number): SubtitleCue[] {
+  const cues = parseSrt(tts.subtitleText ?? '');
+  return cues.length ? cues : narrationFallbackCue(panel, durationMs);
+}
+
+function narrationFallbackCue(panel: ComicPanel, durationMs: number): SubtitleCue[] {
+  const text = panel.narration.trim().replace(/\s+/g, ' ');
+  return text ? [{ startMs: 0, endMs: Math.max(0, durationMs), text }] : [];
+}
+
+function isSubtitleCue(value: unknown): value is SubtitleCue {
+  if (!value || typeof value !== 'object') return false;
+  const cue = value as Partial<SubtitleCue>;
+  return typeof cue.startMs === 'number'
+    && typeof cue.endMs === 'number'
+    && cue.endMs > cue.startMs
+    && typeof cue.text === 'string'
+    && cue.text.trim().length > 0;
+}
+
+function ttsAssetSubtitleText(asset: MediaAsset): string | null {
+  if (!asset.generationParamsJson) return null;
+  try {
+    const metadata = JSON.parse(asset.generationParamsJson) as { subtitleText?: unknown };
+    return typeof metadata.subtitleText === 'string' && metadata.subtitleText.trim()
+      ? metadata.subtitleText
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 async function deleteAssetFileAndRecord(
   assetId: string | undefined,
   storage: VideoRendererStorage,
@@ -354,7 +419,20 @@ async function deleteAssetFileAndRecord(
   if (asset?.path) {
     await commands.deleteMediaFile({ path: asset.path });
   }
+  for (const path of asset ? sidecarMediaPaths(asset) : []) {
+    await commands.deleteMediaFile({ path });
+  }
   await storage.mediaAssets.delete(assetId);
+}
+
+function sidecarMediaPaths(asset: MediaAsset): string[] {
+  if (!asset.generationParamsJson) return [];
+  try {
+    const metadata = JSON.parse(asset.generationParamsJson) as { subtitlePath?: unknown };
+    return typeof metadata.subtitlePath === 'string' && metadata.subtitlePath ? [metadata.subtitlePath] : [];
+  } catch {
+    return [];
+  }
 }
 
 async function resolvePanelImagePath({

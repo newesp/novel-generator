@@ -1,5 +1,17 @@
 # 開發日誌
 
+## 2026-06-24 - Edge-TTS sentence subtitle timing
+
+- Changed comic chapter SRT generation to use Edge-TTS sentence-level subtitle timing from each panel's `--write-subtitles` output instead of showing each panel's full narration for the whole segment duration.
+- Stored per-segment subtitle cues in video metadata so reusable segments can keep precise sentence timing; older segments without cue metadata are regenerated.
+- Added SRT parsing and offset composition helpers for merging panel subtitles into chapter-level YouTube sidecar captions.
+
+**Verification**
+- `vitest run src/lib/comic/video/subtitles.test.ts src/lib/comic/video/video-renderer.test.ts` passed: 2 files, 7 tests.
+- `tsc -b` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed: 2 tests.
+
 ## 2026-06-23 - Recover stale comic video segments
 
 - Fixed ComicModal video library segment rows that showed `媒體檔案遺失` when the database media asset record was stale but the deterministic `segments/segment-00N.mp4` file still existed.

@@ -8,6 +8,7 @@ export interface TTSGenerationRequest {
   text: string;
   voice: string;
   outputPath: string;
+  subtitlePath?: string;
   edgeTtsBin: string;
   ffprobeBin: string;
 }
@@ -17,6 +18,8 @@ export interface TTSGenerationResult {
   durationMs: number;
   providerId: string;
   voice: string;
+  subtitlePath?: string;
+  subtitleText?: string;
 }
 
 export interface TTSProvider {
@@ -34,8 +37,9 @@ export const edgeTtsProvider: TTSProvider = {
       text: request.text,
       voice: request.voice,
       outputPath: request.outputPath,
+      subtitlePath: request.subtitlePath,
     };
-    await desktopComicVideoCommands.generateTtsAudio(ttsArgs);
+    const ttsResult = await desktopComicVideoCommands.generateTtsAudio(ttsArgs);
 
     const probeArgs: ProbeAudioDurationArgs = {
       ffprobeBin: request.ffprobeBin,
@@ -53,12 +57,18 @@ export const edgeTtsProvider: TTSProvider = {
         path: request.outputPath,
         mimeType: 'audio/mpeg',
         providerId: 'edge-tts',
-        generationParamsJson: JSON.stringify({ voice: request.voice }),
+        generationParamsJson: JSON.stringify({
+          voice: request.voice,
+          subtitlePath: request.subtitlePath,
+          subtitleText: ttsResult.subtitleText,
+        }),
         createdAt: now,
       },
       durationMs,
       providerId: 'edge-tts',
       voice: request.voice,
+      subtitlePath: request.subtitlePath,
+      subtitleText: ttsResult.subtitleText,
     };
   },
 };

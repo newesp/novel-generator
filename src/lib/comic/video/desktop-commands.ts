@@ -5,6 +5,11 @@ export interface GenerateTtsAudioArgs {
   text: string;
   voice: string;
   outputPath: string;
+  subtitlePath?: string;
+}
+
+export interface GenerateTtsAudioResult {
+  subtitleText?: string;
 }
 
 export interface ProbeAudioDurationArgs {
@@ -63,7 +68,7 @@ export interface ResolveMediaRootArgs {
 
 export const desktopComicVideoCommands = {
   generateTtsAudio: (args: GenerateTtsAudioArgs) =>
-    invoke<void>('generate_tts_audio', { args }),
+    invoke<GenerateTtsAudioResult>('generate_tts_audio', { args }),
   probeAudioDuration: (args: ProbeAudioDurationArgs) =>
     invoke<number>('probe_audio_duration', { args }),
   renderSegment: (args: RenderSegmentArgs) =>
