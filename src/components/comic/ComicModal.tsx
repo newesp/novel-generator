@@ -28,6 +28,7 @@ import { edgeTtsProvider } from '../../lib/comic/video/tts-provider';
 import { buildComicVideoLibrary, type ComicVideoLibraryItem } from '../../lib/comic/video/video-library';
 import { validateComicVideoInputs } from '../../lib/comic/video/video-validation';
 import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
+import { loadComicVideoState } from '../../lib/comic/video/video-state-refresh';
 import { COMIC_VIDEO_VOICE_GROUPS } from '../../lib/comic/video/voices';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
@@ -667,6 +668,20 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     await storage.mediaAssets.delete(assetId);
   };
 
+  const refreshVideoState = async (comicId: string): Promise<ChapterComic | null> => {
+    const nextState = await loadComicVideoState({ comicId, storage });
+    if (!nextState.comic) return null;
+    setComic(nextState.comic);
+    setPanels(nextState.panels);
+    setVideoLibraryAssets(nextState.assets);
+    setVideoAsset(nextState.comic.videoAssetId ? nextState.assets[nextState.comic.videoAssetId] ?? null : null);
+    const currentPanelId = selectedPanelId;
+    const currentPanel = currentPanelId ? nextState.panels.find((panel) => panel.id === currentPanelId) : undefined;
+    setPanelVideoAsset(currentPanel?.segmentAssetId ? nextState.assets[currentPanel.segmentAssetId] ?? null : null);
+    setVideoLibraryRevision((current) => current + 1);
+    return nextState.comic;
+  };
+
   const renderPanelVideo = async (targetPanel: ComicPanel) => {
     if (!comic) return;
     if (!targetPanel.assetId) {
@@ -704,18 +719,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           fps: 30,
         },
       });
-      const refreshedPanel = await storage.comicPanels.get(targetPanel.id);
-      if (refreshedPanel) {
-        setPanels((current) => current.map((panel) => (
-          panel.id === refreshedPanel.id ? refreshedPanel : panel
-        )));
-      } else {
-        setPanels((current) => current.map((panel) => (
-          panel.id === targetPanel.id ? { ...panel, segmentAssetId: asset.id, updatedAt: Date.now() } : panel
-        )));
-      }
-      setVideoLibraryAssets((current) => ({ ...current, [asset.id]: asset }));
-      setVideoLibraryRevision((current) => current + 1);
+      await refreshVideoState(comic.id);
       if (selectedPanel?.id === targetPanel.id) setPanelVideoAsset(asset);
       setPanelVideoMessage(`分鏡 #${targetPanel.order} MP4 已輸出完成。`);
       setVideoLibraryMessage(`分鏡 #${targetPanel.order} MP4 已輸出完成。`);
@@ -761,7 +765,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         projectId: comic.projectId,
         chapterId: comic.chapterId,
       });
-      const asset = await renderComicVideo({
+      await renderComicVideo({
         comic,
         panels: orderedPanels,
         storage,
@@ -780,27 +784,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
           fps: 30,
         },
       });
-      const refreshedComic = await storage.comics.get(comic.id);
-      const subtitleAsset = refreshedComic?.subtitleAssetId
-        ? await storage.mediaAssets.get(refreshedComic.subtitleAssetId)
-        : undefined;
-      setVideoAsset(asset);
-      setVideoLibraryAssets((current) => ({
-        ...current,
-        [asset.id]: asset,
-        ...(subtitleAsset ? { [subtitleAsset.id]: subtitleAsset } : {}),
-      }));
-      setVideoLibraryRevision((current) => current + 1);
-      setComic((current) => current ? {
-        ...current,
-        videoStatus: 'ready',
-        videoAssetId: asset.id,
-        subtitleAssetId: refreshedComic?.subtitleAssetId,
-        videoProviderId: 'ffmpeg',
-        videoSettingsJson: asset.generationParamsJson,
-        videoErrorMessage: undefined,
-        updatedAt: Date.now(),
-      } : current);
+      await refreshVideoState(comic.id);
       setVideoMessage('影片已輸出完成。');
       setVideoLibraryMessage('整章 MP4 已輸出完成。');
     } catch (error) {
@@ -833,6 +817,32 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       setVideoLibraryMessage(`已開啟 ${item.label}。`);
     } catch (error) {
       setVideoLibraryMessage(errorMessage(error));
+    }
+  };
+
+  const openSelectedPanelVideo = async () => {
+    if (!currentPanelVideoAsset?.path) {
+      setPanelVideoMessage('此格找不到 MP4 檔案路徑。');
+      return;
+    }
+    try {
+      await desktopComicVideoCommands.openMediaFile({ path: currentPanelVideoAsset.path });
+      setPanelVideoMessage('已開啟單格 MP4。');
+    } catch (error) {
+      setPanelVideoMessage(errorMessage(error));
+    }
+  };
+
+  const revealSelectedPanelVideo = async () => {
+    if (!currentPanelVideoAsset?.path) {
+      setPanelVideoMessage('此格找不到 MP4 檔案路徑。');
+      return;
+    }
+    try {
+      await desktopComicVideoCommands.revealMediaFile({ path: currentPanelVideoAsset.path });
+      setPanelVideoMessage('已定位單格 MP4。');
+    } catch (error) {
+      setPanelVideoMessage(errorMessage(error));
     }
   };
 
@@ -1023,6 +1033,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const selectedPanelReferenceOptions = selectedPanel ? referenceOptionsForPanel(selectedPanel) : [];
   const referenceChapterKey = selectedPanelReferenceOptions.map((option) => option.chapter.id).join('|');
   const selectedPanelAsset = selectedPanel ? panelAssets[selectedPanel.id] : undefined;
+  const currentPanelVideoAsset = selectedPanel?.segmentAssetId
+    ? videoLibraryAssets[selectedPanel.segmentAssetId] ?? panelVideoAsset
+    : panelVideoAsset;
   const videoLibraryItems = buildComicVideoLibrary({
     comic,
     panels,
@@ -1760,7 +1773,19 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                       {selectedPanel.segmentAssetId ? '此格已有 MP4 segment' : '此格尚未輸出 MP4'}
                     </span>
                   </div>
-                  {panelVideoAsset?.path && <small title={panelVideoAsset.path}>單格輸出：{panelVideoAsset.path}</small>}
+                  {currentPanelVideoAsset?.path && (
+                    <div className="comic-panel-video-file">
+                      <span title={currentPanelVideoAsset.path}>單格輸出：{currentPanelVideoAsset.path}</span>
+                      <div>
+                        <button type="button" onClick={() => void openSelectedPanelVideo()} disabled={busy}>
+                          開啟
+                        </button>
+                        <button type="button" onClick={() => void revealSelectedPanelVideo()} disabled={busy}>
+                          定位
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   {panelVideoMessage && <p className="comic-message">{panelVideoMessage}</p>}
                 </section>
 

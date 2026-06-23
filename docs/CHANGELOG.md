@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-23 - Refresh comic video segments in UI
+
+- Refreshed ComicModal video state from storage after single-panel and full-chapter MP4 exports, so the video library shows newly generated segment assets instead of stale missing references.
+- Added a compact single-panel MP4 file row with open and reveal actions next to the generated path.
+- Added a focused video-state refresh helper and test.
+
+**Verification**
+- `vitest run src/lib/comic/video/video-state-refresh.test.ts src/lib/comic/video/video-library.test.ts src/lib/comic/video/video-renderer.test.ts` passed: 3 files, 7 tests.
+- `tsc -b` passed.
+
 ## 2026-06-23 - Comic sidecar subtitle MVP
 
 - Added full-chapter SRT subtitle generation for comic video export. `整章輸出 MP4` now writes `chapter-video.srt` from panel narration and segment timing, without burning subtitles into the MP4.

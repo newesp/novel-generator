@@ -1814,6 +1814,42 @@ input:focus, select:focus, textarea:focus {
   min-width: 160px;
   text-align: right;
 }
+.comic-panel-video-file {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.comic-panel-video-file span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.comic-panel-video-file div {
+  display: inline-flex;
+  gap: 6px;
+}
+.comic-panel-video-file button {
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+.comic-panel-video-file button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.comic-panel-video-file button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .comic-video-settings-modal {
   position: fixed;
   inset: 0;
@@ -1993,6 +2029,12 @@ input:focus, select:focus, textarea:focus {
   }
   .comic-panel-video-status {
     text-align: left;
+  }
+  .comic-panel-video-file {
+    grid-template-columns: 1fr;
+  }
+  .comic-panel-video-file div {
+    justify-content: flex-end;
   }
 }
 .comic-panel-image {
