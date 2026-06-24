@@ -1774,6 +1774,10 @@ input:focus, select:focus, textarea:focus {
   font: inherit;
   font-size: 12px;
 }
+.comic-panel-card select option {
+  color: #111827;
+  background: #ffffff;
+}
 .comic-panel-card textarea {
   min-height: 90px;
   resize: vertical;
@@ -1921,10 +1925,6 @@ input:focus, select:focus, textarea:focus {
 .comic-video-settings-grid select,
 .comic-video-number-field input {
   min-width: 0;
-}
-.comic-video-settings-grid select option {
-  color: #111827;
-  background: #ffffff;
 }
 .comic-video-library-content {
   width: min(900px, 96vw);

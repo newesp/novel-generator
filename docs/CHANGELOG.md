@@ -1,5 +1,12 @@
 # 開發日誌
 
+## 2026-06-25 - Fix motion effect menu contrast
+
+- Fixed the Motion effect dropdown menu entries so native option text renders dark on the white popup background.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-24 - Comic MP4 motion effects
 
 - Added per-panel MP4 motion effects for comic video export: none, slow zoom in/out, pan directions, Ken Burns focus variants, pulse zoom, crash zoom, subtle shake, fade in, and fade out.
