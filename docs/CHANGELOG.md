@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-25 - Fix motion effect aspect ratio
+
+- Fixed MP4 motion effects so `slow_zoom_in` and other animated effects preserve the same aspect-fitted, padded panel frame as `none` before applying camera movement.
+- Added a Rust regression test that prevents motion filters from using the crop/fill path that distorted portrait comic panels.
+
+**Verification**
+- `cargo test motion_video_filter --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-motion`: 2 tests.
+- `tsc -b` passed.
+
 ## 2026-06-25 - Fix motion effect menu contrast
 
 - Fixed the Motion effect dropdown menu entries so native option text renders dark on the white popup background.

@@ -244,6 +244,12 @@ fn static_video_filter(width: u32, height: u32) -> String {
   ))
 }
 
+fn fitted_panel_filter(width: u32, height: u32) -> String {
+  format!(
+    "[0:v]scale=w={width}:h={height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1[fit]",
+  )
+}
+
 fn fade_duration_seconds(duration_ms: u64) -> f64 {
   let duration = duration_ms as f64 / 1000.0;
   duration.min(0.5).max(0.0)
@@ -261,10 +267,9 @@ fn zoompan_video_filter(
 ) -> String {
   let effective_fps = fps.max(1);
   let total_frames = ((duration_ms as f64 / 1000.0) * effective_fps as f64).ceil().max(1.0) as u64;
-  let overscan_width = ((width as f64) * 1.12).ceil() as u32;
-  let overscan_height = ((height as f64) * 1.12).ceil() as u32;
   let mut video = format!(
-    "[0:v]scale=w={overscan_width}:h={overscan_height}:force_original_aspect_ratio=increase,zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={width}x{height}:fps={effective_fps}",
+    "{};[fit]zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={width}x{height}:fps={effective_fps}",
+    fitted_panel_filter(width, height),
   );
   if let Some(fade_filter) = fade {
     video.push(',');
@@ -805,6 +810,9 @@ mod tests {
     let filter = build_video_filter("slow_zoom_in", 1920, 1080, 30, 5000);
 
     assert!(filter.contains("zoompan="));
+    assert!(filter.contains("force_original_aspect_ratio=decrease"));
+    assert!(filter.contains("pad=1920:1080:(ow-iw)/2:(oh-ih)/2"));
+    assert!(!filter.contains("force_original_aspect_ratio=increase"));
     assert!(filter.contains("min(zoom+0.0015,1.08)"));
     assert!(filter.contains("s=1920x1080:fps=30"));
     assert!(filter.contains("format=yuv420p[v]"));
