@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-25 - Fix single-panel MP4 rerender
+
+- Fixed `單格輸出 MP4` so pressing it again explicitly rerenders the selected panel segment instead of returning the reusable existing MP4 and only showing the completion message.
+- Kept full-chapter MP4 export segment reuse intact, so unchanged matching panel segments are still reused during chapter export.
+
+**Verification**
+- `vitest run src/lib/comic/video/video-renderer.test.ts` passed: 1 file, 6 tests.
+- `tsc -b` passed.
+
 ## 2026-06-25 - Fix motion effect aspect ratio
 
 - Fixed MP4 motion effects so `slow_zoom_in` and other animated effects preserve the same aspect-fitted, padded panel frame as `none` before applying camera movement.

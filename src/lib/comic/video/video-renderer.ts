@@ -45,6 +45,7 @@ export interface RenderComicPanelSegmentInput {
   storage: VideoRendererStorage;
   ttsProvider: TTSProvider;
   commands: Commands;
+  forceRender?: boolean;
   settings: ComicVideoSettings;
 }
 
@@ -161,7 +162,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
   if (!panel.assetId) throw new Error(`Panel #${panel.order} has no image asset.`);
   if (!panel.narration.trim()) throw new Error(`Panel #${panel.order} has empty narration.`);
 
-  const reusableSegment = await findReusableSegment(panel, storage, settings);
+  const reusableSegment = input.forceRender ? null : await findReusableSegment(panel, storage, settings);
   if (reusableSegment) return reusableSegment;
 
   const paddedOrder = String(panel.order).padStart(3, '0');

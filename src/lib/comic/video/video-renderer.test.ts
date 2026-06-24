@@ -269,6 +269,126 @@ describe('renderComicVideo', () => {
     });
   });
 
+  it('forces a matching panel segment to rerender for explicit single-panel export', async () => {
+    const assets: Record<string, MediaAsset> = {
+      'image-1': {
+        id: 'image-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'comic_panel_image',
+        path: 'C:/media/panel-001.png',
+        mimeType: 'image/png',
+        createdAt: 1,
+      },
+      'tts-1': {
+        id: 'tts-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'tts_audio',
+        path: 'C:/media/audio.mp3',
+        mimeType: 'audio/mpeg',
+        generationParamsJson: JSON.stringify({
+          subtitleText: [
+            '1',
+            '00:00:00,000 --> 00:00:02,200',
+            'Force narration',
+            '',
+          ].join('\n'),
+        }),
+        createdAt: 2,
+      },
+      'segment-1': {
+        id: 'segment-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'video',
+        path: 'C:/media/segments/segment-001.mp4',
+        mimeType: 'video/mp4',
+        providerId: 'ffmpeg',
+        generationParamsJson: JSON.stringify({
+          panelId: 'panel-1',
+          sourceImageAssetId: 'image-1',
+          ttsAssetId: 'tts-1',
+          ttsVoice: 'zh-TW-HsiaoChenNeural',
+          durationSec: 0,
+          panelPauseMs: 400,
+          width: 1920,
+          height: 1080,
+          fps: 30,
+          motionEffect: 'slow_zoom_in',
+          narrationHash: '7df86a0e',
+          durationMs: 2600,
+          subtitleCues: [
+            { startMs: 0, endMs: 2200, text: 'Force narration' },
+          ],
+        }),
+        createdAt: 3,
+      },
+    };
+    const storage = {
+      mediaAssets: {
+        get: vi.fn(async (id: string) => assets[id]),
+        add: vi.fn(async (asset: MediaAsset) => {
+          assets[asset.id] = asset;
+        }),
+        delete: vi.fn(async () => undefined),
+      },
+      comicPanels: {
+        update: vi.fn(async () => undefined),
+      },
+      comics: {
+        update: vi.fn(async () => undefined),
+      },
+    };
+    const ttsProvider = {
+      id: 'edge-tts',
+      label: 'Edge-TTS',
+      generate: vi.fn(async () => {
+        throw new Error('TTS should be reused');
+      }),
+    };
+    const commands = {
+      renderSegment: vi.fn(async () => undefined),
+      concatVideo: vi.fn(async () => undefined),
+      deleteMediaFile: vi.fn(async () => undefined),
+      writeBinaryFile: vi.fn(async () => undefined),
+    };
+
+    const result = await renderComicPanelSegment({
+      comic,
+      panel: panel({
+        id: 'panel-1',
+        narration: 'Force narration',
+        ttsAssetId: 'tts-1',
+        ttsDurationMs: 2200,
+        ttsVoice: 'zh-TW-HsiaoChenNeural',
+        segmentAssetId: 'segment-1',
+        motionEffect: 'slow_zoom_in',
+      } as Partial<ComicPanel>),
+      storage,
+      ttsProvider,
+      commands,
+      forceRender: true,
+      settings: {
+        mediaRoot: 'C:/media/book/chapter/comic-video',
+        edgeTtsBin: 'edge-tts',
+        ffmpegBin: 'ffmpeg',
+        ffprobeBin: 'ffprobe',
+        voice: 'zh-TW-HsiaoChenNeural',
+        panelPauseMs: 400,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+      },
+    });
+
+    expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/media/segments/segment-001.mp4' });
+    expect(storage.mediaAssets.delete).toHaveBeenCalledWith('segment-1');
+    expect(ttsProvider.generate).not.toHaveBeenCalled();
+    expect(commands.renderSegment).toHaveBeenCalledTimes(1);
+    expect(result.id).not.toBe('segment-1');
+  });
+
   it('reuses matching panel segments when rendering the chapter video', async () => {
     const reusableSegment: MediaAsset = {
       id: 'segment-1',

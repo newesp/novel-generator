@@ -701,6 +701,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         storage,
         ttsProvider: edgeTtsProvider,
         commands: desktopComicVideoCommands,
+        forceRender: true,
         settings: {
           mediaRoot,
           edgeTtsBin,
