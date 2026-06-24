@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { ComicPanelMotionEffect } from '../../../types';
 
 export interface GenerateTtsAudioArgs {
   edgeTtsBin: string;
@@ -27,6 +28,7 @@ export interface RenderSegmentArgs {
   width: number;
   height: number;
   fps: number;
+  motionEffect: ComicPanelMotionEffect;
 }
 
 export interface ConcatVideoArgs {

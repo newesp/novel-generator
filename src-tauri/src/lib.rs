@@ -39,6 +39,7 @@ struct RenderSegmentArgs {
   width: u32,
   height: u32,
   fps: u32,
+  motion_effect: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -233,6 +234,217 @@ fn seconds_arg(ms: u64) -> String {
   format!("{:.3}", ms as f64 / 1000.0)
 }
 
+fn append_audio_filter(video_filter: String) -> String {
+  format!("{video_filter};[1:a][2:a]concat=n=2:v=0:a=1[a]")
+}
+
+fn static_video_filter(width: u32, height: u32) -> String {
+  append_audio_filter(format!(
+    "[0:v]scale=w={width}:h={height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[v]",
+  ))
+}
+
+fn fade_duration_seconds(duration_ms: u64) -> f64 {
+  let duration = duration_ms as f64 / 1000.0;
+  duration.min(0.5).max(0.0)
+}
+
+fn zoompan_video_filter(
+  width: u32,
+  height: u32,
+  fps: u32,
+  duration_ms: u64,
+  zoom_expr: &str,
+  x_expr: &str,
+  y_expr: &str,
+  fade: Option<&str>,
+) -> String {
+  let effective_fps = fps.max(1);
+  let total_frames = ((duration_ms as f64 / 1000.0) * effective_fps as f64).ceil().max(1.0) as u64;
+  let overscan_width = ((width as f64) * 1.12).ceil() as u32;
+  let overscan_height = ((height as f64) * 1.12).ceil() as u32;
+  let mut video = format!(
+    "[0:v]scale=w={overscan_width}:h={overscan_height}:force_original_aspect_ratio=increase,zoompan=z='{zoom_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={width}x{height}:fps={effective_fps}",
+  );
+  if let Some(fade_filter) = fade {
+    video.push(',');
+    video.push_str(fade_filter);
+  }
+  video.push_str(",setsar=1,format=yuv420p[v]");
+  append_audio_filter(video)
+}
+
+fn build_video_filter(motion_effect: &str, width: u32, height: u32, fps: u32, duration_ms: u64) -> String {
+  let duration_seconds = duration_ms as f64 / 1000.0;
+  let total_frames = (duration_seconds * fps.max(1) as f64).ceil().max(1.0) as u64;
+  let denominator = total_frames.saturating_sub(1).max(1);
+  let center_x = "iw/2-(iw/zoom/2)";
+  let center_y = "ih/2-(ih/zoom/2)";
+  let progress = format!("on/{denominator}");
+  let reverse_progress = format!("1-on/{denominator}");
+
+  match motion_effect {
+    "slow_zoom_in" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      "min(zoom+0.0015,1.08)",
+      center_x,
+      center_y,
+      None,
+    ),
+    "slow_zoom_out" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      &format!("max(1.0,1.08-0.08*{progress})"),
+      center_x,
+      center_y,
+      None,
+    ),
+    "pan_left" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      "1.10",
+      &format!("(iw-iw/zoom)*({reverse_progress})"),
+      center_y,
+      None,
+    ),
+    "pan_right" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      "1.10",
+      &format!("(iw-iw/zoom)*({progress})"),
+      center_y,
+      None,
+    ),
+    "pan_up" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      "1.10",
+      center_x,
+      &format!("(ih-ih/zoom)*({reverse_progress})"),
+      None,
+    ),
+    "pan_down" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      "1.10",
+      center_x,
+      &format!("(ih-ih/zoom)*({progress})"),
+      None,
+    ),
+    "ken_burns_in_left" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      &format!("1.0+0.08*{progress}"),
+      "0",
+      center_y,
+      None,
+    ),
+    "ken_burns_in_right" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      &format!("1.0+0.08*{progress}"),
+      "iw-iw/zoom",
+      center_y,
+      None,
+    ),
+    "ken_burns_in_top" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      &format!("1.0+0.08*{progress}"),
+      center_x,
+      "0",
+      None,
+    ),
+    "ken_burns_in_bottom" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      &format!("1.0+0.08*{progress}"),
+      center_x,
+      "ih-ih/zoom",
+      None,
+    ),
+    "pulse_zoom" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      &format!("1.03+0.025*sin(2*PI*{progress})"),
+      center_x,
+      center_y,
+      None,
+    ),
+    "crash_zoom_in" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      &format!("min(1.14,1.0+0.14*on/{})", ((denominator as f64) * 0.2).ceil().max(1.0) as u64),
+      center_x,
+      center_y,
+      None,
+    ),
+    "subtle_shake" => zoompan_video_filter(
+      width,
+      height,
+      fps,
+      duration_ms,
+      "1.08",
+      "iw/2-(iw/zoom/2)+8*sin(on*0.9)",
+      "ih/2-(ih/zoom/2)+5*cos(on*1.1)",
+      None,
+    ),
+    "fade_in" => {
+      let fade_duration = fade_duration_seconds(duration_ms);
+      zoompan_video_filter(
+        width,
+        height,
+        fps,
+        duration_ms,
+        "1.0",
+        center_x,
+        center_y,
+        Some(&format!("fade=t=in:st=0.000:d={fade_duration:.3}")),
+      )
+    }
+    "fade_out" => {
+      let fade_duration = fade_duration_seconds(duration_ms);
+      let start = (duration_seconds - fade_duration).max(0.0);
+      zoompan_video_filter(
+        width,
+        height,
+        fps,
+        duration_ms,
+        "1.0",
+        center_x,
+        center_y,
+        Some(&format!("fade=t=out:st={start:.3}:d={fade_duration:.3}")),
+      )
+    }
+    _ => static_video_filter(width, height),
+  }
+}
+
 #[tauri::command]
 fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<GenerateTtsAudioResult, String> {
   let output_path = safe_media_file_path(&args.output_path, true)?;
@@ -302,10 +514,7 @@ fn render_comic_video_segment(args: RenderSegmentArgs) -> Result<(), String> {
 
   let duration = seconds_arg(args.duration_ms);
   let trailing_silence = seconds_arg(args.trailing_silence_ms.max(1));
-  let filter = format!(
-    "[0:v]scale=w={}:h={}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p[v];[1:a][2:a]concat=n=2:v=0:a=1[a]",
-    args.width, args.height, args.width, args.height
-  );
+  let filter = build_video_filter(&args.motion_effect, args.width, args.height, args.fps, args.duration_ms);
 
   let mut command = Command::new(args.ffmpeg_bin);
   command
@@ -589,5 +798,23 @@ mod tests {
 
     fs::remove_file(&path).unwrap();
     assert_eq!(exists, Ok(true));
+  }
+
+  #[test]
+  fn motion_video_filter_uses_zoompan_for_slow_zoom_in() {
+    let filter = build_video_filter("slow_zoom_in", 1920, 1080, 30, 5000);
+
+    assert!(filter.contains("zoompan="));
+    assert!(filter.contains("min(zoom+0.0015,1.08)"));
+    assert!(filter.contains("s=1920x1080:fps=30"));
+    assert!(filter.contains("format=yuv420p[v]"));
+  }
+
+  #[test]
+  fn motion_video_filter_applies_fade_out() {
+    let filter = build_video_filter("fade_out", 1920, 1080, 30, 3000);
+
+    assert!(filter.contains("fade=t=out:st=2.500:d=0.500"));
+    assert!(filter.contains("zoompan="));
   }
 }

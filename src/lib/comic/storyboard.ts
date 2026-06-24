@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import type { ComicPanel, ComicPanelExtraGroup, ComicPanelExtraPriority, ComicPanelExtraRole } from '../../types';
+import { normalizeComicPanelMotionEffect } from './video/motion-effects';
 
 interface StoryboardNormalizeResult {
   chapterTitle: string;
@@ -47,6 +48,7 @@ export function normalizeStoryboardDraft(raw: unknown): StoryboardNormalizeResul
       dialogue: dialogueToText(panel.dialogue),
       narration: stringValue(panel.narration, ''),
       durationSec: normalizeDurationSec(panel.durationSec),
+      motionEffect: normalizeComicPanelMotionEffect(panel.motionEffect),
       status: 'draft',
       createdAt: now,
       updatedAt: now,

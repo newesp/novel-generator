@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-24 - Comic MP4 motion effects
+
+- Added per-panel MP4 motion effects for comic video export: none, slow zoom in/out, pan directions, Ken Burns focus variants, pulse zoom, crash zoom, subtle shake, fade in, and fade out.
+- Added a shared motion-effect option list for ComicModal, persisted `ComicPanel.motionEffect`, and stored the selected effect in segment metadata so changed effects rerender instead of reusing stale MP4 segments.
+- Updated the Tauri ffmpeg segment renderer to build effect-specific `zoompan` / `fade` filters while preserving the original static centered output for `none`.
+
+**Verification**
+- `vitest run src/lib/comic/video/video-renderer.test.ts` passed: 1 file, 5 tests.
+- `cargo test motion_video_filter --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-motion`: 2 tests.
+- `tsc -b` passed.
+
 ## 2026-06-24 - Edge-TTS sentence subtitle timing
 
 - Changed comic chapter SRT generation to use Edge-TTS sentence-level subtitle timing from each panel's `--write-subtitles` output instead of showing each panel's full narration for the whole segment duration.

@@ -30,6 +30,7 @@ import { validateComicVideoInputs } from '../../lib/comic/video/video-validation
 import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
 import { loadComicVideoState } from '../../lib/comic/video/video-state-refresh';
 import { COMIC_VIDEO_VOICE_GROUPS } from '../../lib/comic/video/voices';
+import { COMIC_VIDEO_MOTION_EFFECTS, normalizeComicPanelMotionEffect } from '../../lib/comic/video/motion-effects';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
@@ -573,6 +574,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       dialogue: '',
       narration: '',
       durationSec: selectedPanel?.durationSec ?? 0,
+      motionEffect: selectedPanel?.motionEffect ?? 'none',
       status: 'draft',
       createdAt: now,
       updatedAt: now,
@@ -1757,6 +1759,21 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                     />
                   </label>
                   <small>每格顯示長度 = max(TTS 音訊長度, 手動秒數) + 格間停頓。</small>
+                  <label>
+                    <FieldLabel label="Motion effect" help="套用到這格 MP4 的鏡頭動態；更改後需重新輸出 MP4 才會生效。" />
+                    <select
+                      value={normalizeComicPanelMotionEffect(selectedPanel.motionEffect)}
+                      onChange={(event) => void updatePanel(selectedPanel, {
+                        motionEffect: normalizeComicPanelMotionEffect(event.target.value),
+                      })}
+                    >
+                      {COMIC_VIDEO_MOTION_EFFECTS.map((effect) => (
+                        <option key={effect.id} value={effect.id} title={effect.description}>
+                          {effect.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <div className="comic-panel-video-actions">
                     <Button variant="secondary" disabled={busy || !comic || !selectedPanel} onClick={() => void renderSelectedPanelVideo()}>
                       單格輸出 MP4

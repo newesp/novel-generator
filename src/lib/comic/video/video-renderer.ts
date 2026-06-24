@@ -5,6 +5,7 @@ import type { desktopComicVideoCommands } from './desktop-commands';
 import { buildOffsetSrt, parseSrt, type OffsetSubtitleCueGroup, type SubtitleCue } from './subtitles';
 import { calculatePanelTiming } from './timing';
 import type { TTSGenerationResult, TTSProvider } from './tts-provider';
+import { normalizeComicPanelMotionEffect } from './motion-effects';
 
 type Commands = Pick<
   typeof desktopComicVideoCommands,
@@ -191,6 +192,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
     durationSec: panel.durationSec,
     panelPauseMs: settings.panelPauseMs,
   });
+  const motionEffect = normalizeComicPanelMotionEffect(panel.motionEffect);
   const segmentPath = `${settings.mediaRoot}/segments/segment-${paddedOrder}.mp4`;
   await commands.renderSegment({
     ffmpegBin: settings.ffmpegBin,
@@ -202,6 +204,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
     width: settings.width,
     height: settings.height,
     fps: settings.fps,
+    motionEffect,
   });
 
   const segmentAsset: MediaAsset = {
@@ -222,6 +225,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
       width: settings.width,
       height: settings.height,
       fps: settings.fps,
+      motionEffect,
       narrationHash: hashNarration(panel.narration),
       audioDurationMs: timing.audioDurationMs,
       durationMs: timing.effectiveDurationMs,
@@ -329,6 +333,7 @@ async function findReusableSegment(
     metadata.width !== settings.width ||
     metadata.height !== settings.height ||
     metadata.fps !== settings.fps ||
+    normalizeComicPanelMotionEffect(metadata.motionEffect) !== normalizeComicPanelMotionEffect(panel.motionEffect) ||
     metadata.narrationHash !== hashNarration(panel.narration)
   ) {
     return null;
@@ -347,6 +352,7 @@ interface SegmentMetadata {
   width: number;
   height: number;
   fps: number;
+  motionEffect?: string;
   narrationHash: string;
   durationMs?: number;
   subtitleCues?: SubtitleCue[];

@@ -125,6 +125,23 @@ export type ComicPanelImageVariantStatus = 'ready' | 'failed';
 export type ComicPanelTtsStatus = 'idle' | 'queued' | 'generating' | 'ready' | 'failed';
 export type ChapterComicVideoStatus = 'idle' | 'generating_audio' | 'rendering_segments' | 'concatenating' | 'ready' | 'failed';
 export type MediaAssetKind = 'comic_panel_image' | 'character_reference_image' | 'scene_reference_image' | 'tts_audio' | 'video' | 'subtitle';
+export type ComicPanelMotionEffect =
+  | 'none'
+  | 'slow_zoom_in'
+  | 'slow_zoom_out'
+  | 'pan_left'
+  | 'pan_right'
+  | 'pan_up'
+  | 'pan_down'
+  | 'ken_burns_in_left'
+  | 'ken_burns_in_right'
+  | 'ken_burns_in_top'
+  | 'ken_burns_in_bottom'
+  | 'pulse_zoom'
+  | 'crash_zoom_in'
+  | 'subtle_shake'
+  | 'fade_in'
+  | 'fade_out';
 export type ComicPanelExtraRole = 'crowd' | 'guards' | 'civilians' | 'creatures' | 'vehicles' | 'background';
 export type ComicPanelExtraPriority = 'low' | 'medium';
 
@@ -177,6 +194,7 @@ export interface ComicPanel {
   dialogue: string;
   narration: string;
   durationSec: number;
+  motionEffect?: ComicPanelMotionEffect;
   seed?: number;
   assetId?: string;
   status: ComicPanelStatus;
