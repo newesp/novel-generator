@@ -31,6 +31,15 @@ import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video
 import { loadComicVideoState } from '../../lib/comic/video/video-state-refresh';
 import { COMIC_VIDEO_VOICE_GROUPS } from '../../lib/comic/video/voices';
 import { COMIC_VIDEO_MOTION_EFFECTS, normalizeComicPanelMotionEffect } from '../../lib/comic/video/motion-effects';
+import {
+  buildPanelVideoClipMetadata,
+  normalizePanelVideoClipAudioMode,
+  normalizePanelVideoClipLoopMode,
+  panelHasVideoClips,
+  panelVideoClipAssetIds,
+  panelVideoClipDurationMs,
+  panelVideoClipFileName,
+} from '../../lib/comic/video/video-clips';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
@@ -55,6 +64,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [scenes, setScenes] = useState<SceneVisual[]>([]);
   const [availableCharacters, setAvailableCharacters] = useState<Character[]>(characters);
   const [panelAssets, setPanelAssets] = useState<Record<string, MediaAsset>>({});
+  const [panelVideoClipAssets, setPanelVideoClipAssets] = useState<Record<string, MediaAsset>>({});
   const [panelVariants, setPanelVariants] = useState<Record<string, ComicPanelImageVariant[]>>({});
   const [variantAssets, setVariantAssets] = useState<Record<string, MediaAsset>>({});
   const [panelReferenceOptions, setPanelReferenceOptions] = useState<PanelReferenceOption[]>([]);
@@ -319,6 +329,30 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   }, [open, panels]);
 
   useEffect(() => {
+    if (!open) return;
+    const assetIds = Array.from(new Set(panels.flatMap((panel) => panelVideoClipAssetIds(panel))));
+    let cancelled = false;
+    if (!assetIds.length) {
+      queueMicrotask(() => {
+        if (!cancelled) setPanelVideoClipAssets({});
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    void Promise.all(assetIds.map((id) => storage.mediaAssets.get(id))).then((assets) => {
+      if (cancelled) return;
+      setPanelVideoClipAssets(assets.filter((asset): asset is MediaAsset => Boolean(asset)).reduce<Record<string, MediaAsset>>((acc, asset) => {
+        acc[asset.id] = asset;
+        return acc;
+      }, {}));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, panels]);
+
+  useEffect(() => {
     if (!open || !comic) return;
     let cancelled = false;
     void storage.comicPanelImageVariants.listByComic(comic.id).then(async (variants) => {
@@ -575,6 +609,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       narration: '',
       durationSec: selectedPanel?.durationSec ?? 0,
       motionEffect: selectedPanel?.motionEffect ?? 'none',
+      videoClipAudioMode: normalizePanelVideoClipAudioMode(selectedPanel?.videoClipAudioMode),
+      videoClipLoopMode: normalizePanelVideoClipLoopMode(selectedPanel?.videoClipLoopMode),
       status: 'draft',
       createdAt: now,
       updatedAt: now,
@@ -678,8 +714,8 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
 
   const renderPanelVideo = async (targetPanel: ComicPanel) => {
     if (!comic) return;
-    if (!targetPanel.assetId) {
-      setPanelVideoMessage(`分鏡 #${targetPanel.order} 尚未建立圖片。`);
+    if (!targetPanel.assetId && !panelHasVideoClips(targetPanel)) {
+      setPanelVideoMessage(`分鏡 #${targetPanel.order} 尚未建立圖片或上傳 MP4 素材。`);
       return;
     }
     if (!targetPanel.narration.trim()) {
@@ -1028,6 +1064,9 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const selectedPanelReferenceOptions = selectedPanel ? referenceOptionsForPanel(selectedPanel) : [];
   const referenceChapterKey = selectedPanelReferenceOptions.map((option) => option.chapter.id).join('|');
   const selectedPanelAsset = selectedPanel ? panelAssets[selectedPanel.id] : undefined;
+  const selectedPanelVideoClips = selectedPanel
+    ? panelVideoClipAssetIds(selectedPanel).map((assetId) => panelVideoClipAssets[assetId]).filter((asset): asset is MediaAsset => Boolean(asset))
+    : [];
   const currentPanelVideoAsset = selectedPanel?.segmentAssetId
     ? videoLibraryAssets[selectedPanel.segmentAssetId] ?? panelVideoAsset
     : panelVideoAsset;
@@ -1434,6 +1473,122 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     }
   };
 
+  const uploadPanelVideoClips = async (panel: ComicPanel, files: FileList | null) => {
+    if (!files?.length || !comic) return;
+    const videoFiles = Array.from(files).filter((file) => (
+      file.type === 'video/mp4' || file.name.toLocaleLowerCase().endsWith('.mp4')
+    ));
+    if (!videoFiles.length) {
+      setMessage('請選擇 MP4 影片檔。');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
+        projectId: comic.projectId,
+        chapterId: comic.chapterId,
+      });
+      const now = Date.now();
+      const paddedOrder = String(panel.order).padStart(3, '0');
+      const uploaded: MediaAsset[] = [];
+      for (const [index, file] of videoFiles.entries()) {
+        const assetId = uuid();
+        const outputPath = `${mediaRoot}/clips/panel-${paddedOrder}-clip-${assetId}.mp4`;
+        let durationMs = 0;
+        try {
+          await desktopComicVideoCommands.writeBinaryFile({
+            path: outputPath,
+            bytes: await readFileAsBytes(file),
+          });
+          durationMs = await desktopComicVideoCommands.probeVideoDuration({
+            ffprobeBin,
+            inputPath: outputPath,
+          });
+        } catch (error) {
+          await desktopComicVideoCommands.deleteMediaFile({ path: outputPath });
+          throw error;
+        }
+        const asset: MediaAsset = {
+          id: assetId,
+          projectId: project.id,
+          chapterId: chapter.id,
+          kind: 'video',
+          path: outputPath,
+          mimeType: 'video/mp4',
+          sizeBytes: file.size,
+          providerId: 'uploaded-panel-video',
+          generationParamsJson: buildPanelVideoClipMetadata({
+            fileName: file.name,
+            panelId: panel.id,
+            order: panelVideoClipAssetIds(panel).length + index + 1,
+            durationMs,
+          }),
+          createdAt: now + index,
+        };
+        await storage.mediaAssets.add(asset);
+        uploaded.push(asset);
+      }
+
+      if (panel.segmentAssetId) await cleanupMediaAssetFile(panel.segmentAssetId);
+      const nextClipIds = [...panelVideoClipAssetIds(panel), ...uploaded.map((asset) => asset.id)];
+      await updatePanel(panel, { videoClipAssetIds: nextClipIds, segmentAssetId: undefined });
+      setPanelVideoClipAssets((current) => ({
+        ...current,
+        ...uploaded.reduce<Record<string, MediaAsset>>((acc, asset) => {
+          acc[asset.id] = asset;
+          return acc;
+        }, {}),
+      }));
+      setPanelVideoAsset(null);
+      setVideoLibraryRevision((current) => current + 1);
+      setMessage(`已加入 ${uploaded.length} 個 MP4 素材到分鏡 #${panel.order}。`);
+    } catch (error) {
+      setMessage(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removePanelVideoClip = async (panel: ComicPanel, assetId: string) => {
+    if (!window.confirm('刪除這個分鏡 MP4 素材？相關單格輸出也會失效。')) return;
+    try {
+      setBusy(true);
+      await cleanupMediaAssetFile(assetId);
+      if (panel.segmentAssetId) await cleanupMediaAssetFile(panel.segmentAssetId);
+      await updatePanel(panel, {
+        videoClipAssetIds: panelVideoClipAssetIds(panel).filter((id) => id !== assetId),
+        segmentAssetId: undefined,
+      });
+      setPanelVideoClipAssets((current) => {
+        const next = { ...current };
+        delete next[assetId];
+        return next;
+      });
+      setPanelVideoAsset(null);
+      setVideoLibraryRevision((current) => current + 1);
+      setMessage(`已刪除分鏡 #${panel.order} 的 MP4 素材。`);
+    } catch (error) {
+      setMessage(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updatePanelVideoClipSettings = async (panel: ComicPanel, patch: Pick<Partial<ComicPanel>, 'videoClipAudioMode' | 'videoClipLoopMode'>) => {
+    try {
+      if (panel.segmentAssetId) await cleanupMediaAssetFile(panel.segmentAssetId);
+      await updatePanel(panel, {
+        ...patch,
+        segmentAssetId: undefined,
+      });
+      setPanelVideoAsset(null);
+      setVideoLibraryRevision((current) => current + 1);
+    } catch (error) {
+      setMessage(errorMessage(error));
+    }
+  };
+
   return (
     <Modal
       open={open}
@@ -1678,6 +1833,67 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                           }}
                         />
                       </label>
+                    </div>
+                    <div className="comic-panel-video-clips">
+                      <div className="comic-prompt-field-header">
+                        <span>MP4 素材</span>
+                        <label className={`comic-upload-button ${busy || !comic ? 'disabled' : ''}`}>
+                          加入 MP4
+                          <input
+                            type="file"
+                            accept="video/mp4,.mp4"
+                            multiple
+                            disabled={busy || !comic}
+                            onChange={(event) => {
+                              void uploadPanelVideoClips(selectedPanel, event.currentTarget.files);
+                              event.currentTarget.value = '';
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {selectedPanelVideoClips.length ? (
+                        <div className="comic-panel-video-clip-list">
+                          {selectedPanelVideoClips.map((asset, index) => (
+                            <div className="comic-panel-video-clip" key={asset.id}>
+                              <span title={asset.path ?? asset.id}>
+                                #{index + 1} {panelVideoClipFileName(asset)}
+                              </span>
+                              <small>{(panelVideoClipDurationMs(asset) / 1000).toFixed(1)}s</small>
+                              <button type="button" className="danger" onClick={() => void removePanelVideoClip(selectedPanel, asset.id)} disabled={busy}>
+                                刪除
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <small>沒有 MP4 素材時，單格輸出會使用目前圖片。</small>
+                      )}
+                      <div className="comic-panel-video-clip-settings">
+                        <label className="comic-checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={normalizePanelVideoClipAudioMode(selectedPanel.videoClipAudioMode) === 'keep'}
+                            disabled={busy || !selectedPanelVideoClips.length}
+                            onChange={(event) => void updatePanelVideoClipSettings(selectedPanel, {
+                              videoClipAudioMode: event.target.checked ? 'keep' : 'mute',
+                            })}
+                          />
+                          <span>保留影片原聲</span>
+                        </label>
+                        <label>
+                          <FieldLabel label="旁白較長時" help="MP4 素材比旁白短時，選擇停在最後一幀或重播素材畫面。" />
+                          <select
+                            value={normalizePanelVideoClipLoopMode(selectedPanel.videoClipLoopMode)}
+                            disabled={busy || !selectedPanelVideoClips.length}
+                            onChange={(event) => void updatePanelVideoClipSettings(selectedPanel, {
+                              videoClipLoopMode: normalizePanelVideoClipLoopMode(event.target.value),
+                            })}
+                          >
+                            <option value="freeze">停在最後一幀</option>
+                            <option value="loop">重播影片</option>
+                          </select>
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </section>
@@ -2303,5 +2519,21 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onload = () => resolve(String(reader.result ?? ''));
     reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file'));
     reader.readAsDataURL(file);
+  });
+}
+
+function readFileAsBytes(file: File): Promise<number[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const buffer = reader.result;
+      if (!(buffer instanceof ArrayBuffer)) {
+        reject(new Error('Failed to read video file'));
+        return;
+      }
+      resolve(Array.from(new Uint8Array(buffer)));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read video file'));
+    reader.readAsArrayBuffer(file);
   });
 }

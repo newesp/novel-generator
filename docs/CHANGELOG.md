@@ -1,5 +1,20 @@
 # 開發日誌
 
+## 2026-06-25 - Add panel MP4 clip visual sources
+
+- Added panel-owned MP4 clip uploads for comic video panels, persisted through `ComicPanel.videoClipAssetIds` and `MediaAsset(kind='video')`.
+- Added Tauri ffprobe/ffmpeg commands to probe uploaded clip duration and render one or more panel clips with Edge-TTS narration into a reusable segment MP4.
+- Added per-panel clip render settings for keeping MP4 source audio and choosing whether longer narration freezes the last frame or loops the uploaded clip sequence.
+- Updated segment reuse metadata so full-chapter export can directly concat matching single-panel outputs without regenerating unchanged clip-based segments.
+- Added UI controls to upload, inspect duration, and delete per-panel MP4 clips; deleting a panel now also deletes its related clip assets.
+- Documented the current manual MP4-upload flow and left Image-to-Video provider adapters as a future TODO.
+
+**Verification**
+- `tsc -b` passed.
+- `cargo check` passed.
+- `cargo test clip_video_filter --manifest-path src-tauri/Cargo.toml` passed: 2 tests.
+- `vitest run src/lib/comic/video/video-clips.test.ts src/lib/comic/video/video-validation.test.ts src/lib/comic/video/panel-cleanup.test.ts src/lib/comic/storage-types.test.ts src/lib/comic/video/video-renderer.test.ts` passed: 5 files, 16 tests.
+
 ## 2026-06-25 - Add Lint batch undo UI
 
 - Added a generic `undoWikiLogBatch()` helper that reverts `wiki_log` batches without requiring a chapter, while preserving the existing chapter ingest undo behavior.

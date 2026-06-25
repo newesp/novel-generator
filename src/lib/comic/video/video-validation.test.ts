@@ -43,4 +43,10 @@ describe('validateComicVideoInputs', () => {
       message: '無法整章輸出 MP4：分鏡 #2 尚未填寫旁白。',
     });
   });
+
+  it('accepts uploaded MP4 clips as a visual source', () => {
+    expect(validateComicVideoInputs([
+      panel({ id: 'panel-1', order: 1, videoClipAssetIds: ['clip-1'] }),
+    ])).toEqual({ ok: true });
+  });
 });

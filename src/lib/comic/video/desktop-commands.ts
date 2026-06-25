@@ -18,6 +18,11 @@ export interface ProbeAudioDurationArgs {
   inputPath: string;
 }
 
+export interface ProbeVideoDurationArgs {
+  ffprobeBin: string;
+  inputPath: string;
+}
+
 export interface RenderSegmentArgs {
   ffmpegBin: string;
   imagePath: string;
@@ -29,6 +34,21 @@ export interface RenderSegmentArgs {
   height: number;
   fps: number;
   motionEffect: ComicPanelMotionEffect;
+}
+
+export interface RenderVideoClipSegmentArgs {
+  ffmpegBin: string;
+  videoClipPaths: string[];
+  audioPath: string;
+  outputPath: string;
+  durationMs: number;
+  trailingSilenceMs: number;
+  visualDurationMs: number;
+  preserveClipAudio: boolean;
+  loopVideo: boolean;
+  width: number;
+  height: number;
+  fps: number;
 }
 
 export interface ConcatVideoArgs {
@@ -73,8 +93,12 @@ export const desktopComicVideoCommands = {
     invoke<GenerateTtsAudioResult>('generate_tts_audio', { args }),
   probeAudioDuration: (args: ProbeAudioDurationArgs) =>
     invoke<number>('probe_audio_duration', { args }),
+  probeVideoDuration: (args: ProbeVideoDurationArgs) =>
+    invoke<number>('probe_video_duration', { args }),
   renderSegment: (args: RenderSegmentArgs) =>
     invoke<void>('render_comic_video_segment', { args }),
+  renderVideoClipSegment: (args: RenderVideoClipSegmentArgs) =>
+    invoke<void>('render_comic_video_clip_segment', { args }),
   concatVideo: (args: ConcatVideoArgs) =>
     invoke<void>('concat_comic_video', { args }),
   deleteMediaFile: (args: DeleteMediaFileArgs) =>

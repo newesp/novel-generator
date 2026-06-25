@@ -6,11 +6,18 @@ import { buildOffsetSrt, parseSrt, type OffsetSubtitleCueGroup, type SubtitleCue
 import { calculatePanelTiming } from './timing';
 import type { TTSGenerationResult, TTSProvider } from './tts-provider';
 import { normalizeComicPanelMotionEffect } from './motion-effects';
+import {
+  normalizePanelVideoClipAudioMode,
+  normalizePanelVideoClipLoopMode,
+  panelHasVideoClips,
+  panelVideoClipAssetIds,
+  panelVideoClipDurationMs,
+} from './video-clips';
 
 type Commands = Pick<
   typeof desktopComicVideoCommands,
   'concatVideo' | 'deleteMediaFile' | 'renderSegment' | 'writeBinaryFile'
->;
+> & Partial<Pick<typeof desktopComicVideoCommands, 'renderVideoClipSegment'>>;
 type VideoRendererStorage = {
   mediaAssets: Pick<StorageAdapter['mediaAssets'], 'add' | 'delete' | 'get'>;
   comicPanels: Pick<StorageAdapter['comicPanels'], 'update'>;
@@ -68,7 +75,7 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
   });
 
   for (const panel of panels) {
-    if (!panel.assetId) throw new Error(`Panel #${panel.order} has no image asset.`);
+    if (!panel.assetId && !panelHasVideoClips(panel)) throw new Error(`Panel #${panel.order} has no visual asset.`);
     if (!panel.narration.trim()) throw new Error(`Panel #${panel.order} has empty narration.`);
 
     const reusableSegment = await findReusableSegment(panel, storage, settings);
@@ -159,15 +166,19 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
 export async function renderComicPanelSegment(input: RenderComicPanelSegmentInput): Promise<MediaAsset> {
   const { comic, panel, storage, ttsProvider, commands, settings } = input;
 
-  if (!panel.assetId) throw new Error(`Panel #${panel.order} has no image asset.`);
+  const videoClipIds = panelVideoClipAssetIds(panel);
+  if (!panel.assetId && !videoClipIds.length) throw new Error(`Panel #${panel.order} has no visual asset.`);
   if (!panel.narration.trim()) throw new Error(`Panel #${panel.order} has empty narration.`);
 
   const reusableSegment = input.forceRender ? null : await findReusableSegment(panel, storage, settings);
   if (reusableSegment) return reusableSegment;
 
   const paddedOrder = String(panel.order).padStart(3, '0');
-  const imageAsset = await storage.mediaAssets.get(panel.assetId);
-  const imagePath = await resolvePanelImagePath({
+  const imageAsset = panel.assetId ? await storage.mediaAssets.get(panel.assetId) : undefined;
+  const videoClipAssets = videoClipIds.length
+    ? await resolvePanelVideoClipAssets(panel, storage)
+    : [];
+  const imagePath = videoClipAssets.length ? null : await resolvePanelImagePath({
       panel,
       asset: imageAsset,
       outputPath: `${settings.mediaRoot}/images/panel-${paddedOrder}.${imageExtension(imageAsset?.mimeType)}`,
@@ -194,19 +205,47 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
     panelPauseMs: settings.panelPauseMs,
   });
   const motionEffect = normalizeComicPanelMotionEffect(panel.motionEffect);
+  const videoClipAudioMode = normalizePanelVideoClipAudioMode(panel.videoClipAudioMode);
+  const videoClipLoopMode = normalizePanelVideoClipLoopMode(panel.videoClipLoopMode);
+  const visualDurationMs = videoClipAssets.reduce((total, item) => total + item.durationMs, 0);
+  const effectiveDurationMs = videoClipAssets.length
+    ? Math.max(timing.effectiveDurationMs, visualDurationMs + settings.panelPauseMs)
+    : timing.effectiveDurationMs;
+  const trailingSilenceMs = Math.max(0, effectiveDurationMs - timing.audioDurationMs);
   const segmentPath = `${settings.mediaRoot}/segments/segment-${paddedOrder}.mp4`;
-  await commands.renderSegment({
-    ffmpegBin: settings.ffmpegBin,
-    imagePath,
-    audioPath: tts.asset.path ?? `${settings.mediaRoot}/audio/panel-${paddedOrder}.mp3`,
-    outputPath: segmentPath,
-    durationMs: timing.effectiveDurationMs,
-    trailingSilenceMs: timing.trailingSilenceMs,
-    width: settings.width,
-    height: settings.height,
-    fps: settings.fps,
-    motionEffect,
-  });
+  const audioPath = tts.asset.path ?? `${settings.mediaRoot}/audio/panel-${paddedOrder}.mp3`;
+  if (videoClipAssets.length) {
+    if (!commands.renderVideoClipSegment) {
+      throw new Error('Desktop video clip renderer is unavailable.');
+    }
+    await commands.renderVideoClipSegment({
+      ffmpegBin: settings.ffmpegBin,
+      videoClipPaths: videoClipAssets.map((item) => item.path),
+      audioPath,
+      outputPath: segmentPath,
+      durationMs: effectiveDurationMs,
+      trailingSilenceMs,
+      visualDurationMs,
+      preserveClipAudio: videoClipAudioMode === 'keep',
+      loopVideo: videoClipLoopMode === 'loop',
+      width: settings.width,
+      height: settings.height,
+      fps: settings.fps,
+    });
+  } else if (imagePath) {
+    await commands.renderSegment({
+      ffmpegBin: settings.ffmpegBin,
+      imagePath,
+      audioPath,
+      outputPath: segmentPath,
+      durationMs: effectiveDurationMs,
+      trailingSilenceMs,
+      width: settings.width,
+      height: settings.height,
+      fps: settings.fps,
+      motionEffect,
+    });
+  }
 
   const segmentAsset: MediaAsset = {
     id: crypto.randomUUID(),
@@ -218,7 +257,10 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
     providerId: 'ffmpeg',
     generationParamsJson: JSON.stringify({
       panelId: panel.id,
+      visualSource: videoClipAssets.length ? 'video_clips' : 'image',
       sourceImageAssetId: panel.assetId,
+      sourceVideoClipAssetIds: videoClipAssets.map((item) => item.id),
+      sourceVideoClipDurationsMs: videoClipAssets.map((item) => item.durationMs),
       ttsAssetId: tts.asset.id,
       ttsVoice: tts.voice,
       durationSec: panel.durationSec,
@@ -227,11 +269,14 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
       height: settings.height,
       fps: settings.fps,
       motionEffect,
+      videoClipAudioMode,
+      videoClipLoopMode,
       narrationHash: hashNarration(panel.narration),
       audioDurationMs: timing.audioDurationMs,
-      durationMs: timing.effectiveDurationMs,
-      trailingSilenceMs: timing.trailingSilenceMs,
-      subtitleCues: ttsSubtitleCues(tts, panel, timing.effectiveDurationMs),
+      visualDurationMs,
+      durationMs: effectiveDurationMs,
+      trailingSilenceMs,
+      subtitleCues: ttsSubtitleCues(tts, panel, effectiveDurationMs),
     }),
     createdAt: Date.now(),
   };
@@ -325,16 +370,25 @@ async function findReusableSegment(
   } catch {
     return null;
   }
+  const expectedVisualSource = panelVisualSource(panel);
+  const metadataVisualSource = metadata.visualSource ?? 'image';
   if (
     metadata.panelId !== panel.id ||
-    metadata.sourceImageAssetId !== panel.assetId ||
+    metadataVisualSource !== expectedVisualSource ||
+    (expectedVisualSource === 'image' && metadata.sourceImageAssetId !== panel.assetId) ||
+    (expectedVisualSource === 'video_clips' && !await panelVideoClipMetadataMatches(panel, metadata, storage)) ||
     metadata.ttsVoice !== settings.voice ||
     metadata.durationSec !== panel.durationSec ||
     metadata.panelPauseMs !== settings.panelPauseMs ||
     metadata.width !== settings.width ||
     metadata.height !== settings.height ||
     metadata.fps !== settings.fps ||
-    normalizeComicPanelMotionEffect(metadata.motionEffect) !== normalizeComicPanelMotionEffect(panel.motionEffect) ||
+    (expectedVisualSource === 'video_clips'
+      && metadata.videoClipAudioMode !== normalizePanelVideoClipAudioMode(panel.videoClipAudioMode)) ||
+    (expectedVisualSource === 'video_clips'
+      && metadata.videoClipLoopMode !== normalizePanelVideoClipLoopMode(panel.videoClipLoopMode)) ||
+    (expectedVisualSource === 'image'
+      && normalizeComicPanelMotionEffect(metadata.motionEffect) !== normalizeComicPanelMotionEffect(panel.motionEffect)) ||
     metadata.narrationHash !== hashNarration(panel.narration)
   ) {
     return null;
@@ -345,7 +399,10 @@ async function findReusableSegment(
 
 interface SegmentMetadata {
   panelId: string;
-  sourceImageAssetId: string;
+  visualSource?: 'image' | 'video_clips';
+  sourceImageAssetId?: string;
+  sourceVideoClipAssetIds?: string[];
+  sourceVideoClipDurationsMs?: number[];
   ttsAssetId: string;
   ttsVoice: string;
   durationSec: number;
@@ -354,9 +411,61 @@ interface SegmentMetadata {
   height: number;
   fps: number;
   motionEffect?: string;
+  videoClipAudioMode?: string;
+  videoClipLoopMode?: string;
   narrationHash: string;
+  visualDurationMs?: number;
   durationMs?: number;
   subtitleCues?: SubtitleCue[];
+}
+
+interface ResolvedPanelVideoClipAsset {
+  id: string;
+  path: string;
+  durationMs: number;
+}
+
+async function resolvePanelVideoClipAssets(
+  panel: ComicPanel,
+  storage: VideoRendererStorage,
+): Promise<ResolvedPanelVideoClipAsset[]> {
+  const clips: ResolvedPanelVideoClipAsset[] = [];
+  for (const assetId of panelVideoClipAssetIds(panel)) {
+    const asset = await storage.mediaAssets.get(assetId);
+    if (!asset?.path) throw new Error(`Panel #${panel.order} video clip has no file path.`);
+    clips.push({
+      id: asset.id,
+      path: asset.path,
+      durationMs: panelVideoClipDurationMs(asset),
+    });
+  }
+  return clips;
+}
+
+function panelVisualSource(panel: ComicPanel): 'image' | 'video_clips' {
+  return panelHasVideoClips(panel) ? 'video_clips' : 'image';
+}
+
+function sameStringArray(left: unknown, right: string[]): boolean {
+  return Array.isArray(left)
+    && left.length === right.length
+    && left.every((value, index) => value === right[index]);
+}
+
+async function panelVideoClipMetadataMatches(
+  panel: ComicPanel,
+  metadata: Partial<SegmentMetadata>,
+  storage: VideoRendererStorage,
+): Promise<boolean> {
+  const clipAssets = await resolvePanelVideoClipAssets(panel, storage);
+  return sameStringArray(metadata.sourceVideoClipAssetIds, clipAssets.map((asset) => asset.id))
+    && sameNumberArray(metadata.sourceVideoClipDurationsMs, clipAssets.map((asset) => asset.durationMs));
+}
+
+function sameNumberArray(left: unknown, right: number[]): boolean {
+  return Array.isArray(left)
+    && left.length === right.length
+    && left.every((value, index) => typeof value === 'number' && value === right[index]);
 }
 
 function segmentDurationMs(asset: MediaAsset): number {

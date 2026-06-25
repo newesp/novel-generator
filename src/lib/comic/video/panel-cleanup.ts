@@ -17,7 +17,11 @@ export async function cleanupPanelVideoArtifacts({
   commands: Commands;
 }): Promise<void> {
   const assetIds = Array.from(
-    new Set([panel.ttsAssetId, panel.segmentAssetId].filter((id): id is string => Boolean(id))),
+    new Set([
+      panel.ttsAssetId,
+      panel.segmentAssetId,
+      ...(panel.videoClipAssetIds ?? []),
+    ].filter((id): id is string => Boolean(id))),
   );
 
   for (const assetId of assetIds) {

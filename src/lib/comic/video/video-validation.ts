@@ -1,4 +1,5 @@
 import type { ComicPanel } from '../../../types';
+import { panelHasVisualSource } from './video-clips';
 
 export type ComicVideoValidationResult =
   | { ok: true }
@@ -6,7 +7,7 @@ export type ComicVideoValidationResult =
 
 export function validateComicVideoInputs(panels: ComicPanel[]): ComicVideoValidationResult {
   const orderedPanels = [...panels].sort((a, b) => a.order - b.order);
-  const missingImages = orderedPanels.filter((panel) => !panel.assetId);
+  const missingImages = orderedPanels.filter((panel) => !panelHasVisualSource(panel));
   if (missingImages.length) {
     return {
       ok: false,

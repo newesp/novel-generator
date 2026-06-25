@@ -81,6 +81,7 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - Pressing `單格輸出 MP4` again forces that selected panel segment to rerender instead of returning a stale reusable segment; full-chapter export keeps segment reuse for unchanged panels.
 - Full-chapter export also writes a sidecar `chapter-video.srt` file from Edge-TTS sentence-level subtitle timing and panel segment offsets. The SRT is stored as `MediaAsset(kind='subtitle')` and linked by `ChapterComic.subtitleAssetId`, so it can be uploaded to YouTube as toggleable captions.
 - Each panel can choose a motion effect (`none`, slow zoom, pan, Ken Burns variants, pulse/crash zoom, subtle shake, fade in/out). Motion settings are stored in segment metadata so changed effects invalidate stale MP4 segments.
+- Each panel can also upload one or more MP4 clips as the visual source. Clip-based segments ignore image motion effects, concatenate the uploaded clips, can optionally keep clip audio mixed under TTS narration, and can either freeze the last frame or loop the clip sequence when narration is longer.
 - Full-chapter export validates every panel first. Missing images or narration are shown in a dismissible top notice instead of failing silently.
 - ComicModal includes a chapter-scoped `影片庫` popup for current chapter MP4 files, SRT subtitles, and panel segments, with open, reveal in folder, delete, and rerender actions.
 
@@ -89,14 +90,15 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - **metadata 進 StorageAdapter**：ChapterComic、ComicPanel、ComicPanelImageVariant、MediaAsset、SceneVisual、provider params、seed、錯誤狀態。
 - **圖片 metadata**：生成或上傳圖片以 `MediaAsset` + `ComicPanelImageVariant` 追蹤；需要時會把遠端 URL 正規化為可持久化 data URL。
 - **桌面版 TTS / MP4 / SRT binary**：透過 Tauri 安全命令寫入 app/project output media root，路徑記錄於 `MediaAsset.path`；TTS 使用 `kind='tts_audio'`，影片使用 `kind='video'`，字幕使用 `kind='subtitle'`。
-- **關聯欄位**：單格影片掛在 `ComicPanel.segmentAssetId`；整章影片掛在 `ChapterComic.videoAssetId`；整章旁掛字幕掛在 `ChapterComic.subtitleAssetId`。
-- **影片重用判斷**：segment metadata 會記錄來源圖片、旁白 hash、TTS voice、尺寸、FPS、停頓與 motion effect；任一條件改變都會重新輸出該格。
+- **關聯欄位**：panel 上傳 MP4 clips 掛在 `ComicPanel.videoClipAssetIds`；clip 原聲策略掛在 `ComicPanel.videoClipAudioMode`；旁白較長時的畫面策略掛在 `ComicPanel.videoClipLoopMode`；單格影片掛在 `ComicPanel.segmentAssetId`；整章影片掛在 `ChapterComic.videoAssetId`；整章旁掛字幕掛在 `ChapterComic.subtitleAssetId`。
+- **影片重用判斷**：segment metadata 會記錄 visual source（圖片或 MP4 clips）、來源圖片 / clips、clip audio/loop settings、旁白 hash、TTS voice、尺寸、FPS、停頓與 motion effect；任一條件改變都會重新輸出該格。
 - 大型 binary 不應長期塞進 SQLite；跨章節全書級媒體管理仍需補完整媒體庫 UI。
 
 ### TODO / advanced polish
 
 - 新增全書級「媒體庫」：跨章節彙整 `MediaAsset` 圖片、音訊、影片，支援搜尋 / 篩選、開啟 / 定位、刪除、孤兒檔清理與批次匯出。
 - 補更完整的 Visual Bible 管理 UI、provider reference weighting、批次圖片 / 影片下載，以及 Web 版影片輸出的降級策略。
+- Image-to-Video provider adapter：未來可把 Kling AI / Runway / Veo 等圖片轉影片供應商接成可選生成步驟；目前先支援外部工具產出的 MP4 手動上傳。
 
 ### 為何走桌面
 

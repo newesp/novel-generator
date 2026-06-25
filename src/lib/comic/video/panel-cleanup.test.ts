@@ -18,6 +18,7 @@ const panel: ComicPanel = {
   durationSec: 0,
   ttsAssetId: 'tts-1',
   segmentAssetId: 'segment-1',
+  videoClipAssetIds: ['clip-1'],
   status: 'draft',
   createdAt: 1,
   updatedAt: 1,
@@ -44,6 +45,15 @@ describe('cleanupPanelVideoArtifacts', () => {
         mimeType: 'video/mp4',
         createdAt: 1,
       },
+      'clip-1': {
+        id: 'clip-1',
+        projectId: 'book',
+        chapterId: 'ch',
+        kind: 'video',
+        path: 'C:/clip.mp4',
+        mimeType: 'video/mp4',
+        createdAt: 1,
+      },
     };
     const storage = {
       mediaAssets: {
@@ -57,7 +67,9 @@ describe('cleanupPanelVideoArtifacts', () => {
 
     expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/a.mp3' });
     expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/s.mp4' });
+    expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/clip.mp4' });
     expect(storage.mediaAssets.delete).toHaveBeenCalledWith('tts-1');
     expect(storage.mediaAssets.delete).toHaveBeenCalledWith('segment-1');
+    expect(storage.mediaAssets.delete).toHaveBeenCalledWith('clip-1');
   });
 });

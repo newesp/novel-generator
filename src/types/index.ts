@@ -125,6 +125,8 @@ export type ComicPanelImageVariantStatus = 'ready' | 'failed';
 export type ComicPanelTtsStatus = 'idle' | 'queued' | 'generating' | 'ready' | 'failed';
 export type ChapterComicVideoStatus = 'idle' | 'generating_audio' | 'rendering_segments' | 'concatenating' | 'ready' | 'failed';
 export type MediaAssetKind = 'comic_panel_image' | 'character_reference_image' | 'scene_reference_image' | 'tts_audio' | 'video' | 'subtitle';
+export type ComicPanelVideoClipAudioMode = 'mute' | 'keep';
+export type ComicPanelVideoClipLoopMode = 'freeze' | 'loop';
 export type ComicPanelMotionEffect =
   | 'none'
   | 'slow_zoom_in'
@@ -195,6 +197,10 @@ export interface ComicPanel {
   narration: string;
   durationSec: number;
   motionEffect?: ComicPanelMotionEffect;
+  /** Uploaded MP4 clips used as this panel's visual source for TTS video segments. */
+  videoClipAssetIds?: string[];
+  videoClipAudioMode?: ComicPanelVideoClipAudioMode;
+  videoClipLoopMode?: ComicPanelVideoClipLoopMode;
   seed?: number;
   assetId?: string;
   status: ComicPanelStatus;

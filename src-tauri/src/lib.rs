@@ -29,6 +29,13 @@ struct ProbeAudioDurationArgs {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ProbeVideoDurationArgs {
+  ffprobe_bin: String,
+  input_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RenderSegmentArgs {
   ffmpeg_bin: String,
   image_path: String,
@@ -40,6 +47,23 @@ struct RenderSegmentArgs {
   height: u32,
   fps: u32,
   motion_effect: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RenderVideoClipSegmentArgs {
+  ffmpeg_bin: String,
+  video_clip_paths: Vec<String>,
+  audio_path: String,
+  output_path: String,
+  duration_ms: u64,
+  trailing_silence_ms: u64,
+  visual_duration_ms: u64,
+  preserve_clip_audio: bool,
+  loop_video: bool,
+  width: u32,
+  height: u32,
+  fps: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -236,6 +260,16 @@ fn seconds_arg(ms: u64) -> String {
 
 fn append_audio_filter(video_filter: String) -> String {
   format!("{video_filter};[1:a][2:a]concat=n=2:v=0:a=1[a]")
+}
+
+fn append_indexed_audio_filter(video_filter: String, audio_index: usize, silence_index: usize) -> String {
+  format!("{video_filter};[{audio_index}:a][{silence_index}:a]concat=n=2:v=0:a=1[a]")
+}
+
+fn narration_audio_filter(audio_index: usize, silence_index: usize, output_label: &str) -> String {
+  format!(
+    "[{audio_index}:a][{silence_index}:a]concat=n=2:v=0:a=1,aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[{output_label}]",
+  )
 }
 
 fn static_video_filter(width: u32, height: u32) -> String {
@@ -450,6 +484,87 @@ fn build_video_filter(motion_effect: &str, width: u32, height: u32, fps: u32, du
   }
 }
 
+fn build_video_clip_filter(
+  clip_count: usize,
+  width: u32,
+  height: u32,
+  fps: u32,
+  duration_ms: u64,
+  visual_duration_ms: u64,
+  preserve_clip_audio: bool,
+  loop_video: bool,
+) -> String {
+  let effective_fps = fps.max(1);
+  let target_duration = duration_ms as f64 / 1000.0;
+  let pad_duration = duration_ms.saturating_sub(visual_duration_ms) as f64 / 1000.0;
+  let loop_size_frames = (((visual_duration_ms as f64 / 1000.0) * effective_fps as f64).ceil().max(1.0)) as u64;
+  let loop_size_samples = (((visual_duration_ms as f64 / 1000.0) * 44100.0).ceil().max(1.0)) as u64;
+  let mut parts: Vec<String> = Vec::new();
+
+  for index in 0..clip_count {
+    parts.push(format!(
+      "[{index}:v]scale=w={width}:h={height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={effective_fps},setsar=1,settb=AVTB,setpts=PTS-STARTPTS,format=yuv420p[v{index}]",
+    ));
+  }
+
+  let base_label = if clip_count == 1 {
+    "v0".to_string()
+  } else {
+    let inputs = (0..clip_count)
+      .map(|index| format!("[v{index}]"))
+      .collect::<Vec<_>>()
+      .join("");
+    parts.push(format!("{inputs}concat=n={clip_count}:v=1:a=0[vcat]"));
+    "vcat".to_string()
+  };
+
+  let video_output = if pad_duration > 0.0 && loop_video {
+    format!(
+      "[{base_label}]loop=loop=-1:size={loop_size_frames}:start=0,trim=duration={target_duration:.3},setpts=N/({effective_fps}*TB)[v]",
+    )
+  } else if pad_duration > 0.0 {
+    format!(
+      "[{base_label}]tpad=stop_mode=clone:stop_duration={pad_duration:.3},trim=duration={target_duration:.3},setpts=PTS-STARTPTS[v]",
+    )
+  } else {
+    format!("[{base_label}]trim=duration={target_duration:.3},setpts=PTS-STARTPTS[v]")
+  };
+  parts.push(video_output);
+
+  if !preserve_clip_audio {
+    return append_indexed_audio_filter(parts.join(";"), clip_count, clip_count + 1);
+  }
+
+  for index in 0..clip_count {
+    parts.push(format!(
+      "[{index}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS[a{index}]",
+    ));
+  }
+  let clip_audio_label = if clip_count == 1 {
+    "a0".to_string()
+  } else {
+    let inputs = (0..clip_count)
+      .map(|index| format!("[a{index}]"))
+      .collect::<Vec<_>>()
+      .join("");
+    parts.push(format!("{inputs}concat=n={clip_count}:v=0:a=1[clipa]"));
+    "clipa".to_string()
+  };
+  let clip_audio_output = if pad_duration > 0.0 && loop_video {
+    format!(
+      "[{clip_audio_label}]aloop=loop=-1:size={loop_size_samples}:start=0,atrim=duration={target_duration:.3},asetpts=PTS-STARTPTS[clipaudio]",
+    )
+  } else {
+    format!(
+      "[{clip_audio_label}]apad=pad_dur={pad_duration:.3},atrim=duration={target_duration:.3},asetpts=PTS-STARTPTS[clipaudio]",
+    )
+  };
+  parts.push(clip_audio_output);
+  parts.push(narration_audio_filter(clip_count, clip_count + 1, "narration"));
+  parts.push("[clipaudio][narration]amix=inputs=2:duration=longest:dropout_transition=0[a]".to_string());
+  parts.join(";")
+}
+
 #[tauri::command]
 fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<GenerateTtsAudioResult, String> {
   let output_path = safe_media_file_path(&args.output_path, true)?;
@@ -479,10 +594,9 @@ fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<GenerateTtsAudioResu
   Ok(GenerateTtsAudioResult { subtitle_text })
 }
 
-#[tauri::command]
-fn probe_audio_duration(args: ProbeAudioDurationArgs) -> Result<u64, String> {
-  let input_path = safe_media_file_path(&args.input_path, false)?;
-  let output = Command::new(args.ffprobe_bin)
+fn probe_media_duration_ms(ffprobe_bin: String, input_path: String) -> Result<u64, String> {
+  let input_path = safe_media_file_path(&input_path, false)?;
+  let output = Command::new(ffprobe_bin)
     .arg("-v")
     .arg("error")
     .arg("-show_entries")
@@ -509,6 +623,16 @@ fn probe_audio_duration(args: ProbeAudioDurationArgs) -> Result<u64, String> {
   }
 
   Ok((duration_seconds * 1000.0).round() as u64)
+}
+
+#[tauri::command]
+fn probe_audio_duration(args: ProbeAudioDurationArgs) -> Result<u64, String> {
+  probe_media_duration_ms(args.ffprobe_bin, args.input_path)
+}
+
+#[tauri::command]
+fn probe_video_duration(args: ProbeVideoDurationArgs) -> Result<u64, String> {
+  probe_media_duration_ms(args.ffprobe_bin, args.input_path)
 }
 
 #[tauri::command]
@@ -558,6 +682,67 @@ fn render_comic_video_segment(args: RenderSegmentArgs) -> Result<(), String> {
     .arg(output_path);
 
   run_command(command, "ffmpeg render segment")
+}
+
+#[tauri::command]
+fn render_comic_video_clip_segment(args: RenderVideoClipSegmentArgs) -> Result<(), String> {
+  if args.video_clip_paths.is_empty() {
+    return Err("At least one video clip is required.".to_string());
+  }
+  let video_clip_paths = args
+    .video_clip_paths
+    .iter()
+    .map(|path| safe_media_file_path(path, false))
+    .collect::<Result<Vec<_>, _>>()?;
+  let audio_path = safe_media_file_path(&args.audio_path, false)?;
+  let output_path = safe_media_file_path(&args.output_path, true)?;
+
+  let trailing_silence = seconds_arg(args.trailing_silence_ms.max(1));
+  let filter = build_video_clip_filter(
+    video_clip_paths.len(),
+    args.width,
+    args.height,
+    args.fps,
+    args.duration_ms,
+    args.visual_duration_ms,
+    args.preserve_clip_audio,
+    args.loop_video,
+  );
+
+  let mut command = Command::new(args.ffmpeg_bin);
+  command.arg("-y");
+  for path in video_clip_paths {
+    command.arg("-i").arg(path);
+  }
+  command
+    .arg("-i")
+    .arg(audio_path)
+    .arg("-f")
+    .arg("lavfi")
+    .arg("-t")
+    .arg(trailing_silence)
+    .arg("-i")
+    .arg("anullsrc=channel_layout=stereo:sample_rate=44100")
+    .arg("-filter_complex")
+    .arg(filter)
+    .arg("-map")
+    .arg("[v]")
+    .arg("-map")
+    .arg("[a]")
+    .arg("-r")
+    .arg(args.fps.to_string())
+    .arg("-c:v")
+    .arg("libx264")
+    .arg("-preset")
+    .arg("veryfast")
+    .arg("-pix_fmt")
+    .arg("yuv420p")
+    .arg("-c:a")
+    .arg("aac")
+    .arg("-shortest")
+    .arg(output_path);
+
+  run_command(command, "ffmpeg render video clip segment")
 }
 
 #[tauri::command]
@@ -745,7 +930,9 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       generate_tts_audio,
       probe_audio_duration,
+      probe_video_duration,
       render_comic_video_segment,
+      render_comic_video_clip_segment,
       concat_comic_video,
       delete_media_file,
       media_file_exists,
@@ -824,5 +1011,24 @@ mod tests {
 
     assert!(filter.contains("fade=t=out:st=2.500:d=0.500"));
     assert!(filter.contains("zoompan="));
+  }
+
+  #[test]
+  fn clip_video_filter_loops_video_when_requested() {
+    let filter = build_video_clip_filter(1, 1920, 1080, 30, 12400, 9000, false, true);
+
+    assert!(filter.contains("loop=loop=-1:size=270:start=0"));
+    assert!(filter.contains("trim=duration=12.400"));
+    assert!(!filter.contains("tpad=stop_mode=clone"));
+  }
+
+  #[test]
+  fn clip_video_filter_mixes_original_clip_audio_when_requested() {
+    let filter = build_video_clip_filter(2, 1920, 1080, 30, 18400, 18000, true, false);
+
+    assert!(filter.contains("[0:a]aresample=44100"));
+    assert!(filter.contains("[1:a]aresample=44100"));
+    assert!(filter.contains("[a0][a1]concat=n=2:v=0:a=1[clipa]"));
+    assert!(filter.contains("[clipaudio][narration]amix=inputs=2"));
   }
 }

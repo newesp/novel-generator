@@ -1287,6 +1287,79 @@ input:focus, select:focus, textarea:focus {
   gap: 8px;
   flex-wrap: wrap;
 }
+.comic-panel-video-clips {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.comic-panel-video-clip-list {
+  display: grid;
+  gap: 6px;
+}
+.comic-panel-video-clip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-secondary);
+}
+.comic-panel-video-clip span {
+  min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.comic-panel-video-clip small {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.comic-panel-video-clip button {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+.comic-panel-video-clip button.danger {
+  color: #fecaca;
+  border-color: rgba(239, 68, 68, 0.55);
+}
+.comic-panel-video-clip button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.comic-panel-video-clip button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.comic-panel-video-clip-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+  gap: 8px;
+  align-items: end;
+}
+.comic-panel-video-clip-settings label {
+  min-width: 0;
+}
+.comic-panel-video-clip-settings select {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+}
+.comic-panel-video-clip-settings select option {
+  color: #111827;
+  background: #ffffff;
+}
 .comic-upload-button {
   min-height: 34px;
   display: inline-flex;

@@ -38,6 +38,202 @@ const panel = (patch: Partial<ComicPanel>): ComicPanel => ({
 });
 
 describe('renderComicVideo', () => {
+  it('renders uploaded video clips with TTS audio as a panel segment', async () => {
+    const assets: Record<string, MediaAsset> = {
+      'clip-1': {
+        id: 'clip-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'video',
+        path: 'C:/media/clip-1.mp4',
+        mimeType: 'video/mp4',
+        generationParamsJson: JSON.stringify({ durationMs: 9000 }),
+        createdAt: 1,
+      },
+      'clip-2': {
+        id: 'clip-2',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'video',
+        path: 'C:/media/clip-2.mp4',
+        mimeType: 'video/mp4',
+        generationParamsJson: JSON.stringify({ durationMs: 9000 }),
+        createdAt: 1,
+      },
+    };
+    const storage = {
+      mediaAssets: {
+        get: vi.fn(async (id: string) => assets[id]),
+        add: vi.fn(async (asset: MediaAsset) => {
+          assets[asset.id] = asset;
+        }),
+        delete: vi.fn(async () => undefined),
+      },
+      comicPanels: {
+        update: vi.fn(async () => undefined),
+      },
+      comics: {
+        update: vi.fn(async () => undefined),
+      },
+    };
+    const ttsProvider = {
+      id: 'edge-tts',
+      label: 'Edge-TTS',
+      generate: vi.fn(async () => ({
+        asset: {
+          id: 'tts-1',
+          projectId: 'book',
+          chapterId: 'chapter',
+          kind: 'tts_audio' as const,
+          path: 'C:/media/audio.mp3',
+          mimeType: 'audio/mpeg',
+          createdAt: 2,
+        },
+        durationMs: 5000,
+        providerId: 'edge-tts',
+        voice: 'zh-TW-HsiaoChenNeural',
+      })),
+    };
+    const commands = {
+      renderSegment: vi.fn(async () => undefined),
+      renderVideoClipSegment: vi.fn(async () => undefined),
+      concatVideo: vi.fn(async () => undefined),
+      deleteMediaFile: vi.fn(async () => undefined),
+      writeBinaryFile: vi.fn(async () => undefined),
+    };
+
+    const result = await renderComicPanelSegment({
+      comic,
+      panel: panel({
+        id: 'panel-1',
+        assetId: undefined,
+        videoClipAssetIds: ['clip-1', 'clip-2'],
+        narration: '這一格使用外部影片。',
+      } as Partial<ComicPanel>),
+      storage,
+      ttsProvider,
+      commands,
+      settings: {
+        mediaRoot: 'C:/media/book/chapter/comic-video',
+        edgeTtsBin: 'edge-tts',
+        ffmpegBin: 'ffmpeg',
+        ffprobeBin: 'ffprobe',
+        voice: 'zh-TW-HsiaoChenNeural',
+        panelPauseMs: 400,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+      },
+    });
+
+    expect(result.path).toBe('C:/media/book/chapter/comic-video/segments/segment-001.mp4');
+    expect(commands.renderSegment).not.toHaveBeenCalled();
+    expect(commands.renderVideoClipSegment).toHaveBeenCalledWith(expect.objectContaining({
+      videoClipPaths: ['C:/media/clip-1.mp4', 'C:/media/clip-2.mp4'],
+      durationMs: 18400,
+      trailingSilenceMs: 13400,
+      visualDurationMs: 18000,
+      preserveClipAudio: false,
+      loopVideo: false,
+    }));
+    expect(storage.mediaAssets.add).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'video',
+      generationParamsJson: expect.stringContaining('"visualSource":"video_clips"'),
+    }));
+  });
+
+  it('passes panel clip audio and loop settings to the desktop clip renderer', async () => {
+    const assets: Record<string, MediaAsset> = {
+      'clip-1': {
+        id: 'clip-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'video',
+        path: 'C:/media/clip-1.mp4',
+        mimeType: 'video/mp4',
+        generationParamsJson: JSON.stringify({ durationMs: 9000 }),
+        createdAt: 1,
+      },
+    };
+    const storage = {
+      mediaAssets: {
+        get: vi.fn(async (id: string) => assets[id]),
+        add: vi.fn(async (asset: MediaAsset) => {
+          assets[asset.id] = asset;
+        }),
+        delete: vi.fn(async () => undefined),
+      },
+      comicPanels: {
+        update: vi.fn(async () => undefined),
+      },
+      comics: {
+        update: vi.fn(async () => undefined),
+      },
+    };
+    const ttsProvider = {
+      id: 'edge-tts',
+      label: 'Edge-TTS',
+      generate: vi.fn(async () => ({
+        asset: {
+          id: 'tts-1',
+          projectId: 'book',
+          chapterId: 'chapter',
+          kind: 'tts_audio' as const,
+          path: 'C:/media/audio.mp3',
+          mimeType: 'audio/mpeg',
+          createdAt: 2,
+        },
+        durationMs: 12000,
+        providerId: 'edge-tts',
+        voice: 'zh-TW-HsiaoChenNeural',
+      })),
+    };
+    const commands = {
+      renderSegment: vi.fn(async () => undefined),
+      renderVideoClipSegment: vi.fn(async () => undefined),
+      concatVideo: vi.fn(async () => undefined),
+      deleteMediaFile: vi.fn(async () => undefined),
+      writeBinaryFile: vi.fn(async () => undefined),
+    };
+
+    const result = await renderComicPanelSegment({
+      comic,
+      panel: panel({
+        id: 'panel-1',
+        assetId: undefined,
+        videoClipAssetIds: ['clip-1'],
+        videoClipAudioMode: 'keep',
+        videoClipLoopMode: 'loop',
+        narration: '這一格保留影片聲音並重播影片。',
+      } as Partial<ComicPanel>),
+      storage,
+      ttsProvider,
+      commands,
+      settings: {
+        mediaRoot: 'C:/media/book/chapter/comic-video',
+        edgeTtsBin: 'edge-tts',
+        ffmpegBin: 'ffmpeg',
+        ffprobeBin: 'ffprobe',
+        voice: 'zh-TW-HsiaoChenNeural',
+        panelPauseMs: 400,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+      },
+    });
+
+    expect(commands.renderVideoClipSegment).toHaveBeenCalledWith(expect.objectContaining({
+      preserveClipAudio: true,
+      loopVideo: true,
+      durationMs: 12400,
+      visualDurationMs: 9000,
+    }));
+    expect(JSON.parse(result.generationParamsJson ?? '{}')).toMatchObject({
+      videoClipAudioMode: 'keep',
+      videoClipLoopMode: 'loop',
+    });
+  });
+
   it('renders one panel segment without validating other panels', async () => {
     const imageAsset: MediaAsset = {
       id: 'image-1',
