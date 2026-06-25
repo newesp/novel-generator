@@ -27,7 +27,7 @@
 - 已實作：參考章節全文優先；若參考章節沒有正文，才用對應 Wiki summary 補位
 - 已實作：摘要品質檢查與單章重建入口會更新 Wiki summary page，並寫入 `wiki_log`
 - 已實作：大型 Wiki 會以 deterministic pick-pages 進行降級，優先保留相關頁與近期 summary
-- 待補：LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表
+- 待補：手動批次摘要重建、LLM pick-pages
 - 不新增 `Chapter.summary` 欄位；章節摘要維持存於 Wiki summary page
 
 ---

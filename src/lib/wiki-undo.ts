@@ -15,11 +15,24 @@ import { v4 as uuid } from 'uuid';
 import type { Chapter, WikiLogEntry, WikiPageType } from '../types';
 import { storage } from './storage';
 
-export async function undoBatch(chapter: Chapter, batchId: string): Promise<void> {
-  const bookId = chapter.projectId;
+export interface UndoWikiLogBatchInput {
+  bookId: string;
+  batchId: string;
+  sourcePrefix?: string;
+}
+
+export interface UndoWikiLogBatchResult {
+  revertedCount: number;
+}
+
+export async function undoWikiLogBatch({
+  bookId,
+  batchId,
+  sourcePrefix = 'undo',
+}: UndoWikiLogBatchInput): Promise<UndoWikiLogBatchResult> {
   const all = await storage.wikiLog.listByBatch(bookId, batchId);
   const okEntries = all.filter((e) => e.opStatus === 'ok')
-    .sort((a, b) => b.appliedAt - a.appliedAt);   // DESC
+    .sort((a, b) => b.appliedAt - a.appliedAt);
 
   for (const e of okEntries) {
     if (e.kind === 'create' && e.pageId) {
@@ -32,18 +45,24 @@ export async function undoBatch(chapter: Chapter, batchId: string): Promise<void
     await storage.wikiLog.updateStatus(e.id, 'undone');
   }
 
-  // 寫 1 條 undo summary log
   const summary: WikiLogEntry = {
     id: uuid(), bookId, batchId, appliedAt: Date.now(),
     kind: 'undo', opStatus: 'ok',
     pageId: null,
-    pageType: 'concept' as WikiPageType,  // 哑欄位（CHECK 約束需要值）
+    pageType: 'concept' as WikiPageType,
     pageSlug: 'batch-undo',
     pageSnapshotBefore: null, pageSnapshotAfter: null,
-    source: `undo:${batchId}`,
+    source: `${sourcePrefix}:${batchId}`,
     summary: `還原 ${okEntries.length} 個操作`,
   };
   await storage.wikiLog.add(summary);
+
+  return { revertedCount: okEntries.length };
+}
+
+export async function undoBatch(chapter: Chapter, batchId: string): Promise<void> {
+  const bookId = chapter.projectId;
+  await undoWikiLogBatch({ bookId, batchId, sourcePrefix: 'undo' });
 
   await storage.chapters.update(chapter.id, {
     wikiSyncedAt: null,

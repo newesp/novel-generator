@@ -1,5 +1,17 @@
 # 開發日誌
 
+## 2026-06-25 - Add Lint batch undo UI
+
+- Added a generic `undoWikiLogBatch()` helper that reverts `wiki_log` batches without requiring a chapter, while preserving the existing chapter ingest undo behavior.
+- Added a Lint report action to undo all Wiki fixes applied by the current Lint batch and reload the Wiki state after revert.
+- Updated Lint visible text toward Chinese labels while keeping `Lint` as the domain term.
+- Removed the summary quality trend report from the Phase 2.5 remaining list and updated the next priority order.
+
+**Verification**
+- `vitest run src/lib/wiki-undo.test.ts` passed: 1 file, 1 test.
+- `tsc -b` passed.
+- Browser visual QA was not run because the in-app browser tool was unavailable and starting Vite through this PowerShell environment hit a `Start-Process` PATH issue; layout was checked by code review against the modal's flex-wrap action row.
+
 ## 2026-06-25 - Documentation refresh for current Phase 6 state
 
 - Updated README, module docs, roadmap, tech-stack, deployment, debug notes, and AI loading guides against the current comic video implementation.

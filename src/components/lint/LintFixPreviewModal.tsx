@@ -88,7 +88,7 @@ function LintFixPreviewModalContent({
         fontFamily: 'var(--font-mono, monospace)', fontSize: 12,
       }}>
         <div style={{ borderRight: '1px solid var(--border)', padding: 8 }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>Before</div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>修改前</div>
           {diff.map((d, i) => (
             <pre key={i} style={{
               margin: 0, whiteSpace: 'pre-wrap',
@@ -98,7 +98,7 @@ function LintFixPreviewModalContent({
           ))}
         </div>
         <div style={{ padding: 8, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>After</div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>修改後</div>
           <textarea
             className="form-textarea"
             value={editedMarkdown}

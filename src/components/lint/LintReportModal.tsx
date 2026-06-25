@@ -11,13 +11,13 @@ interface Props {
 }
 
 const CHECK_LABELS: Record<string, string> = {
-  'broken-link': 'Broken link',
+  'broken-link': '破損連結',
   'orphan': '孤頁',
   'alias-dup': '別名重複',
-  'summary-mismatch': 'Summary 章節對不上',
+  'summary-mismatch': '摘要章節對不上',
   'unrecorded': '未登錄角色',
   'wikiContradict': 'Wiki 內部矛盾',
-  'wikiVsChapter': 'Wiki vs 章節',
+  'wikiVsChapter': 'Wiki 與章節',
 };
 
 const STATUS_ICON: Record<string, string> = {
@@ -29,7 +29,7 @@ const STATUS_ICON: Record<string, string> = {
 };
 
 export function LintReportModal({ open, onClose }: Props) {
-  const { isRunning, progress, report, cancel } = useLintStore();
+  const { isRunning, progress, report, cancel, isUndoingBatch, undoAppliedBatch } = useLintStore();
 
   const groupedIssues = useMemo(() => {
     if (!report) return {} as Record<string, LintIssue[]>;
@@ -42,10 +42,11 @@ export function LintReportModal({ open, onClose }: Props) {
 
   const openCount = report?.issues.filter((i) => i.status === 'open').length ?? 0;
   const processedCount = report?.issues.filter((i) => i.status !== 'open').length ?? 0;
+  const appliedCount = report?.issues.filter((i) => i.status === 'applied').length ?? 0;
 
   const title = isRunning ? '🔍 Lint 進行中'
     : report?.cancelled ? '(部分) Lint 報告 — 中途取消'
-    : `🔍 Lint 報告 — ${openCount} 個 open / ${processedCount} 已處理`;
+    : `🔍 Lint 報告 — ${openCount} 個待處理 / ${processedCount} 已處理`;
 
   return (
     <Modal open={open} onClose={onClose} title={title} width={780}>
@@ -75,6 +76,32 @@ export function LintReportModal({ open, onClose }: Props) {
 
       {!isRunning && report && (
         <>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: 10,
+            marginBottom: 12,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+          }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+              本次 Lint 批次：{appliedCount} 個修復已套用。還原會把本批次寫入 Wiki 的修復全部復原。
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void undoAppliedBatch()}
+              disabled={appliedCount === 0 || isUndoingBatch}
+              title="還原本次 Lint 已套用到 Wiki 的所有修復"
+            >
+              {isUndoingBatch ? '還原中…' : '還原本次修復'}
+            </Button>
+          </div>
+
           {report.failedChecks.length > 0 && (
             <div style={{
               padding: 8, marginBottom: 12,

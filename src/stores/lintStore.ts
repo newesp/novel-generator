@@ -7,6 +7,7 @@ import {
   generateFixSuggestion,
   type LlmFixSuggestion,
 } from '../lib/lint/llm-fix';
+import { undoWikiLogBatch } from '../lib/wiki-undo';
 import { useSettingsStore } from './settingsStore';
 import { useWikiStore } from './wikiStore';
 import type { LintIssue, LintReport } from '../lib/lint/types';
@@ -16,6 +17,7 @@ interface LintState {
   progress: LintProgress[];
   report: LintReport | null;
   controller: AbortController | null;
+  isUndoingBatch: boolean;
   /** issueId → 使用者輸入的修改方向 */
   userDirections: Record<string, string>;
   /** issueId → 已產生的 LLM fix 建議（套用前留存） */
@@ -32,6 +34,7 @@ interface LintState {
   applyAutoFix: (issue: LintIssue) => Promise<void>;
   generateFix: (issue: LintIssue) => Promise<void>;
   applyLlmFix: (issue: LintIssue, editedMarkdown?: string) => Promise<void>;
+  undoAppliedBatch: () => Promise<void>;
   dismiss: (issueId: string) => void;
   discardSuggestion: (issueId: string) => void;
 }
@@ -41,6 +44,7 @@ export const useLintStore = create<LintState>((set, get) => ({
   progress: [],
   report: null,
   controller: null,
+  isUndoingBatch: false,
   userDirections: {},
   fixSuggestions: {},
   fixTargetPageIds: {},
@@ -57,6 +61,7 @@ export const useLintStore = create<LintState>((set, get) => ({
       fixSuggestions: {},
       fixTargetPageIds: {},
       busyIssueIds: new Set(),
+      isUndoingBatch: false,
     });
     try {
       const report = await lintBook(bookId, controller.signal, {
@@ -227,6 +232,39 @@ export const useLintStore = create<LintState>((set, get) => ({
       fixTargetPageIds: newFixTargetPageIds,
       busyIssueIds: busy2,
     });
+  },
+
+  undoAppliedBatch: async () => {
+    const report = get().report;
+    if (!report || get().isUndoingBatch) return;
+    const appliedCount = report.issues.filter((issue) => issue.status === 'applied').length;
+    if (appliedCount === 0) return;
+
+    set({ isUndoingBatch: true });
+    try {
+      const result = await undoWikiLogBatch({
+        bookId: report.bookId,
+        batchId: report.lintBatchId,
+        sourcePrefix: 'undo-lint',
+      });
+      await useWikiStore.getState().loadForBook(report.bookId);
+      if (result.revertedCount === 0) {
+        alert('找不到可還原的 Wiki 操作。');
+        return;
+      }
+      const updated = report.issues.map((issue) =>
+        issue.status === 'applied' ? { ...issue, status: 'open' as const } : issue,
+      );
+      set({
+        report: { ...report, issues: updated },
+        fixSuggestions: {},
+        busyIssueIds: new Set(),
+      });
+    } catch (e) {
+      alert(`還原失敗：${(e as Error).message}`);
+    } finally {
+      set({ isUndoingBatch: false });
+    }
   },
 
   dismiss: (issueId) => {

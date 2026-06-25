@@ -83,7 +83,7 @@ npm run tauri build
 
 ## 接下來未完成重點
 
-- Phase 2.5 polish：LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表、Graph 進階事件抽取 / 因果推理、Lint 整批 undo UI。
+- Phase 2.5 polish：手動批次摘要重建、LLM pick-pages、Graph 進階事件抽取 / 因果推理。
 - Phase 3：`.txt` / `.html` / `.epub` 導出、完整內容潤色器、持續 UI/UX polish。
 - Phase 4 / 6：Multi-Agent、封面圖生成、完整 Visual Bible 管理、provider reference weighting、全書級媒體庫、批次圖片/影片匯出、video orphan cleanup、多角色/對話 TTS、Web 版影片降級。
 - Phase 5 / 7：macOS / Linux 打包、code signing、首次啟動自動 IndexedDB→SQLite 遷移（目前採手動 JSON）、`WaSqliteAdapter` / `WebMediaAdapter` / PWA 回部署。

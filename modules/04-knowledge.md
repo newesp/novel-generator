@@ -118,7 +118,7 @@ Wiki 寫入不只依賴 LLM 自覺，核心結構改由 deterministic guard 保�
 **特點：**
 - 手動觸發（Wiki 分頁「🔍 執行 Lint」按鈕，不打擾寫作）
 - 結果不持久化（modal 關掉就丟）；「維持現狀」session-only
-- 所有 fix 走 `wiki_log`（`source='lint:<checkId>'`），保留未來整批 undo
+- 所有 fix 走 `wiki_log`（`source='lint:<checkId>'`），Lint 報告可用「還原本次修復」整批 undo 本次已套用修復
 - LLM 修改走 ✏️ 修改 textarea 可輸入方向 → ✨ 生成建議 → 兩欄純文字 diff preview → 套用同步 title/aliases/relatedSlugs metadata
 - 預估成本 ≤15 LLM calls / 整本書
 

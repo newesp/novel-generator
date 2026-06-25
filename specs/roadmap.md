@@ -32,10 +32,11 @@
    - ✅ 2026-05-28：章節生成會從 Wiki `summary/ch-N` 組出 `olderChapterSummary`
    - ✅ 參考章節優先：已有全文時不重複塞同章摘要；無正文時用 Wiki summary 補位
    - ✅ 2026-05-28：大型 Wiki 以 deterministic pick-pages 降級；Wiki Query UI 可直接問 Wiki
-   - ⏳ 待補：LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表
+   - ✅ 2026-06-25：Lint 整批 undo UI
+   - ⏳ 待補：手動批次摘要重建、LLM pick-pages、Graph 進階事件抽取 / 因果推理
 3. ✅ 一致性 Lint（2026-05-19）→ `docs/superpowers/specs/2026-05-19-consistency-lint-design.md`
    - 7 個 check：broken-link / orphan / alias-dup / summary-mismatch / unrecorded（hybrid） / wiki-contradict（LLM batch） / wiki-vs-chapter（LLM batch）
-   - 所有 fix 走 `wiki_log` 補償，保留未來整批 undo 能力
+   - 所有 fix 走 `wiki_log` 補償；已支援本次 Lint 批次整批 undo UI
    - LLM 修改建議 preview + 兩欄純文字 diff + 套用同步 metadata
 4. ✅ Wiki 存在完整性防線（2026-05-28）
    - related refs sanitize、刪除 cascade、slug rename/canonicalize
@@ -43,10 +44,14 @@
 
 **Advanced polish remaining**
 - LLM pick-pages
-- 批次摘要重建排程
-- 摘要品質趨勢報表
+- 手動批次摘要重建
 - Graph 進階事件抽取 / 因果推理深化
-- Lint 整批 undo UI
+- Lint 整批 undo UI（✅ 2026-06-25）
+
+**Priority order**
+1. 手動批次摘要重建：高優先，只做使用者手動選範圍與進度/失敗處理；暫不做背景排程。
+2. LLM pick-pages：中優先，保留為進階開關；預設仍用 deterministic selection。
+3. Graph 進階事件抽取 / 因果推理：中低優先，先等 Wiki / summary / Lint 流程穩定後再擴張。
 
 ---
 
