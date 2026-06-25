@@ -58,10 +58,11 @@
 
 ---
 
-## Phase 4 — 選做功能（❌ 未開始；部分多媒體能力已提前併入 Phase 6）
+## Phase 4 — 選做功能（❌ Multi-Agent / 封面圖未開始；部分多媒體能力已提前併入 Phase 6）
 
 1. ❌ Multi-Agent 協作引擎（Planner / Writer / Critic / Editor）→ 09-multi-agent
-2. ❌ 封面圖、語音朗讀、影片合成 → 10-multimedia
+2. ❌ 封面圖生成 → 10-multimedia
+3. 🟡 語音朗讀 / 影片合成：漫畫分鏡旁白 TTS、單格/整章 MP4 與 SRT 已在 Phase 6 桌面流程落地；多角色音色、全書級批次管理與 Web 版降級仍待補
 
 ---
 
@@ -114,7 +115,7 @@ StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
 > 目標：選擇章節 → 生成可編輯分鏡 → 批次生成連續漫畫圖片。  
 > 設計：`docs/superpowers/specs/2026-05-28-phase-6-comic-images-design.md`  
 > Phase 6.1 Visual Bible：`docs/superpowers/specs/2026-05-29-phase-6-visual-bible-design.md`  
-> 2026-06 已補上桌面版 Edge-TTS / ffmpeg MP4 輸出、單格 segment、整章影片與章節內影片庫。
+> 2026-06 已補上桌面版 Edge-TTS / ffmpeg MP4 輸出、單格 segment、整章影片、SRT 字幕、motion effects 與章節內影片庫。
 
 ### 任務
 
@@ -126,7 +127,7 @@ StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
 6. ✅ **UI 整合**：章節工具列「轉漫畫」→ storyboard editor → batch progress → comic preview
 7. ✅ **單格重生、手動上傳、圖片歷史與單圖下載**：panel variant history、目前圖片切換、目前圖片保護、上傳圖片與下載回饋已接入
 8. 🟡 **Visual Bible / Prompt Composer**：角色/場景 reference、scene visuals、continuity reference、`extraGroupsJson`、final prompt snapshot 已接入；完整 Visual Bible 管理仍待 polish
-9. ✅ **TTS / MP4 / SRT MVP（桌面）**：Edge-TTS、ffmpeg sidecar、單格 MP4 segment、整章 MP4 concat、旁掛 SRT 字幕、輸出驗證與章節內影片庫已接入
+9. ✅ **TTS / MP4 / SRT MVP（桌面）**：Edge-TTS、ffmpeg sidecar、單格 MP4 segment、整章 MP4 concat、旁掛 SRT 字幕、motion effects、輸出驗證與章節內影片庫已接入
 
 ### 2026-06 Phase 6 progress
 
@@ -139,9 +140,10 @@ StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
 - Added panel insertion, deletion, pointer-based reordering, title editing, manual panel image upload, per-panel image history, and download feedback.
 - Added panel narration / timing metadata, `MediaAsset(kind='tts_audio' | 'video' | 'subtitle')`, `ComicPanel.segmentAssetId`, `ChapterComic.videoAssetId`, and `ChapterComic.subtitleAssetId`.
 - Added panel-scoped `單格輸出 MP4` and full-chapter `整章輸出 MP4`; full export reuses compatible panel segments where possible and writes a YouTube-ready sidecar SRT.
+- Added Edge-TTS sentence-level subtitle timing, per-panel motion effects, and explicit selected-panel MP4 rerendering.
 - Added full-chapter MP4 input validation with a dismissible top notice for missing panel images or narration.
 - Added ComicModal chapter-scoped `影片庫` popup with open, reveal in folder, delete, and rerender actions for MP4 and SRT assets.
-- Remaining advanced polish: richer Visual Bible management UI, provider-specific reference weighting controls, bulk image/video package download, full-book media library, video orphan cleanup, and Web ffmpeg.wasm fallback.
+- Remaining advanced polish: richer Visual Bible management UI, provider-specific reference weighting controls, bulk image/video package download, full-book media library, video orphan cleanup, multi-voice/dialogue TTS, and Web ffmpeg.wasm fallback.
 
 ### Phase 6.1 Visual Bible 重點
 

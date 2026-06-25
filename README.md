@@ -1,8 +1,8 @@
 # 小說產生器（Novel Generator）
 
-> 版本：1.9（Phase 6 comic image / TTS / MP4 / SRT library implemented）　更新：2026-06-23
+> 版本：1.10（Phase 6 comic image / TTS / MP4 / SRT / motion-effect video library implemented）　更新：2026-06-25
 
-本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出與章節內影片庫。
+本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出、單格影片重輸出、鏡頭動態效果與章節內影片庫。
 
 - 目標語言：中文小說（優先）
 - 使用方式：本機瀏覽器或 Windows 桌面版
@@ -64,7 +64,7 @@ npm run tauri build
 | [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager（Wiki 摘要 + pick-pages + 摘要品質 ✅） | 1 / 2.5 | 04 |
 | [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM 適配層 | 1 / 2 | tech-stack |
 | [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎（未實作） | 4（選做） | 04, 07 |
-| [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（漫畫圖片、TTS、MP4、SRT 與章節內影片庫） | 6 / 4（選做） | 00, tech-stack |
+| [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（漫畫圖片、TTS、MP4、SRT、motion effects 與章節內影片庫） | 6 / 4（選做） | 00, tech-stack |
 
 ---
 
@@ -73,11 +73,22 @@ npm run tauri build
 | 檔案 | 內容 |
 |------|------|
 | [tech-stack.md](specs/tech-stack.md) | 技術選型（版本以 `package.json` 為準） |
-| [roadmap.md](specs/roadmap.md) | Phase 1–4 開發階段 |
+| [roadmap.md](specs/roadmap.md) | Phase 1–7 開發階段與未完成項 |
 | [UI.md](specs/UI.md) | 視覺規範（色彩/字體/元件/動效） |
 | [UI-layout.md](specs/UI-layout.md) | 主編輯介面佈局 |
 | [output-formats.md](specs/output-formats.md) | 輸出格式規格 |
 | [deployment.md](specs/deployment.md) | 部署方式 |
+
+---
+
+## 接下來未完成重點
+
+- Phase 2.5 polish：LLM pick-pages、批次摘要重建排程、摘要品質趨勢報表、Graph 進階事件抽取 / 因果推理、Lint 整批 undo UI。
+- Phase 3：`.txt` / `.html` / `.epub` 導出、完整內容潤色器、持續 UI/UX polish。
+- Phase 4 / 6：Multi-Agent、封面圖生成、完整 Visual Bible 管理、provider reference weighting、全書級媒體庫、批次圖片/影片匯出、video orphan cleanup、多角色/對話 TTS、Web 版影片降級。
+- Phase 5 / 7：macOS / Linux 打包、code signing、首次啟動自動 IndexedDB→SQLite 遷移（目前採手動 JSON）、`WaSqliteAdapter` / `WebMediaAdapter` / PWA 回部署。
+
+詳細狀態以 [specs/roadmap.md](specs/roadmap.md) 為準。
 
 ---
 

@@ -36,7 +36,7 @@ Respond with a single JSON object, no prose:
 
 ```json
 {
-  "pages": ["concept/attention.md", "entity/transformer.md"],
+  "pages": ["concept/attention", "entity/transformer"],
   "reasoning": "one short sentence on why these"
 }
 ```

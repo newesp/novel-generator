@@ -25,8 +25,8 @@
 - 資料層改用 **SQLite（native via `tauri-plugin-sql`）**，無瀏覽器配額限制、無無痕模式問題
   - DB 路徑：`%AppData%\com.novelgenerator.app\novel-generator.db`
   - `PRAGMA journal_mode=WAL` + `synchronous=NORMAL`（效能調校，規避 Windows Defender fsync 拖慢）
-- 漫畫圖片 metadata 走 SQLite；大型 binary 長期目標是本機檔案系統
-- 影片合成走 native **ffmpeg sidecar**（尚未實作）
+- 漫畫圖片 metadata 走 SQLite；圖片、TTS、MP4、SRT 等大型 binary 透過安全 Tauri 命令寫到 app/project output media root
+- 影片合成走 native **ffmpeg sidecar**（已實作單格 MP4、整章 MP4 concat、motion effects 與旁掛 SRT）
 - Windows MSI：`npm run tauri build` → `Novel Generator_0.1.0_x64_en-US.msi`（4.25 MB）
 - macOS / Linux 打包：之後補
 

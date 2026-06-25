@@ -17,7 +17,7 @@
 | 本地存儲（桌面版） | SQLite（native，透過 `tauri-plugin-sql`，已落地 2026-05） |
 | 本地存儲（Phase 7，Web 版回部署） | wa-sqlite + OPFS（與桌面共用 SQL schema） |
 | 桌面殼層（Phase 5+） | Tauri 2.x（Rust + 系統 webview，比 Electron 輕量；Windows 已落地 2026-05） |
-| 影片合成（Phase 6，桌面） | Edge-TTS + ffmpeg sidecar（native，透過 Tauri 安全命令） |
+| 影片合成（Phase 6，桌面） | Edge-TTS + ffmpeg sidecar（native，透過 Tauri 安全命令；已支援單格/整章 MP4、SRT 與 motion effects） |
 | 影片合成（Phase 7，Web） | ffmpeg.wasm（功能降級，或介接後端 API） |
 | LLM 呼叫 | 自製 adapter（OpenAI-compatible / Google Gemini / Grok） |
 | 全文檢索 | SQLite FTS5 + trigram tokenizer — Phase 2（未來真有 vector 需求改用 sqlite-vec，不引入 Ollama / LanceDB） |
@@ -36,11 +36,11 @@
 
 **儲存層 Adapter 抽象（Phase 5 起）：** UI 與 business logic 僅依賴 `StorageAdapter` interface；底層可換 Dexie / SQLite (Tauri) / wa-sqlite (Web) 三種實作。SQL schema 設計需確保 Tauri native SQLite 與 wa-sqlite 都能執行相同語句，僅在薄 wrapper 層統一 transaction API 差異。
 
-**媒體檔案儲存規則（Phase 6）：** metadata（章節 ↔ 圖片 / TTS / 影片 / 字幕的關聯、prompt、provider params、圖片歷史、輸出狀態）進 adapter 管理的資料表；目前生成圖片會正規化為可持久化的 URL/data URL 並以 `MediaAsset` metadata 追蹤。桌面版 TTS / MP4 / SRT binary 透過 Tauri 安全命令寫入 app/project output media root，路徑記錄在 `MediaAsset.path`；單格影片掛在 `ComicPanel.segmentAssetId`，整章影片掛在 `ChapterComic.videoAssetId`，旁掛字幕掛在 `ChapterComic.subtitleAssetId`。目前已有 ComicModal 章節內影片庫；全書級「媒體庫」仍是 TODO。大型 binary 不應塞進 SQLite，避免 DB 或瀏覽器儲存膨脹。
+**媒體檔案儲存規則（Phase 6）：** metadata（章節 ↔ 圖片 / TTS / 影片 / 字幕的關聯、prompt、provider params、圖片歷史、輸出狀態、motion effect）進 adapter 管理的資料表；目前生成圖片會正規化為可持久化的 URL/data URL 並以 `MediaAsset` metadata 追蹤。桌面版 TTS / MP4 / SRT binary 透過 Tauri 安全命令寫入 app/project output media root，路徑記錄在 `MediaAsset.path`；單格影片掛在 `ComicPanel.segmentAssetId`，整章影片掛在 `ChapterComic.videoAssetId`，旁掛字幕掛在 `ChapterComic.subtitleAssetId`。segment metadata 會記錄來源圖片、旁白 hash、TTS voice、尺寸、FPS、停頓與 motion effect，用於判斷是否可重用；使用者也可對單格強制重新輸出。目前已有 ComicModal 章節內影片庫；全書級「媒體庫」仍是 TODO。大型 binary 不應塞進 SQLite，避免 DB 或瀏覽器儲存膨脹。
 
 **Phase 5b 已落地細節（2026-05，Windows）：**
-- `src-tauri/` 內含 migrations `001_initial.sql` 到 `006_comic_panel_image_variants.sql`
+- `src-tauri/` 內含 migrations `001_initial.sql` 到 `007_comic_tts_video_metadata.sql`
 - DB 路徑 `%AppData%\com.novelgenerator.app\novel-generator.db`
 - 啟用 `PRAGMA journal_mode=WAL + synchronous=NORMAL` 規避 Windows Defender 對 fsync 的拖慢
-- tauri-plugin-sql v2.x 無 transaction API；`replaceAll` 非 atomic（接受由使用者明確覆蓋）
+- tauri-plugin-sql v2.x 在目前 adapter 用法下未包成真正 transaction；`replaceAll` 非 atomic（接受由使用者明確覆蓋，失敗時可重匯入）
 - macOS / Linux 打包之後再加

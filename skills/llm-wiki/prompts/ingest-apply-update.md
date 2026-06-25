@@ -8,7 +8,7 @@ You are updating an existing page in an LLM Wiki.
 
 ## Page being updated
 
-- **Path:** {{path}}
+- **Wiki key:** {{path}}
 - **Reason for update:** {{reason}}
 - **Change brief:** {{change_brief}}
 
@@ -34,7 +34,8 @@ Produce the full new content of the page. Rules:
 - **Integrate** the new information where it logically fits — extend existing
   sections, add a new section, or update claims that the new info refines
 - **Update Related links** in the header blockquote if the change introduces
-  meaningful new cross-references (only link to pages that actually exist)
+  meaningful new cross-references (use `type/slug` links and only link to
+  pages that actually exist)
 - **Update the Sources section** to add citations for the new information
 - Do **not** wholesale rewrite content that the new info doesn't touch
 - Do **not** introduce contradictions; if the new info contradicts existing

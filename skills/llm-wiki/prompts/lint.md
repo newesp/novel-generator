@@ -28,8 +28,8 @@ Identify issues in the wiki. Categories:
 |---|---|
 | `contradiction` | Two pages making incompatible claims |
 | `stale_claim` | A claim that newer pages or sources have superseded |
-| `orphan` | A page with no inbound links from any other page (excluding `index.md`) |
-| `broken_link` | A link to a path that does not exist |
+| `orphan` | A page with no inbound links from any other page (generated index does not count) |
+| `broken_link` | A `relatedSlugs` entry or markdown `type/slug` link that does not exist |
 | `duplicate` | Two pages covering substantially the same topic |
 | `misclassified` | A page whose type doesn't match its content (e.g. a `concept/` that is really an `entity/`) |
 | `missing_required_section` | A page missing the header blockquote or `## Sources` |
@@ -43,9 +43,9 @@ Respond with a single JSON object, no prose:
   "issues": [
     {
       "category": "broken_link",
-      "page": "concept/attention.md",
-      "detail": "Links to `../entity/non-existent.md`",
-      "suggested_fix": "Remove the link or rename to `entity/transformer.md`"
+      "page": "concept/attention",
+      "detail": "Links to missing `entity/non-existent`",
+      "suggested_fix": "Remove the link or rename to `entity/transformer`"
     }
   ],
   "summary": "one short paragraph"

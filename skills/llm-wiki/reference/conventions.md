@@ -2,35 +2,36 @@
 
 ## Page types
 
-| Type | Directory | Purpose | Example filename |
+| Type | Slug form | Purpose | Example |
 |------|-----------|---------|------------------|
-| concept   | `concept/`   | An idea, mechanism, or pattern | `attention.md` |
-| entity    | `entity/`    | A named thing (model, person, system, dataset) | `transformer.md` |
-| summary   | `summary/`   | One per raw source — what it covers and key takeaways | `<source-slug>.md` |
-| compare   | `compare/`   | Side-by-side analysis of two or more concepts/entities | `attention-vs-rnn.md` |
-| synthesis | `synthesis/` | Narrative cross-cutting summary spanning many pages | `overview.md` |
+| concept   | `concept/<slug>`   | An idea, rule, magic system, plot thread, place type, or recurring motif | `concept/forbidden-art` |
+| entity    | `entity/<slug>`    | A named character, faction, location, item, creature, or other concrete story object | `entity/lin-che` |
+| summary   | `summary/<slug>`   | Chapter/source summary; chapter pages use `summary/ch-N` | `summary/ch-12` |
+| compare   | `compare/<slug>`   | Side-by-side analysis of two or more concepts/entities | `compare/two-factions` |
+| synthesis | `synthesis/<slug>` | Narrative cross-cutting summary spanning many pages | `synthesis/main-conflict` |
 
-A page's type is fixed once chosen; type changes happen only via lint.
+A page's type is fixed once chosen. Type changes happen only through an
+explicit create/update/delete flow reviewed by the application.
 
-## Filename rules
+## Slug rules
 
-- ASCII, lowercase, kebab-case: `language-model.md`, not `Language Model.md`
-- Singular nouns where possible: `transformer.md`, not `transformers.md`
-- No prefixes — the directory already encodes the type
-- Avoid abbreviations unless they are the canonical form (`gpt`, `rnn` are fine; `lm` is not)
+- ASCII, lowercase, kebab-case: `lin-che`, not `林澈`
+- Singular nouns where possible: `forbidden-art`, not `forbidden-arts`
+- No prefixes — the `type` field already encodes the namespace
+- Avoid abbreviations unless they are canonical in the story world
 - A page's H1 (top heading) can be in any language and is the human-friendly
-  display title; the filename slug stays English
+  display title; the slug stays ASCII
 
 ## Page structure
 
-Every page should have:
+Each `WikiPage` row stores:
 
 ```markdown
 # <Display Title>
 
 > **Type:** concept | entity | summary | compare | synthesis
 > **Aliases:** alt-name-1, alt-name-2  (optional)
-> **Related:** [Other Page](../entity/other.md), [Yet Another](another.md)
+> **Related:** [Other Page](entity/other), [Yet Another](concept/yet-another)
 
 ## <First substantive section>
 
@@ -38,41 +39,42 @@ Every page should have:
 
 ## Sources
 
-- [<source-slug>](../summary/<source-slug>.md) — page 42, "section title"
-- [<source-slug-2>](../summary/<source-slug-2>.md) — chapter 3
+- [第十二章摘要](summary/ch-12) — chapter 12
+- [設定總覽](synthesis/world-overview) — cross-page synthesis
 ```
 
-The blockquote with Type/Aliases/Related and the closing `## Sources` section
-are required. Body sections in between are free-form.
+The application parses the H1, aliases, related links, description fallback,
+and body into `WikiPage.title`, `aliases`, `relatedSlugs`, `description`, and
+`contentMd`. The blockquote with Type/Aliases/Related and the closing
+`## Sources` section are required. Body sections in between are free-form.
 
 ## Cross-references
 
-Use relative markdown links:
+Use `type/slug` style links:
 
-- Same directory: `[Attention](attention.md)`
-- Other directory: `[Transformer](../entity/transformer.md)`
-- From `index.md` (wiki root): `[Attention](concept/attention.md)`
-- From `SKILL.md` (wiki root): same as `index.md`
+- Entity: `[林澈](entity/lin-che)`
+- Concept: `[禁術代價](concept/forbidden-art-cost)`
+- Summary: `[第十二章摘要](summary/ch-12)`
 
-Every cross-reference target must be an existing file. The lint operation
-catches broken links.
+Every cross-reference target should correspond to an existing `WikiPage`
+`{type, slug}`. The application sanitizes missing `relatedSlugs`, cascades
+deletes, and lint reports broken links.
 
-## index.md
+## Generated index
 
-Authoritative catalog. Format:
+The application can generate an index from `wiki_pages`. Format:
 
 ```markdown
 # Index
 
 ## Concepts
-- [attention](concept/attention.md) — how transformers route information between tokens
-- [tokenization](concept/tokenization.md) — splitting text into model inputs
+- [forbidden-art-cost](concept/forbidden-art-cost) — 禁術使用後的代價規則
 
 ## Entities
-- [transformer](entity/transformer.md) — the architecture introduced in 2017
+- [lin-che](entity/lin-che) — 主角林澈的能力與成長弧線
 
 ## Summaries
-- [karpathy-llm-intro](summary/karpathy-llm-intro.md) — Karpathy's intro to LLMs
+- [ch-12](summary/ch-12) — 第十二章事件摘要
 
 ## Comparisons
 - ...
@@ -81,22 +83,16 @@ Authoritative catalog. Format:
 - ...
 ```
 
-One section per type, alphabetical within each section. Each entry is one
-line: link plus a one-line description (about 8–15 words). The ingest
-operation regenerates this file deterministically from the directory listing
-and per-page descriptions, so don't hand-edit the descriptions in two places —
-the page itself is the source of truth and gets surfaced via the `description`
-in the page's blockquote-style header (or the first prose sentence as a
-fallback).
+One section per type, alphabetical within each section. Each entry is one line:
+link plus `WikiPage.description`.
 
-## log.md
+## wiki_log
 
-Append-only. One line per operation, ISO-8601 timestamp prefix:
+Append-only operation history. Each `WikiLogEntry` records `batchId`, `kind`,
+`opStatus`, page snapshot before/after, source, summary, and optional error:
 
 ```
-2026-05-02T14:23:00Z ingest source=karpathy-llm-intro pages_created=2 pages_updated=3
-2026-05-02T14:25:11Z ingest qa="What is attention?" pages_created=1 pages_updated=1
-2026-05-02T15:01:42Z lint issues=2 fixed=2
+source=ingest:<chapterId> kind=create page=entity/lin-che status=ok
+source=lint:broken-link kind=update page=concept/forbidden-art-cost status=ok
+source=undo:<batchId> kind=undo page=entity/lin-che status=ok
 ```
-
-Prefixes (`ingest`, `lint`, `query`, etc.) keep the log parseable.

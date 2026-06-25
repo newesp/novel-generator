@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-25 - Documentation refresh for current Phase 6 state
+
+- Updated README, module docs, roadmap, tech-stack, deployment, debug notes, and AI loading guides against the current comic video implementation.
+- Documented per-panel motion effects, Edge-TTS sentence-level SRT timing, explicit selected-panel MP4 rerendering, migration `007_comic_tts_video_metadata.sql`, and remaining Phase 6 polish.
+- Updated `skills/llm-wiki` docs/prompts from file-based wiki language toward the current DB-backed `WikiPage` / `WikiLogEntry` integration.
+
+**Verification**
+- Documentation-only change; skipped `tsc -b` per AGENTS.md.
+- Cross-checked against `package.json`, `src/types/index.ts`, `src/lib/storage/types.ts`, `src/lib/storage/tauri-sqlite-adapter.ts`, `src/components/comic/ComicModal.tsx`, `src/lib/comic/video/*`, and `src-tauri/src/lib.rs`.
+- Ran Markdown stale-term scans with `rg`.
+
 ## 2026-06-25 - Fix single-panel MP4 rerender
 
 - Fixed `單格輸出 MP4` so pressing it again explicitly rerenders the selected panel segment instead of returning the reusable existing MP4 and only showing the completion message.

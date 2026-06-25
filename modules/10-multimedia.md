@@ -8,8 +8,8 @@
 | ------------- | ---------------------- | ------------------------------------------------------------------------ | ----- |
 | 封面圖生成         | 一鍵生成專業小說封面             | 尚未實作；可復用 image provider 架構                                               | 4     |
 | 章節轉漫畫圖片 MVP   | 章節 → 可編輯分鏡 → 批次生成連續漫畫圖 | ComfyUI / OpenAI-compatible image / DeepInfra FLUX / Google Gemini Image | 6     |
-| 語音朗讀          | 章節轉 TTS（支援多角色不同音色）     | Edge-TTS / ElevenLabs                                                    | 4     |
-| 漫畫 + TTS → 影片 | 連續漫畫圖 + AI 念稿 → 合成 mp4 | ffmpeg sidecar（Tauri 桌面）                                                 | 6     |
+| 語音朗讀          | 漫畫分鏡旁白 TTS；多角色音色仍待擴充     | Edge-TTS（桌面已接入）/ ElevenLabs（可擴充）                                 | 6 / 4 |
+| 漫畫 + TTS → 影片 | 連續漫畫圖 + AI 念稿 → 單格/整章 MP4 + SRT | ffmpeg sidecar（Tauri 桌面）                                                 | 6     |
 
 ---
 
@@ -17,7 +17,7 @@
 
 - 章節工具列已提供「轉漫畫」流程（ComicModal）
 - 生成後可預覽、單格重生、切換歷史圖、手動上傳替換、單圖下載
-- 桌面版 ComicModal 已提供單格 MP4、整章 MP4、自動旁掛 SRT 字幕、整章影片設定與章節內「影片庫」
+- 桌面版 ComicModal 已提供單格 MP4、整章 MP4、自動旁掛 SRT 字幕、每格 motion effect、整章影片設定與章節內「影片庫」
 - EPUB 輸出時可選擇嵌入封面與插圖
 
 ---
@@ -78,7 +78,9 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - Desktop video export uses Edge-TTS for panel narration audio and ffmpeg sidecar commands for MP4 rendering.
 - Per-panel `單格輸出 MP4` writes a reusable `MediaAsset(kind='video')` and stores the id on `ComicPanel.segmentAssetId`.
 - `整章輸出 MP4` reuses matching panel segments where possible, concatenates them into a chapter MP4, and stores the id on `ChapterComic.videoAssetId`.
-- Full-chapter export also writes a sidecar `chapter-video.srt` file from panel narration and segment timing. The SRT is stored as `MediaAsset(kind='subtitle')` and linked by `ChapterComic.subtitleAssetId`, so it can be uploaded to YouTube as toggleable captions.
+- Pressing `單格輸出 MP4` again forces that selected panel segment to rerender instead of returning a stale reusable segment; full-chapter export keeps segment reuse for unchanged panels.
+- Full-chapter export also writes a sidecar `chapter-video.srt` file from Edge-TTS sentence-level subtitle timing and panel segment offsets. The SRT is stored as `MediaAsset(kind='subtitle')` and linked by `ChapterComic.subtitleAssetId`, so it can be uploaded to YouTube as toggleable captions.
+- Each panel can choose a motion effect (`none`, slow zoom, pan, Ken Burns variants, pulse/crash zoom, subtle shake, fade in/out). Motion settings are stored in segment metadata so changed effects invalidate stale MP4 segments.
 - Full-chapter export validates every panel first. Missing images or narration are shown in a dismissible top notice instead of failing silently.
 - ComicModal includes a chapter-scoped `影片庫` popup for current chapter MP4 files, SRT subtitles, and panel segments, with open, reveal in folder, delete, and rerender actions.
 
@@ -88,6 +90,7 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - **圖片 metadata**：生成或上傳圖片以 `MediaAsset` + `ComicPanelImageVariant` 追蹤；需要時會把遠端 URL 正規化為可持久化 data URL。
 - **桌面版 TTS / MP4 / SRT binary**：透過 Tauri 安全命令寫入 app/project output media root，路徑記錄於 `MediaAsset.path`；TTS 使用 `kind='tts_audio'`，影片使用 `kind='video'`，字幕使用 `kind='subtitle'`。
 - **關聯欄位**：單格影片掛在 `ComicPanel.segmentAssetId`；整章影片掛在 `ChapterComic.videoAssetId`；整章旁掛字幕掛在 `ChapterComic.subtitleAssetId`。
+- **影片重用判斷**：segment metadata 會記錄來源圖片、旁白 hash、TTS voice、尺寸、FPS、停頓與 motion effect；任一條件改變都會重新輸出該格。
 - 大型 binary 不應長期塞進 SQLite；跨章節全書級媒體管理仍需補完整媒體庫 UI。
 
 ### TODO / advanced polish

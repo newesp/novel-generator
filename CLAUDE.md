@@ -19,7 +19,7 @@
 | 潤色                    | `modules/06`                                 |
 | LLM 串接 / provider     | `modules/08`                                 |
 | Multi-Agent（Phase 4）  | `modules/09` + `07`                          |
-| 多媒體生成（Phase 4）        | `modules/10`                                 |
+| 多媒體生成（Phase 6 / Phase 4 選做） | `modules/10`                                 |
 | 導出格式                  | `specs/output-formats.md`                    |
 | 技術選型 / 版本             | `specs/tech-stack.md`（版本以 `package.json` 為準） |
 | Phase 規劃              | `specs/roadmap.md`                           |

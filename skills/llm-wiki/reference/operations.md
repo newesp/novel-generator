@@ -1,6 +1,8 @@
 # Operations
 
-Three primary operations: **ingest**, **query**, **lint**.
+Three primary operations: **ingest**, **query**, **lint**. In Novel Generator,
+all operations work against database-backed `WikiPage` rows and `WikiLogEntry`
+history, not a physical wiki folder.
 
 ---
 
@@ -17,8 +19,8 @@ Both follow the same two-pass shape.
 
 Inputs:
 - The new content (Q&A pair or source summary)
-- Current `index.md` (so the LLM knows what pages exist)
-- Wiki `SKILL.md` (schema/conventions)
+- Current generated index (so the LLM knows what pages exist)
+- Wiki conventions / prompt wrapper
 - Application-provided integrity hints, when available, such as required character entities detected from the local character table and the current chapter text
 
 Output (JSON):
@@ -28,14 +30,15 @@ Output (JSON):
     {
       "action": "create",
       "type": "concept",
-      "slug": "attention",
-      "title": "Attention",
+      "slug": "forbidden-art-cost",
+      "title": "禁術代價",
       "reason": "...",
       "content_brief": "..."
     },
     {
       "action": "update",
-      "path": "entity/transformer.md",
+      "type": "entity",
+      "slug": "lin-che",
       "reason": "...",
       "change_brief": "..."
     }
@@ -52,9 +55,9 @@ For each operation, one LLM call:
 - **update**: given the current page content + the new information + reason,
   produce the new full page content
 
-Caller writes files, regenerates `index.md` deterministically (sort pages by
-type then slug, pull description from each page's first prose paragraph), then
-appends one line to `log.md`.
+Caller parses the returned markdown into `WikiPage` fields, writes
+`wiki_pages`, sanitizes `relatedSlugs`, updates FTS/search indexes, and writes
+`wiki_log` entries with before/after snapshots.
 
 Application guards run around the LLM plan/apply steps. In the Novel Generator
 integration, related refs are sanitized against the current Wiki index, deletes
@@ -71,20 +74,21 @@ throughout if budget-sensitive.
 
 ## Query
 
-Two-pass retrieval against the wiki. The wiki has no embeddings — the LLM
-itself navigates by reading `index.md` and following links.
+Query currently uses deterministic relevance scoring over `WikiPage` title,
+slug, aliases, description, and content. The older two-pass LLM pick-pages
+shape remains planned as an optional upgrade.
 
 ### Pass 1 — Pick pages (`prompts/query-pick-pages.md`)
 
 Inputs:
 - User's question
-- `index.md` content
-- Wiki `SKILL.md` (so the LLM knows the page type semantics)
+- Generated wiki index / page metadata
+- Wiki conventions
 
 Output (JSON):
 ```json
 {
-  "pages": ["concept/attention.md", "entity/transformer.md"],
+  "pages": ["concept/forbidden-art-cost", "entity/lin-che"],
   "reasoning": "..."
 }
 ```
@@ -93,9 +97,9 @@ Output (JSON):
 
 Inputs:
 - User's question
-- The full text of every page selected in Pass 1
+- The full text of every selected `WikiPage`
 - Optionally: any other raw sources the user explicitly attached
-- Wiki `SKILL.md` (the wrapping system prompt provided by the application)
+- Wiki conventions / application prompt wrapper
 
 Output: the natural-language answer, with citations to wiki pages.
 
@@ -123,8 +127,6 @@ Periodic maintenance pass. Reads a sample (or all) of the wiki and identifies:
 - **Duplicates** (two pages covering the same concept)
 - **Misclassified pages** (e.g. a `concept/` that is actually an `entity/`)
 
-See `prompts/lint.md` for output format. Lint reports issues but does not
-auto-apply fixes; the user reviews and approves changes (which then become
-ingest-style update operations).
-
-Lint is intentionally Phase 2; the core ingest+query loop works without it.
+Novel Generator implements deterministic structural checks plus LLM-assisted
+checks. Lint reports issues; user-approved fixes write `wiki_log` entries and
+update page metadata/content through the same storage path as ingest.

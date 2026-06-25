@@ -11,7 +11,7 @@ You are creating a new page in an LLM Wiki.
 - **Type:** {{type}}
 - **Slug:** {{slug}}
 - **Title:** {{title}}
-- **Filename:** `{{type}}/{{slug}}.md`
+- **Wiki key:** `{{type}}/{{slug}}`
 - **Reason for creating:** {{reason}}
 - **Content brief:** {{content_brief}}
 
@@ -30,8 +30,8 @@ conventions. Required structure:
 
 1. H1 with the display title
 2. Header blockquote with `Type:`, optional `Aliases:`, and `Related:` links
-   to other pages (use the existing related pages above to choose links —
-   only link to pages that actually exist)
+   to other pages (use `type/slug` links such as `entity/lin-che`; only link
+   to pages that actually exist)
 3. Body sections (free-form, well-organized prose)
 4. Trailing `## Sources` section with citations
 

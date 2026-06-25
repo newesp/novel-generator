@@ -10,10 +10,11 @@ content (e.g. raw sources the user attached).
 {{selected_pages}}
 
 <!--
-  Each entry in {{selected_pages}} is preceded by a "## <path>" heading so
-  the model knows which file each block came from. Cross-references inside
-  the pages remain as relative links — the model can mention them in the
-  answer but cannot follow them in this single-shot path.
+  Each entry in {{selected_pages}} is preceded by a "### <type>/<slug> -
+  <title>" heading so the model knows which database wiki page each block
+  came from. Cross-references are represented by type/slug metadata and may be
+  mentioned in the answer, but they are not followed automatically in this
+  single-shot path.
 -->
 
 ## Answering guidelines
@@ -21,7 +22,7 @@ content (e.g. raw sources the user attached).
 - Prefer the wiki content above when answering. The wiki is the user's
   curated, cross-source synthesis — treat it as more authoritative than ad
   hoc retrieval would be.
-- Cite specific pages by name (e.g. "see `concept/attention.md`") when a
+- Cite specific pages by name (e.g. "see `concept/attention`") when a
   claim depends on one
 - If the wiki is silent or contradictory on the question, say so explicitly
   rather than fabricating

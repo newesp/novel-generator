@@ -3,7 +3,7 @@
 You are maintaining an LLM Wiki. New information has arrived. Decide which
 wiki pages to create or update.
 
-## Wiki conventions (from the wiki's SKILL.md)
+## Wiki conventions
 
 {{wiki_skill_md}}
 
@@ -49,7 +49,8 @@ Respond with a single JSON object, no prose, no code fences:
     },
     {
       "action": "update",
-      "path": "concept/attention.md",
+      "type": "concept",
+      "slug": "attention",
       "reason": "why this page needs to change",
       "change_brief": "what to add or modify"
     }
@@ -57,5 +58,9 @@ Respond with a single JSON object, no prose, no code fences:
   "log_entry": "ingest <type>=\"<short tag>\" pages_created=N pages_updated=M"
 }
 ```
+
+Application note: Novel Generator validates both `{ "type": "...", "slug": "..." }`
+and legacy `{ "path": "type/slug.md" }`, but new prompt output should prefer
+explicit `type` + `slug`.
 
 If no changes are warranted, return `{"operations": [], "log_entry": "ingest skipped: <reason>"}`.
