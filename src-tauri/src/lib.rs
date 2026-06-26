@@ -36,6 +36,13 @@ struct ProbeVideoDurationArgs {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ProbeVideoHasAudioArgs {
+  ffprobe_bin: String,
+  input_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct RenderSegmentArgs {
   ffmpeg_bin: String,
   image_path: String,
@@ -636,6 +643,31 @@ fn probe_video_duration(args: ProbeVideoDurationArgs) -> Result<u64, String> {
 }
 
 #[tauri::command]
+fn probe_video_has_audio(args: ProbeVideoHasAudioArgs) -> Result<bool, String> {
+  let input_path = safe_media_file_path(&args.input_path, false)?;
+  let output = Command::new(args.ffprobe_bin)
+    .arg("-v")
+    .arg("error")
+    .arg("-select_streams")
+    .arg("a")
+    .arg("-show_entries")
+    .arg("stream=index")
+    .arg("-of")
+    .arg("csv=p=0")
+    .arg(input_path)
+    .output()
+    .map_err(|err| format!("Failed to start ffprobe: {err}"))?;
+
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    return Err(format!("ffprobe audio stream probe failed: {stderr}{stdout}"));
+  }
+
+  Ok(!String::from_utf8_lossy(&output.stdout).trim().is_empty())
+}
+
+#[tauri::command]
 fn render_comic_video_segment(args: RenderSegmentArgs) -> Result<(), String> {
   let image_path = safe_media_file_path(&args.image_path, false)?;
   let audio_path = safe_media_file_path(&args.audio_path, false)?;
@@ -931,6 +963,7 @@ pub fn run() {
       generate_tts_audio,
       probe_audio_duration,
       probe_video_duration,
+      probe_video_has_audio,
       render_comic_video_segment,
       render_comic_video_clip_segment,
       concat_comic_video,

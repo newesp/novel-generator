@@ -11,6 +11,7 @@ export interface PanelVideoClipMetadata {
   panelId: string;
   order: number;
   durationMs?: number;
+  hasAudio?: boolean;
 }
 
 export function panelVideoClipAssetIds(panel: ComicPanel): string[] {
@@ -42,11 +43,13 @@ export function buildPanelVideoClipMetadata({
   panelId,
   order,
   durationMs,
+  hasAudio,
 }: {
   fileName: string;
   panelId: string;
   order: number;
   durationMs?: number;
+  hasAudio?: boolean;
 }): string {
   const metadata: PanelVideoClipMetadata = {
     source: 'manual_upload',
@@ -54,6 +57,7 @@ export function buildPanelVideoClipMetadata({
     panelId,
     order,
     durationMs,
+    hasAudio,
   };
   return JSON.stringify(metadata);
 }
@@ -67,6 +71,16 @@ export function panelVideoClipDurationMs(asset: MediaAsset | undefined): number 
       : 0;
   } catch {
     return 0;
+  }
+}
+
+export function panelVideoClipHasAudio(asset: MediaAsset | undefined): boolean {
+  if (!asset?.generationParamsJson) return false;
+  try {
+    const metadata = JSON.parse(asset.generationParamsJson) as Partial<PanelVideoClipMetadata>;
+    return metadata.hasAudio === true;
+  } catch {
+    return false;
   }
 }
 

@@ -7,6 +7,7 @@ import {
   panelVideoClipAssetIds,
   panelVideoClipDurationMs,
   panelVideoClipFileName,
+  panelVideoClipHasAudio,
   normalizePanelVideoClipAudioMode,
   normalizePanelVideoClipLoopMode,
 } from './video-clips';
@@ -53,11 +54,13 @@ describe('panel video clips', () => {
         panelId: 'panel-1',
         order: 2,
         durationMs: 9123,
+        hasAudio: true,
       }),
       createdAt: 1,
     };
 
     expect(panelVideoClipDurationMs(asset)).toBe(9123);
+    expect(panelVideoClipHasAudio(asset)).toBe(true);
     expect(panelVideoClipFileName(asset)).toBe('source.mp4');
   });
 

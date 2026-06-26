@@ -12,6 +12,7 @@ import {
   panelHasVideoClips,
   panelVideoClipAssetIds,
   panelVideoClipDurationMs,
+  panelVideoClipHasAudio,
 } from './video-clips';
 
 type Commands = Pick<
@@ -208,6 +209,8 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
   const videoClipAudioMode = normalizePanelVideoClipAudioMode(panel.videoClipAudioMode);
   const videoClipLoopMode = normalizePanelVideoClipLoopMode(panel.videoClipLoopMode);
   const visualDurationMs = videoClipAssets.reduce((total, item) => total + item.durationMs, 0);
+  const canPreserveClipAudio = videoClipAssets.length > 0 && videoClipAssets.every((item) => item.hasAudio);
+  const effectiveVideoClipAudioMode = videoClipAudioMode === 'keep' && canPreserveClipAudio ? 'keep' : 'mute';
   const effectiveDurationMs = videoClipAssets.length
     ? Math.max(timing.effectiveDurationMs, visualDurationMs + settings.panelPauseMs)
     : timing.effectiveDurationMs;
@@ -226,7 +229,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
       durationMs: effectiveDurationMs,
       trailingSilenceMs,
       visualDurationMs,
-      preserveClipAudio: videoClipAudioMode === 'keep',
+      preserveClipAudio: effectiveVideoClipAudioMode === 'keep',
       loopVideo: videoClipLoopMode === 'loop',
       width: settings.width,
       height: settings.height,
@@ -261,6 +264,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
       sourceImageAssetId: panel.assetId,
       sourceVideoClipAssetIds: videoClipAssets.map((item) => item.id),
       sourceVideoClipDurationsMs: videoClipAssets.map((item) => item.durationMs),
+      sourceVideoClipHasAudio: videoClipAssets.map((item) => item.hasAudio),
       ttsAssetId: tts.asset.id,
       ttsVoice: tts.voice,
       durationSec: panel.durationSec,
@@ -270,6 +274,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
       fps: settings.fps,
       motionEffect,
       videoClipAudioMode,
+      effectiveVideoClipAudioMode,
       videoClipLoopMode,
       narrationHash: hashNarration(panel.narration),
       audioDurationMs: timing.audioDurationMs,
@@ -403,6 +408,7 @@ interface SegmentMetadata {
   sourceImageAssetId?: string;
   sourceVideoClipAssetIds?: string[];
   sourceVideoClipDurationsMs?: number[];
+  sourceVideoClipHasAudio?: boolean[];
   ttsAssetId: string;
   ttsVoice: string;
   durationSec: number;
@@ -412,6 +418,7 @@ interface SegmentMetadata {
   fps: number;
   motionEffect?: string;
   videoClipAudioMode?: string;
+  effectiveVideoClipAudioMode?: string;
   videoClipLoopMode?: string;
   narrationHash: string;
   visualDurationMs?: number;
@@ -423,6 +430,7 @@ interface ResolvedPanelVideoClipAsset {
   id: string;
   path: string;
   durationMs: number;
+  hasAudio: boolean;
 }
 
 async function resolvePanelVideoClipAssets(
@@ -437,6 +445,7 @@ async function resolvePanelVideoClipAssets(
       id: asset.id,
       path: asset.path,
       durationMs: panelVideoClipDurationMs(asset),
+      hasAudio: panelVideoClipHasAudio(asset),
     });
   }
   return clips;
@@ -459,13 +468,20 @@ async function panelVideoClipMetadataMatches(
 ): Promise<boolean> {
   const clipAssets = await resolvePanelVideoClipAssets(panel, storage);
   return sameStringArray(metadata.sourceVideoClipAssetIds, clipAssets.map((asset) => asset.id))
-    && sameNumberArray(metadata.sourceVideoClipDurationsMs, clipAssets.map((asset) => asset.durationMs));
+    && sameNumberArray(metadata.sourceVideoClipDurationsMs, clipAssets.map((asset) => asset.durationMs))
+    && sameBooleanArray(metadata.sourceVideoClipHasAudio, clipAssets.map((asset) => asset.hasAudio));
 }
 
 function sameNumberArray(left: unknown, right: number[]): boolean {
   return Array.isArray(left)
     && left.length === right.length
     && left.every((value, index) => typeof value === 'number' && value === right[index]);
+}
+
+function sameBooleanArray(left: unknown, right: boolean[]): boolean {
+  return Array.isArray(left)
+    && left.length === right.length
+    && left.every((value, index) => typeof value === 'boolean' && value === right[index]);
 }
 
 function segmentDurationMs(asset: MediaAsset): number {

@@ -39,6 +39,7 @@ import {
   panelVideoClipAssetIds,
   panelVideoClipDurationMs,
   panelVideoClipFileName,
+  panelVideoClipHasAudio,
 } from '../../lib/comic/video/video-clips';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
@@ -1496,12 +1497,17 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         const assetId = uuid();
         const outputPath = `${mediaRoot}/clips/panel-${paddedOrder}-clip-${assetId}.mp4`;
         let durationMs = 0;
+        let hasAudio = false;
         try {
           await desktopComicVideoCommands.writeBinaryFile({
             path: outputPath,
             bytes: await readFileAsBytes(file),
           });
           durationMs = await desktopComicVideoCommands.probeVideoDuration({
+            ffprobeBin,
+            inputPath: outputPath,
+          });
+          hasAudio = await desktopComicVideoCommands.probeVideoHasAudio({
             ffprobeBin,
             inputPath: outputPath,
           });
@@ -1523,6 +1529,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             panelId: panel.id,
             order: panelVideoClipAssetIds(panel).length + index + 1,
             durationMs,
+            hasAudio,
           }),
           createdAt: now + index,
         };
@@ -1859,6 +1866,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                                 #{index + 1} {panelVideoClipFileName(asset)}
                               </span>
                               <small>{(panelVideoClipDurationMs(asset) / 1000).toFixed(1)}s</small>
+                              <small>{panelVideoClipHasAudio(asset) ? '有音軌' : '無音軌'}</small>
                               <button type="button" className="danger" onClick={() => void removePanelVideoClip(selectedPanel, asset.id)} disabled={busy}>
                                 刪除
                               </button>

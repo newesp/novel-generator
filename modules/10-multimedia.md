@@ -81,7 +81,7 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - Pressing `單格輸出 MP4` again forces that selected panel segment to rerender instead of returning a stale reusable segment; full-chapter export keeps segment reuse for unchanged panels.
 - Full-chapter export also writes a sidecar `chapter-video.srt` file from Edge-TTS sentence-level subtitle timing and panel segment offsets. The SRT is stored as `MediaAsset(kind='subtitle')` and linked by `ChapterComic.subtitleAssetId`, so it can be uploaded to YouTube as toggleable captions.
 - Each panel can choose a motion effect (`none`, slow zoom, pan, Ken Burns variants, pulse/crash zoom, subtle shake, fade in/out). Motion settings are stored in segment metadata so changed effects invalidate stale MP4 segments.
-- Each panel can also upload one or more MP4 clips as the visual source. Clip-based segments ignore image motion effects, concatenate the uploaded clips, can optionally keep clip audio mixed under TTS narration, and can either freeze the last frame or loop the clip sequence when narration is longer.
+- Each panel can also upload one or more MP4 clips as the visual source. Clip-based segments ignore image motion effects, concatenate the uploaded clips, can optionally keep clip audio mixed under TTS narration, and can either freeze the last frame or loop the clip sequence when narration is longer. Clips without an audio stream automatically downgrade the effective render mode to mute.
 - Full-chapter export validates every panel first. Missing images or narration are shown in a dismissible top notice instead of failing silently.
 - ComicModal includes a chapter-scoped `影片庫` popup for current chapter MP4 files, SRT subtitles, and panel segments, with open, reveal in folder, delete, and rerender actions.
 

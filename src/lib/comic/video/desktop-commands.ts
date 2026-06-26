@@ -23,6 +23,11 @@ export interface ProbeVideoDurationArgs {
   inputPath: string;
 }
 
+export interface ProbeVideoHasAudioArgs {
+  ffprobeBin: string;
+  inputPath: string;
+}
+
 export interface RenderSegmentArgs {
   ffmpegBin: string;
   imagePath: string;
@@ -95,6 +100,8 @@ export const desktopComicVideoCommands = {
     invoke<number>('probe_audio_duration', { args }),
   probeVideoDuration: (args: ProbeVideoDurationArgs) =>
     invoke<number>('probe_video_duration', { args }),
+  probeVideoHasAudio: (args: ProbeVideoHasAudioArgs) =>
+    invoke<boolean>('probe_video_has_audio', { args }),
   renderSegment: (args: RenderSegmentArgs) =>
     invoke<void>('render_comic_video_segment', { args }),
   renderVideoClipSegment: (args: RenderVideoClipSegmentArgs) =>

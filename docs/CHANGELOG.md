@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-26 - Auto-mute silent panel MP4 clips
+
+- Added ffprobe audio-stream detection for uploaded panel MP4 clips and stored the result in clip metadata.
+- Updated clip segment rendering so `保留影片原聲` automatically falls back to mute when any selected clip has no audio track.
+- Added a clip list indicator for `有音軌` / `無音軌` so users can see why source audio may be skipped.
+
+**Verification**
+- `tsc -b` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed.
+- `vitest run src/lib/comic/video/video-clips.test.ts src/lib/comic/video/video-validation.test.ts src/lib/comic/video/panel-cleanup.test.ts src/lib/comic/storage-types.test.ts src/lib/comic/video/video-renderer.test.ts` passed: 5 files, 17 tests.
+
 ## 2026-06-25 - Add panel MP4 clip visual sources
 
 - Added panel-owned MP4 clip uploads for comic video panels, persisted through `ComicPanel.videoClipAssetIds` and `MediaAsset(kind='video')`.
