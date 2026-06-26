@@ -133,6 +133,9 @@ const config: ViteUserConfigWithTest = {
     // 導致 IndexedDB origin 改變、舊資料看似「消失」。
     port: 5173,
     strictPort: true,
+    watch: {
+      ignored: ['**/src-tauri/target/**'],
+    },
   },
   test: {
     environment: 'jsdom',

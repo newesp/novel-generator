@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-26 - Fix Tauri dev watcher on Windows
+
+- Ignored `src-tauri/target` in Vite dev-server file watching so `npm run tauri dev` does not crash on locked Rust build artifacts during compilation.
+- Installed local npm dependencies and the Rust stable MSVC toolchain required by Tauri on this machine.
+
+**Verification**
+- `npx.cmd tsc -b` passed.
+- `npm.cmd run tauri -- info` passed and detected WebView2, MSVC Build Tools, Rust, Cargo, and rustup.
+- `npm.cmd run tauri dev` compiled and launched the Tauri app; the verification process was stopped afterward to free port 5173.
+
 ## 2026-06-26 - Add English README
 
 - Added `README.en.md` as an English counterpart to the current Chinese README.
