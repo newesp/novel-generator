@@ -1,5 +1,7 @@
 # 小說產生器（Novel Generator）
 
+[English](README.en.md)
+
 > 版本：1.10（Phase 6 comic image / TTS / MP4 / SRT / motion-effect video library implemented）　更新：2026-06-25
 
 本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出、單格影片重輸出、鏡頭動態效果與章節內影片庫。

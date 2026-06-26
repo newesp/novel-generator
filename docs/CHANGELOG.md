@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-26 - Add English README
+
+- Added `README.en.md` as an English counterpart to the current Chinese README.
+- Linked the Chinese and English README files to each other.
+
+**Verification**
+- Documentation-only change; skipped `tsc -b`.
+- `git diff --check` passed.
+
 ## 2026-06-26 - Update project license
 
 - Updated project metadata to `AGPL-3.0-only`.
