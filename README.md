@@ -92,6 +92,12 @@ npm run tauri build
 
 ---
 
+## 授權
+
+本專案採用 GNU Affero General Public License v3.0 only（SPDX：`AGPL-3.0-only`）。完整授權摘要見 [LICENSE](LICENSE)。
+
+---
+
 ## 文件維護原則
 
 - `package.json` 是套件版本權威來源。

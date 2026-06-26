@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-06-26 - Update project license
+
+- Updated project metadata to `AGPL-3.0-only`.
+- Added a root `LICENSE` summary file and documented the license in `README.md`.
+- Checked tracked files and git history for an English README; only `README.md` was found.
+
+**Verification**
+- Documentation / metadata-only change; skipped `tsc -b`.
+- `git diff --check` passed.
+
 ## 2026-06-26 - Auto-mute silent panel MP4 clips
 
 - Added ffprobe audio-stream detection for uploaded panel MP4 clips and stored the result in clip metadata.
