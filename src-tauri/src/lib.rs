@@ -684,7 +684,7 @@ fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<GenerateTtsAudioResu
   let mut command = Command::new(args.edge_tts_bin);
   command
     .arg("--voice")
-    .arg(args.voice)
+    .arg(&args.voice)
     .arg("--text")
     .arg(args.text)
     .arg("--write-media")
@@ -693,7 +693,15 @@ fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<GenerateTtsAudioResu
     command.arg("--write-subtitles").arg(path);
   }
 
-  run_command(command, "edge-tts")?;
+  if let Err(err) = run_command(command, "edge-tts") {
+    if err.contains("NoAudioReceived") {
+      return Err(format!(
+        "Edge-TTS 沒有回傳音訊：音色「{}」可能已不可用或暫時無法服務，請改選其他旁白音色。",
+        args.voice,
+      ));
+    }
+    return Err(err);
+  }
   let subtitle_text = subtitle_path
     .map(|path| fs::read_to_string(&path)
       .map_err(|err| format!("Failed to read subtitle file {}: {err}", path.display())))

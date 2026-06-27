@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-27 - Remove unavailable Edge-TTS voices
+
+- Trimmed the comic video narrator voice menu to the Chinese / Cantonese Edge-TTS voices currently reported by `edge-tts --list-voices`.
+- Removed stale Edge-TTS voice ids that can fail with `NoAudioReceived`.
+- Converted Edge-TTS `NoAudioReceived` failures into a short user-facing message that asks the user to choose another narrator voice.
+
+**Verification**
+- `tsc -b` passed.
+- `vitest run src/lib/comic/video/voices.test.ts` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-voice-list`.
+
 ## 2026-06-27 - Fix comic voice preview playback
 
 - Fixed narrator voice preview playback on Tauri desktop by reading the generated preview MP3 through a safe media-file command and playing it from a Blob URL.
