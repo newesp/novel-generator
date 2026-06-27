@@ -3,14 +3,15 @@ import type { ReactNode } from 'react';
 interface ModalProps {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title: ReactNode;
+  headerExtra?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
   width?: number;
   fullScreen?: boolean;
 }
 
-export function Modal({ open, onClose, title, children, footer, width = 480, fullScreen = false }: ModalProps) {
+export function Modal({ open, onClose, title, headerExtra, children, footer, width = 480, fullScreen = false }: ModalProps) {
   if (!open) return null;
   return (
     <div
@@ -39,7 +40,19 @@ export function Modal({ open, onClose, title, children, footer, width = 480, ful
         overflowY: 'auto',
         boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
       }}>
-        <div style={{ fontSize: 17, fontWeight: 600, marginBottom: 16 }}>{title}</div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
+          fontSize: 17,
+          fontWeight: 600,
+          marginBottom: 16,
+        }}>
+          <div>{title}</div>
+          {headerExtra && <div style={{ marginLeft: 'auto' }}>{headerExtra}</div>}
+        </div>
         <div>{children}</div>
         {footer && (
           <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap' }}>

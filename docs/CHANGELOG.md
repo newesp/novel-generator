@@ -1,5 +1,21 @@
 # 開發日誌
 
+## 2026-06-27 - Backup export location and settings snapshots
+
+- Moved the preference settings export/import controls from the body card to the top-right of the Preferences modal header, above the tab list.
+- Changed manual JSON backup export to use a save/folder picker when supported, including a Tauri Windows folder picker for desktop exports.
+- Replaced the Tauri Windows export picker with a modern Save File dialog so users can navigate from This PC, drives, Desktop, Downloads, and other common locations.
+- Added standalone preference settings export/import JSON with an opt-in checkbox for including API keys; exports omit API keys by default and imports preserve existing keys when the file does not contain them.
+- Added a narrow Tauri command that writes JSON only after the user picks an export directory and validates the generated filename.
+- Added desktop-only complete project ZIP export/import using Rust-side stored ZIP entries. The archive contains `backup.json`, `manifest.json`, and media files under their media-root-relative paths; preferences and API keys are not included.
+- Restored imported ZIP media under the new computer's project media root while preserving each original relative path, then rewrote imported `mediaAssets[].path` to the new local paths.
+- Added Backup modal controls for complete ZIP export/import on Tauri desktop and left the Web version explicitly marked as TODO.
+
+**Verification**
+- `tsc -b` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-backup`.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed with the same Cargo target dir: 10 tests.
+
 ## 2026-06-26 - Fix Tauri dev watcher on Windows
 
 - Ignored `src-tauri/target` in Vite dev-server file watching so `npm run tauri dev` does not crash on locked Rust build artifacts during compilation.

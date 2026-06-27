@@ -4,7 +4,7 @@ import { Button } from './common/Button';
 import {
   exportSnapshot,
   importSnapshot,
-  downloadSnapshotAsJson,
+  saveSnapshotAsJson,
   readSnapshotFromFile,
   describeSnapshot,
 } from '../lib/backup';
@@ -17,6 +17,8 @@ import {
   pushSnapshotNow,
   pullSnapshotNow,
 } from '../lib/fs-sync';
+import { exportProjectArchive, importProjectArchive } from '../lib/project-archive';
+import { isTauri } from '../lib/platform';
 import { errorMessage } from '../lib/error-message';
 import { useProjectStore } from '../stores/projectStore';
 
@@ -40,6 +42,7 @@ export function BackupModal({ open, onClose }: Props) {
   }, [open]);
 
   const fsSupported = isFsAccessSupported();
+  const tauriDesktop = isTauri();
 
   const flash = (kind: 'ok' | 'err' | 'info', text: string) => setMsg({ kind, text });
 
@@ -49,8 +52,14 @@ export function BackupModal({ open, onClose }: Props) {
     try {
       const snap = await exportSnapshot();
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      downloadSnapshotAsJson(snap, `novel-generator-backup-${ts}.json`);
-      flash('ok', `已下載：${describeSnapshot(snap)}`);
+      const result = await saveSnapshotAsJson(snap, `novel-generator-backup-${ts}.json`);
+      if (result.status === 'cancelled') {
+        flash('info', '已取消匯出');
+      } else if (result.path) {
+        flash('ok', `已匯出至 ${result.path}：${describeSnapshot(snap)}`);
+      } else {
+        flash('ok', `已開始下載：${describeSnapshot(snap)}`);
+      }
     } catch (err) {
       flash('err', `匯出失敗：${errorMessage(err)}`);
     } finally {
@@ -80,6 +89,42 @@ export function BackupModal({ open, onClose }: Props) {
   };
 
   // ── E：連結資料夾 ──
+  const handleExportProjectArchive = async () => {
+    setBusy(true);
+    try {
+      const result = await exportProjectArchive();
+      if (!result) {
+        flash('info', '已取消匯出 ZIP');
+        return;
+      }
+      const missing = result.missingFiles.length > 0 ? `，缺少 ${result.missingFiles.length} 個素材` : '';
+      flash('ok', `已匯出完整 ZIP 至 ${result.path}：${result.snapshotDescription}，素材 ${result.mediaFileCount} 個${missing}`);
+    } catch (err) {
+      flash('err', `完整 ZIP 匯出失敗：${errorMessage(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleImportProjectArchive = async () => {
+    if (!confirm('匯入完整 ZIP 會取代目前本機資料，並把素材還原到這台電腦的專案 media 資料夾。確定繼續？')) return;
+    setBusy(true);
+    try {
+      const result = await importProjectArchive();
+      if (!result) {
+        flash('info', '已取消匯入 ZIP');
+        return;
+      }
+      await loadAllBooks();
+      const missing = result.missingFiles.length > 0 ? `，原匯出時缺少 ${result.missingFiles.length} 個素材` : '';
+      flash('ok', `完整 ZIP 匯入完成：${result.snapshotDescription}，已還原素材 ${result.mediaFileCount} 個${missing}`);
+    } catch (err) {
+      flash('err', `完整 ZIP 匯入失敗：${errorMessage(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleLink = async () => {
     setBusy(true);
     try {
@@ -171,6 +216,23 @@ export function BackupModal({ open, onClose }: Props) {
               onChange={handleImportFile}
             />
           </div>
+        </section>
+
+        <section>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>完整專案 ZIP（桌面版）</div>
+          <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px', lineHeight: 1.6 }}>
+            匯出 JSON 備份與 media 素材檔；匯入時會把素材放到這台電腦的專案 media 資料夾，並保留原本相對路徑。不包含偏好設定或 API Key。
+          </p>
+          {tauriDesktop ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Button variant="secondary" onClick={handleExportProjectArchive} disabled={busy}>匯出完整 ZIP</Button>
+              <Button variant="secondary" onClick={handleImportProjectArchive} disabled={busy}>匯入完整 ZIP</Button>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+              Web 版完整 ZIP 匯出/匯入暫列 TODO。
+            </div>
+          )}
         </section>
 
         {/* —— 同步資料夾 —— */}
