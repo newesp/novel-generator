@@ -7,11 +7,14 @@
 - Replaced the Tauri Windows export picker with a modern Save File dialog so users can navigate from This PC, drives, Desktop, Downloads, and other common locations.
 - Added standalone preference settings export/import JSON with an opt-in checkbox for including API keys; exports omit API keys by default and imports preserve existing keys when the file does not contain them.
 - Added a narrow Tauri command that writes JSON only after the user picks an export directory and validates the generated filename.
+- Added desktop-only complete project ZIP export/import using Rust-side stored ZIP entries. The archive contains `backup.json`, `manifest.json`, and media files under their media-root-relative paths; preferences and API keys are not included.
+- Restored imported ZIP media under the new computer's project media root while preserving each original relative path, then rewrote imported `mediaAssets[].path` to the new local paths.
+- Added Backup modal controls for complete ZIP export/import on Tauri desktop and left the Web version explicitly marked as TODO.
 
 **Verification**
 - `tsc -b` passed.
 - `cargo check --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-backup`.
-- `cargo test export_filename_rejects_path_components --manifest-path src-tauri/Cargo.toml` passed with the same Cargo target dir: 1 test.
+- `cargo test --manifest-path src-tauri/Cargo.toml` passed with the same Cargo target dir: 10 tests.
 
 ## 2026-06-26 - Add English README
 
