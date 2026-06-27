@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-27 - Fix comic voice preview playback
+
+- Fixed narrator voice preview playback on Tauri desktop by reading the generated preview MP3 through a safe media-file command and playing it from a Blob URL.
+- Avoided relying on Tauri local asset URLs for audio preview, which could fail with `Failed to load because no supported source was found`.
+
+**Verification**
+- `tsc -b` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-voice-preview`.
+
 ## 2026-06-27 - Add comic video voice preview
 
 - Added a small `試聽` button next to the full-chapter video narrator voice selector.

@@ -99,6 +99,12 @@ struct MediaFileExistsArgs {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ReadMediaFileBytesArgs {
+  path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OpenMediaFileArgs {
   path: String,
 }
@@ -909,6 +915,12 @@ fn media_file_exists(args: MediaFileExistsArgs) -> Result<bool, String> {
     return Ok(false);
   };
   Ok(path.is_file())
+}
+
+#[tauri::command]
+fn read_media_file_bytes(args: ReadMediaFileBytesArgs) -> Result<Vec<u8>, String> {
+  let path = safe_media_file_path(&args.path, false)?;
+  fs::read(&path).map_err(|err| format!("Failed to read {}: {err}", path.display()))
 }
 
 #[tauri::command]
@@ -1919,6 +1931,7 @@ pub fn run() {
       concat_comic_video,
       delete_media_file,
       media_file_exists,
+      read_media_file_bytes,
       open_media_file,
       reveal_media_file,
       write_text_file,

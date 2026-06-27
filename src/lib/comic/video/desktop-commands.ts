@@ -70,6 +70,10 @@ export interface MediaFileExistsArgs {
   path: string;
 }
 
+export interface ReadMediaFileBytesArgs {
+  path: string;
+}
+
 export interface OpenMediaFileArgs {
   path: string;
 }
@@ -112,6 +116,8 @@ export const desktopComicVideoCommands = {
     invoke<void>('delete_media_file', { args }),
   mediaFileExists: (args: MediaFileExistsArgs) =>
     invoke<boolean>('media_file_exists', { args }),
+  readMediaFileBytes: (args: ReadMediaFileBytesArgs) =>
+    invoke<number[]>('read_media_file_bytes', { args }),
   openMediaFile: (args: OpenMediaFileArgs) =>
     invoke<void>('open_media_file', { args }),
   revealMediaFile: (args: RevealMediaFileArgs) =>

@@ -1,4 +1,3 @@
-import { convertFileSrc } from '@tauri-apps/api/core';
 import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import type { Chapter, ChapterComic, Character, ComicPanel, ComicPanelImageVariant, ImageProviderConfig, MediaAsset, Project, SceneVisual } from '../../types';
@@ -111,6 +110,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const referencePickerMenuRef = useRef<HTMLDivElement | null>(null);
   const activeReferenceChapterRef = useRef<HTMLElement | null>(null);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voicePreviewUrlRef = useRef<string | null>(null);
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -128,11 +128,16 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   useEffect(() => () => {
     voicePreviewAudioRef.current?.pause();
     voicePreviewAudioRef.current = null;
+    if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
+    voicePreviewUrlRef.current = null;
   }, []);
 
   useEffect(() => {
     if (chapterVideoSettingsOpen) return;
     voicePreviewAudioRef.current?.pause();
+    voicePreviewAudioRef.current = null;
+    if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
+    voicePreviewUrlRef.current = null;
     setVoicePreviewing(false);
   }, [chapterVideoSettingsOpen]);
 
@@ -814,12 +819,26 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
         outputPath,
       });
 
-      const audio = new Audio(convertFileSrc(outputPath));
+      const bytes = await desktopComicVideoCommands.readMediaFileBytes({ path: outputPath });
+      if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
+      const audioUrl = URL.createObjectURL(new Blob([Uint8Array.from(bytes)], { type: 'audio/mpeg' }));
+      voicePreviewUrlRef.current = audioUrl;
+      const audio = new Audio(audioUrl);
       voicePreviewAudioRef.current = audio;
-      audio.onended = () => setVoicePreviewing(false);
+      audio.onended = () => {
+        if (voicePreviewAudioRef.current !== audio) return;
+        setVoicePreviewing(false);
+        voicePreviewAudioRef.current = null;
+        if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
+        voicePreviewUrlRef.current = null;
+      };
       audio.onerror = () => {
+        if (voicePreviewAudioRef.current !== audio) return;
         setVoicePreviewing(false);
         setVoicePreviewMessage('試聽音訊播放失敗。');
+        voicePreviewAudioRef.current = null;
+        if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
+        voicePreviewUrlRef.current = null;
       };
       await audio.play();
       setVoicePreviewMessage('正在播放試聽。');
