@@ -172,6 +172,41 @@ export function Toolbar() {
     }
   };
 
+  const prefsHeaderExtra = (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: 10,
+      flexWrap: 'wrap',
+    }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)' }}>
+        <input
+          type="checkbox"
+          checked={includeApiKeysInPrefsExport}
+          onChange={(e) => setIncludeApiKeysInPrefsExport(e.target.checked)}
+          disabled={prefsBusy}
+        />
+        <span>匯出時包含 API Key</span>
+      </label>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Button variant="secondary" onClick={handleExportSettings} disabled={prefsBusy}>
+          匯出設定
+        </Button>
+        <Button variant="secondary" onClick={handleImportSettingsClick} disabled={prefsBusy}>
+          匯入設定
+        </Button>
+        <input
+          ref={settingsImportInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: 'none' }}
+          onChange={handleImportSettingsFile}
+        />
+      </div>
+    </div>
+  );
+
   return (
     <>
       <div className="toolbar">
@@ -212,6 +247,7 @@ export function Toolbar() {
         open={showPrefsModal}
         onClose={() => setShowPrefsModal(false)}
         title="⚙️ 偏好設定"
+        headerExtra={prefsHeaderExtra}
         width={720}
         footer={
           <>
@@ -235,55 +271,18 @@ export function Toolbar() {
         </div>
 
         {/* —— LLM API —— */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 10,
-          flexWrap: 'wrap',
-          margin: '0 0 12px',
-          padding: '8px 10px',
-          border: '1px solid var(--border)',
-          borderRadius: 6,
-          background: 'var(--bg-secondary)',
-        }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
-            <input
-              type="checkbox"
-              checked={includeApiKeysInPrefsExport}
-              onChange={(e) => setIncludeApiKeysInPrefsExport(e.target.checked)}
-              disabled={prefsBusy}
-            />
-            <span>匯出時包含 API Key</span>
-          </label>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="secondary" onClick={handleExportSettings} disabled={prefsBusy}>
-              匯出設定
-            </Button>
-            <Button variant="secondary" onClick={handleImportSettingsClick} disabled={prefsBusy}>
-              匯入設定
-            </Button>
-            <input
-              ref={settingsImportInputRef}
-              type="file"
-              accept="application/json,.json"
-              style={{ display: 'none' }}
-              onChange={handleImportSettingsFile}
-            />
+        {prefsMsg && (
+          <div style={{
+            margin: '0 0 12px',
+            fontSize: 12,
+            color:
+              prefsMsg.kind === 'ok' ? '#22c55e' :
+              prefsMsg.kind === 'err' ? '#f87171' :
+              'var(--text-secondary)',
+          }}>
+            {prefsMsg.text}
           </div>
-          {prefsMsg && (
-            <div style={{
-              flexBasis: '100%',
-              fontSize: 12,
-              color:
-                prefsMsg.kind === 'ok' ? '#22c55e' :
-                prefsMsg.kind === 'err' ? '#f87171' :
-                'var(--text-secondary)',
-            }}>
-              {prefsMsg.text}
-            </div>
-          )}
-        </div>
+        )}
 
         {activePrefsTab === 'llm' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
