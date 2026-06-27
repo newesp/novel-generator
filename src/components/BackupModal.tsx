@@ -4,7 +4,7 @@ import { Button } from './common/Button';
 import {
   exportSnapshot,
   importSnapshot,
-  downloadSnapshotAsJson,
+  saveSnapshotAsJson,
   readSnapshotFromFile,
   describeSnapshot,
 } from '../lib/backup';
@@ -49,8 +49,14 @@ export function BackupModal({ open, onClose }: Props) {
     try {
       const snap = await exportSnapshot();
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      downloadSnapshotAsJson(snap, `novel-generator-backup-${ts}.json`);
-      flash('ok', `已下載：${describeSnapshot(snap)}`);
+      const result = await saveSnapshotAsJson(snap, `novel-generator-backup-${ts}.json`);
+      if (result.status === 'cancelled') {
+        flash('info', '已取消匯出');
+      } else if (result.path) {
+        flash('ok', `已匯出至 ${result.path}：${describeSnapshot(snap)}`);
+      } else {
+        flash('ok', `已開始下載：${describeSnapshot(snap)}`);
+      }
     } catch (err) {
       flash('err', `匯出失敗：${errorMessage(err)}`);
     } finally {

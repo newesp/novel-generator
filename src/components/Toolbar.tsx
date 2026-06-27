@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
 import { useSettingsStore, type InlineEditContextMode, type AIPromptPrefs } from '../stores/settingsStore';
@@ -24,6 +24,14 @@ import {
 import { renderTemplate } from '../lib/prompt-template';
 import { buildLivePromptVars } from '../lib/prompt-preview';
 import { storage } from '../lib/storage';
+import { errorMessage } from '../lib/error-message';
+import { saveJsonFile } from '../lib/file-export';
+import {
+  describeSettingsSnapshot,
+  exportSettingsSnapshot,
+  importSettingsSnapshot,
+  readSettingsSnapshotFromFile,
+} from '../lib/settings-backup';
 import {
   applyLlmProviderDefaults,
   LLM_PROVIDER_DEFAULTS,
@@ -65,9 +73,13 @@ export function Toolbar() {
   const [draftWiki, setDraftWiki] = useState(wikiPrefs);
   const [draftImage, setDraftImage] = useState(imageGenerationPrefs);
   const [draftLint, setDraftLint] = useState(lintPrefs);
+  const [includeApiKeysInPrefsExport, setIncludeApiKeysInPrefsExport] = useState(false);
+  const [prefsBusy, setPrefsBusy] = useState(false);
+  const [prefsMsg, setPrefsMsg] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
   const [activePromptKey, setActivePromptKey] = useState<keyof AIPromptPrefs>('chapterDraftsTemplate');
   const [promptViewMode, setPromptViewMode] = useState<EditPreviewMode>('edit');
   const [previewDataSource, setPreviewDataSource] = useState<PreviewDataSource>('project');
+  const settingsImportInputRef = useRef<HTMLInputElement>(null);
 
   const goHome = () => setView('home');
 
@@ -82,6 +94,8 @@ export function Toolbar() {
     setActivePromptKey('chapterDraftsTemplate');
     setPromptViewMode('edit');
     setPreviewDataSource('project');
+    setIncludeApiKeysInPrefsExport(false);
+    setPrefsMsg(null);
     setShowPrefsModal(true);
   };
 
@@ -93,6 +107,69 @@ export function Toolbar() {
     setImageGenerationPrefs(draftImage);
     setLintPrefs(draftLint);
     setShowPrefsModal(false);
+  };
+
+  const refreshPrefsDraftsFromStore = () => {
+    const next = useSettingsStore.getState();
+    setDraftLlm(next.llmConfig);
+    setDraftInline(next.inlineEdit);
+    setDraftPrompts(next.aiPrompts);
+    setDraftWiki(next.wikiPrefs);
+    setDraftImage(next.imageGenerationPrefs);
+    setDraftLint(next.lintPrefs);
+  };
+
+  const handleExportSettings = async () => {
+    setPrefsBusy(true);
+    setPrefsMsg(null);
+    try {
+      const snapshot = exportSettingsSnapshot(includeApiKeysInPrefsExport);
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const result = await saveJsonFile({
+        filename: `novel-generator-settings-${ts}.json`,
+        content: JSON.stringify(snapshot, null, 2),
+        pickerTitle: '選擇偏好設定匯出資料夾',
+      });
+      if (result.status === 'cancelled') {
+        setPrefsMsg({ kind: 'info', text: '已取消匯出設定' });
+      } else if (result.path) {
+        setPrefsMsg({ kind: 'ok', text: `已匯出設定至 ${result.path}` });
+      } else {
+        setPrefsMsg({ kind: 'ok', text: '已開始下載偏好設定 JSON' });
+      }
+    } catch (err) {
+      setPrefsMsg({ kind: 'err', text: `匯出設定失敗：${errorMessage(err)}` });
+    } finally {
+      setPrefsBusy(false);
+    }
+  };
+
+  const handleImportSettingsClick = () => settingsImportInputRef.current?.click();
+
+  const handleImportSettingsFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    setPrefsBusy(true);
+    setPrefsMsg(null);
+    try {
+      const snapshot = await readSettingsSnapshotFromFile(file);
+      const description = describeSettingsSnapshot(snapshot);
+      const apiKeyNotice = snapshot.includesApiKeys
+        ? '\n\n此檔案包含 API Key，匯入後會覆蓋目前對應的 API Key。'
+        : '\n\n此檔案不包含 API Key，匯入時會保留目前已設定的 API Key。';
+      if (!confirm(`匯入偏好設定會覆蓋目前所有偏好設定草稿。\n\n${description}${apiKeyNotice}\n\n確定要繼續？`)) {
+        setPrefsMsg({ kind: 'info', text: '已取消匯入設定' });
+        return;
+      }
+      importSettingsSnapshot(snapshot);
+      refreshPrefsDraftsFromStore();
+      setPrefsMsg({ kind: 'ok', text: `已匯入設定：${description}` });
+    } catch (err) {
+      setPrefsMsg({ kind: 'err', text: `匯入設定失敗：${errorMessage(err)}` });
+    } finally {
+      setPrefsBusy(false);
+    }
   };
 
   return (
@@ -158,6 +235,56 @@ export function Toolbar() {
         </div>
 
         {/* —— LLM API —— */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          flexWrap: 'wrap',
+          margin: '0 0 12px',
+          padding: '8px 10px',
+          border: '1px solid var(--border)',
+          borderRadius: 6,
+          background: 'var(--bg-secondary)',
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+            <input
+              type="checkbox"
+              checked={includeApiKeysInPrefsExport}
+              onChange={(e) => setIncludeApiKeysInPrefsExport(e.target.checked)}
+              disabled={prefsBusy}
+            />
+            <span>匯出時包含 API Key</span>
+          </label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button variant="secondary" onClick={handleExportSettings} disabled={prefsBusy}>
+              匯出設定
+            </Button>
+            <Button variant="secondary" onClick={handleImportSettingsClick} disabled={prefsBusy}>
+              匯入設定
+            </Button>
+            <input
+              ref={settingsImportInputRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onChange={handleImportSettingsFile}
+            />
+          </div>
+          {prefsMsg && (
+            <div style={{
+              flexBasis: '100%',
+              fontSize: 12,
+              color:
+                prefsMsg.kind === 'ok' ? '#22c55e' :
+                prefsMsg.kind === 'err' ? '#f87171' :
+                'var(--text-secondary)',
+            }}>
+              {prefsMsg.text}
+            </div>
+          )}
+        </div>
+
         {activePrefsTab === 'llm' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div>

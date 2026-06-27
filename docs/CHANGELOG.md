@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-27 - Backup export location and settings snapshots
+
+- Changed manual JSON backup export to use a save/folder picker when supported, including a Tauri Windows folder picker for desktop exports.
+- Added standalone preference settings export/import JSON with an opt-in checkbox for including API keys; exports omit API keys by default and imports preserve existing keys when the file does not contain them.
+- Added a narrow Tauri command that writes JSON only after the user picks an export directory and validates the generated filename.
+
+**Verification**
+- `tsc -b` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-backup`.
+- `cargo test export_filename_rejects_path_components --manifest-path src-tauri/Cargo.toml` passed with the same Cargo target dir: 1 test.
+
 ## 2026-06-26 - Add English README
 
 - Added `README.en.md` as an English counterpart to the current Chinese README.

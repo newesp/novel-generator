@@ -126,6 +126,14 @@ struct ResolveMediaRootArgs {
   chapter_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportJsonFileArgs {
+  filename: String,
+  content: String,
+  title: String,
+}
+
 fn project_output_root() -> Result<PathBuf, String> {
   let cwd = std::env::current_dir().map_err(|err| format!("Failed to resolve current dir: {err}"))?;
   if cwd.file_name().is_some_and(|name| name == "src-tauri") {
@@ -911,6 +919,94 @@ fn resolve_media_root(
   Ok(dir.to_string_lossy().to_string())
 }
 
+fn safe_export_filename(filename: &str) -> Result<&str, String> {
+  if filename.trim().is_empty() || filename != filename.trim() {
+    return Err("Export filename must be non-empty and must not have surrounding whitespace".to_string());
+  }
+  if filename
+    .chars()
+    .any(|ch| ch.is_control() || matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
+  {
+    return Err(format!("Invalid export filename: {filename}"));
+  }
+
+  let path = Path::new(filename);
+  let mut components = path.components();
+  if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
+    return Err(format!("Invalid export filename: {filename}"));
+  }
+  if path
+    .extension()
+    .and_then(|ext| ext.to_str())
+    .map_or(true, |ext| !ext.eq_ignore_ascii_case("json"))
+  {
+    return Err("Export filename must end with .json".to_string());
+  }
+
+  Ok(filename)
+}
+
+fn powershell_single_quoted(value: &str) -> String {
+  value
+    .chars()
+    .map(|ch| if matches!(ch, '\r' | '\n') { ' ' } else { ch })
+    .collect::<String>()
+    .replace('\'', "''")
+}
+
+#[cfg(target_os = "windows")]
+fn pick_export_directory(title: &str) -> Result<Option<PathBuf>, String> {
+  let title = powershell_single_quoted(title);
+  let script = format!(
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;\n\
+     Add-Type -AssemblyName System.Windows.Forms;\n\
+     $dialog = New-Object System.Windows.Forms.FolderBrowserDialog;\n\
+     $dialog.Description = '{title}';\n\
+     $dialog.ShowNewFolderButton = $true;\n\
+     if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{ [Console]::WriteLine($dialog.SelectedPath) }}"
+  );
+
+  let output = Command::new("powershell.exe")
+    .arg("-NoProfile")
+    .arg("-STA")
+    .arg("-Command")
+    .arg(script)
+    .output()
+    .map_err(|err| format!("Failed to open folder picker: {err}"))?;
+
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    return Err(format!("Folder picker failed: {stderr}"));
+  }
+
+  let selected = String::from_utf8_lossy(&output.stdout).trim().to_string();
+  if selected.is_empty() {
+    return Ok(None);
+  }
+
+  let dir = PathBuf::from(selected);
+  if !dir.is_dir() {
+    return Err(format!("Selected path is not a directory: {}", dir.display()));
+  }
+  Ok(Some(dir))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn pick_export_directory(_title: &str) -> Result<Option<PathBuf>, String> {
+  Err("Folder picker is currently supported only on Windows desktop builds".to_string())
+}
+
+#[tauri::command]
+fn export_json_file_to_picked_directory(args: ExportJsonFileArgs) -> Result<Option<String>, String> {
+  let filename = safe_export_filename(&args.filename)?;
+  let Some(dir) = pick_export_directory(&args.title)? else {
+    return Ok(None);
+  };
+  let path = dir.join(filename);
+  fs::write(&path, args.content).map_err(|err| format!("Failed to write {}: {err}", path.display()))?;
+  Ok(Some(path.to_string_lossy().to_string()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let migrations = vec![
@@ -974,6 +1070,7 @@ pub fn run() {
       write_text_file,
       write_binary_file,
       resolve_media_root,
+      export_json_file_to_picked_directory,
     ])
     .plugin(
       tauri_plugin_sql::Builder::default()
@@ -1023,6 +1120,13 @@ mod tests {
 
     fs::remove_file(&path).unwrap();
     assert_eq!(exists, Ok(true));
+  }
+
+  #[test]
+  fn export_filename_rejects_path_components() {
+    assert!(safe_export_filename(r"..\backup.json").is_err());
+    assert!(safe_export_filename("backup.txt").is_err());
+    assert_eq!(safe_export_filename("novel-generator-backup.json"), Ok("novel-generator-backup.json"));
   }
 
   #[test]

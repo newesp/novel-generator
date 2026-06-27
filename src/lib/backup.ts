@@ -7,6 +7,7 @@
  * 不包含 settings（LLM API key）— 避免明文洩漏；使用者偏好（含 prompts）走 Zustand persist，
  * 不在書本資料的備份範圍內。
  */
+import { downloadTextFile, saveJsonFile, type SaveTextFileResult } from './file-export';
 import { storage } from './storage';
 import type {
   Project, Chapter, ChapterVersion, Character,
@@ -97,15 +98,18 @@ function upgradeChapterV1ToV2(c: Chapter): Chapter {
 
 /** 觸發瀏覽器下載 JSON 檔（手動匯出用） */
 export function downloadSnapshotAsJson(snapshot: BackupSnapshot, filename = BACKUP_FILENAME): void {
-  const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadTextFile(JSON.stringify(snapshot, null, 2), filename, 'application/json');
+}
+
+export function saveSnapshotAsJson(
+  snapshot: BackupSnapshot,
+  filename = BACKUP_FILENAME,
+): Promise<SaveTextFileResult> {
+  return saveJsonFile({
+    filename,
+    content: JSON.stringify(snapshot, null, 2),
+    pickerTitle: '選擇備份匯出資料夾',
+  });
 }
 
 /** 從 File 物件讀取並 parse 成 snapshot */
