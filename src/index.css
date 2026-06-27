@@ -1339,13 +1339,13 @@ input:focus, select:focus, textarea:focus {
 }
 .comic-panel-video-clip-settings {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
-  gap: 8px;
-  align-items: end;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  align-items: stretch;
 }
 .comic-panel-video-clip-audio-controls {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 .comic-panel-video-clip-audio-controls .comic-checkbox-row {
@@ -1353,9 +1353,14 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  width: fit-content;
+  max-width: 100%;
 }
 .comic-panel-video-clip-audio-controls .comic-checkbox-row input {
   flex: 0 0 auto;
+}
+.comic-panel-video-clip-audio-controls .comic-checkbox-row span {
+  white-space: nowrap;
 }
 .comic-panel-video-clip-volume {
   display: grid;
@@ -1364,8 +1369,8 @@ input:focus, select:focus, textarea:focus {
 }
 .comic-panel-video-clip-volume > div {
   display: grid;
-  grid-template-columns: minmax(80px, 1fr) 58px auto;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 64px auto;
+  gap: 8px;
   align-items: center;
 }
 .comic-panel-video-clip-settings label {
@@ -2152,9 +2157,6 @@ input:focus, select:focus, textarea:focus {
 }
 @media (max-width: 1100px) {
   .comic-video-settings-grid {
-    grid-template-columns: 1fr;
-  }
-  .comic-panel-video-clip-settings {
     grid-template-columns: 1fr;
   }
   .comic-video-library-item {

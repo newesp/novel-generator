@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-06-27 - Stack MP4 clip audio controls
+
+- Changed the MP4 clip settings layout to three stable rows: keep source audio, source audio volume, and long-narration behavior.
+- Prevented the `保留影片原聲` label from wrapping into vertical text in narrow comic panel settings.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-27 - Add MP4 source audio volume control
 
 - Added a per-panel MP4 source audio volume control for clip-based comic video segments.
