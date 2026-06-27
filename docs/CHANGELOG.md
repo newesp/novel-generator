@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-27 - Add comic video voice preview
+
+- Added a small `試聽` button next to the full-chapter video narrator voice selector.
+- The preview generates a short Edge-TTS sample for the currently selected voice and plays it in-place without creating a persisted media asset.
+- Added playback state and compact row styling so the voice selector remains stable in the settings modal.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-27 - Backup export location and settings snapshots
 
 - Moved the preference settings export/import controls from the body card to the top-right of the Preferences modal header, above the tab list.

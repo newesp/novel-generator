@@ -1,3 +1,4 @@
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
 import type { Chapter, ChapterComic, Character, ComicPanel, ComicPanelImageVariant, ImageProviderConfig, MediaAsset, Project, SceneVisual } from '../../types';
@@ -90,8 +91,10 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const [dragTargetPanelId, setDragTargetPanelId] = useState<string | null>(null);
   const [downloadNotice, setDownloadNotice] = useState<{ key: string; label: string } | null>(null);
   const [videoVoice, setVideoVoice] = useState('zh-TW-HsiaoChenNeural');
+  const [voicePreviewing, setVoicePreviewing] = useState(false);
   const [panelPauseMs, setPanelPauseMs] = useState(400);
   const [videoMessage, setVideoMessage] = useState('');
+  const [voicePreviewMessage, setVoicePreviewMessage] = useState('');
   const [panelVideoMessage, setPanelVideoMessage] = useState('');
   const [videoAsset, setVideoAsset] = useState<MediaAsset | null>(null);
   const [panelVideoAsset, setPanelVideoAsset] = useState<MediaAsset | null>(null);
@@ -107,6 +110,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const restoredWorkspaceProjectRef = useRef<string | null>(null);
   const referencePickerMenuRef = useRef<HTMLDivElement | null>(null);
   const activeReferenceChapterRef = useRef<HTMLElement | null>(null);
+  const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const provider = useMemo(() => getImageProvider(imageGenerationPrefs.providerId), [imageGenerationPrefs.providerId]);
   const panelWriteQueue = useMemo(
@@ -120,6 +124,17 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     : imageGenerationPrefs.providerId === 'google-gemini-image'
     ? 'Google Gemini Image'
     : 'OpenAI-compatible Image';
+
+  useEffect(() => () => {
+    voicePreviewAudioRef.current?.pause();
+    voicePreviewAudioRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (chapterVideoSettingsOpen) return;
+    voicePreviewAudioRef.current?.pause();
+    setVoicePreviewing(false);
+  }, [chapterVideoSettingsOpen]);
 
   const providerConfig = (): ImageProviderConfig => (
     imageGenerationPrefs.providerId === 'openai-compatible-image'
@@ -777,6 +792,41 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
   const renderSelectedPanelVideo = async () => {
     if (!selectedPanel) return;
     await renderPanelVideo(selectedPanel);
+  };
+
+  const previewVideoVoice = async () => {
+    if (!comic) return;
+
+    try {
+      setVoicePreviewing(true);
+      setVoicePreviewMessage('正在產生試聽音訊...');
+      voicePreviewAudioRef.current?.pause();
+
+      const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
+        projectId: comic.projectId,
+        chapterId: comic.chapterId,
+      });
+      const outputPath = `${mediaRoot}/voice-preview-${safeFileSegment(videoVoice)}.mp3`;
+      await desktopComicVideoCommands.generateTtsAudio({
+        edgeTtsBin,
+        text: '這是一段旁白音色試聽，用來確認目前選擇的聲音。',
+        voice: videoVoice,
+        outputPath,
+      });
+
+      const audio = new Audio(convertFileSrc(outputPath));
+      voicePreviewAudioRef.current = audio;
+      audio.onended = () => setVoicePreviewing(false);
+      audio.onerror = () => {
+        setVoicePreviewing(false);
+        setVoicePreviewMessage('試聽音訊播放失敗。');
+      };
+      await audio.play();
+      setVoicePreviewMessage('正在播放試聽。');
+    } catch (error) {
+      setVoicePreviewing(false);
+      setVoicePreviewMessage(errorMessage(error));
+    }
   };
 
   const renderVideo = async () => {
@@ -2315,15 +2365,33 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               <div className="comic-video-settings-grid">
                 <label>
                   <FieldLabel label="旁白音色" help="MVP 使用單一 Edge-TTS 音色輸出旁白。" />
-                  <select value={videoVoice} onChange={(event) => setVideoVoice(event.target.value)}>
-                    {COMIC_VIDEO_VOICE_GROUPS.map((group) => (
-                      <optgroup key={group.label} label={group.label}>
-                        {group.voices.map((voice) => (
-                          <option key={voice.id} value={voice.id}>{voice.label}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                  <div className="comic-video-voice-row">
+                    <select
+                      value={videoVoice}
+                      onChange={(event) => {
+                        setVideoVoice(event.target.value);
+                        setVoicePreviewMessage('');
+                      }}
+                    >
+                      {COMIC_VIDEO_VOICE_GROUPS.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.voices.map((voice) => (
+                            <option key={voice.id} value={voice.id}>{voice.label}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="comic-video-voice-preview"
+                      onClick={() => void previewVideoVoice()}
+                      disabled={busy || voicePreviewing || !comic}
+                      title="試聽所選旁白音色"
+                    >
+                      {voicePreviewing ? '播放中' : '試聽'}
+                    </button>
+                  </div>
+                  {voicePreviewMessage && <small>{voicePreviewMessage}</small>}
                 </label>
                 <label>
                   <FieldLabel label="格間停頓" help="加在每格音訊後的靜音長度，用於分鏡之間的呼吸感。" />
@@ -2528,6 +2596,10 @@ function readFileAsDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file'));
     reader.readAsDataURL(file);
   });
+}
+
+function safeFileSegment(value: string): string {
+  return value.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '') || 'voice';
 }
 
 function readFileAsBytes(file: File): Promise<number[]> {

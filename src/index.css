@@ -1999,6 +1999,33 @@ input:focus, select:focus, textarea:focus {
 .comic-video-number-field input {
   min-width: 0;
 }
+.comic-video-voice-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+.comic-video-voice-preview {
+  min-width: 56px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.comic-video-voice-preview:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.comic-video-voice-preview:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .comic-video-library-content {
   width: min(900px, 96vw);
 }
