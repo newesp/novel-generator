@@ -203,6 +203,7 @@ describe('renderComicVideo', () => {
         assetId: undefined,
         videoClipAssetIds: ['clip-1'],
         videoClipAudioMode: 'keep',
+        videoClipAudioVolume: 45,
         videoClipLoopMode: 'loop',
         narration: '這一格保留影片聲音並重播影片。',
       } as Partial<ComicPanel>),
@@ -224,12 +225,14 @@ describe('renderComicVideo', () => {
 
     expect(commands.renderVideoClipSegment).toHaveBeenCalledWith(expect.objectContaining({
       preserveClipAudio: true,
+      clipAudioVolume: 0.45,
       loopVideo: true,
       durationMs: 12400,
       visualDurationMs: 9000,
     }));
     expect(JSON.parse(result.generationParamsJson ?? '{}')).toMatchObject({
       videoClipAudioMode: 'keep',
+      videoClipAudioVolume: 45,
       videoClipLoopMode: 'loop',
     });
   });

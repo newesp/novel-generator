@@ -50,6 +50,7 @@ export interface RenderVideoClipSegmentArgs {
   trailingSilenceMs: number;
   visualDurationMs: number;
   preserveClipAudio: boolean;
+  clipAudioVolume: number;
   loopVideo: boolean;
   width: number;
   height: number;

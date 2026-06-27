@@ -9,6 +9,7 @@ import {
   panelVideoClipFileName,
   panelVideoClipHasAudio,
   normalizePanelVideoClipAudioMode,
+  normalizePanelVideoClipAudioVolume,
   normalizePanelVideoClipLoopMode,
 } from './video-clips';
 
@@ -68,6 +69,10 @@ describe('panel video clips', () => {
     expect(normalizePanelVideoClipAudioMode('keep')).toBe('keep');
     expect(normalizePanelVideoClipAudioMode(undefined)).toBe('mute');
     expect(normalizePanelVideoClipAudioMode('bad')).toBe('mute');
+    expect(normalizePanelVideoClipAudioVolume(65.4)).toBe(65);
+    expect(normalizePanelVideoClipAudioVolume(-1)).toBe(0);
+    expect(normalizePanelVideoClipAudioVolume(250)).toBe(200);
+    expect(normalizePanelVideoClipAudioVolume(undefined)).toBe(100);
     expect(normalizePanelVideoClipLoopMode('loop')).toBe('loop');
     expect(normalizePanelVideoClipLoopMode(undefined)).toBe('freeze');
     expect(normalizePanelVideoClipLoopMode('bad')).toBe('freeze');

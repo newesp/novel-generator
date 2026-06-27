@@ -49,6 +49,7 @@ describe('comic sqlite row helpers', () => {
       durationSec: 0,
       videoClipAssetIds: ['clip-1', 'clip-2'],
       videoClipAudioMode: 'keep',
+      videoClipAudioVolume: 65,
       videoClipLoopMode: 'loop',
       status: 'draft',
       ttsStatus: 'ready',

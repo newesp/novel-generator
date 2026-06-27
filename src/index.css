@@ -1343,6 +1343,31 @@ input:focus, select:focus, textarea:focus {
   gap: 8px;
   align-items: end;
 }
+.comic-panel-video-clip-audio-controls {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.comic-panel-video-clip-audio-controls .comic-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.comic-panel-video-clip-audio-controls .comic-checkbox-row input {
+  flex: 0 0 auto;
+}
+.comic-panel-video-clip-volume {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.comic-panel-video-clip-volume > div {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) 58px auto;
+  gap: 6px;
+  align-items: center;
+}
 .comic-panel-video-clip-settings label {
   min-width: 0;
 }
@@ -1355,6 +1380,23 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg-secondary);
   color: var(--text-primary);
   font: inherit;
+}
+.comic-panel-video-clip-volume input[type="range"] {
+  min-width: 0;
+}
+.comic-panel-video-clip-volume input[type="number"] {
+  width: 58px;
+  min-height: 34px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font: inherit;
+}
+.comic-panel-video-clip-volume span {
+  color: var(--text-secondary);
+  font-size: 12px;
 }
 .comic-panel-video-clip-settings select option {
   color: #111827;
@@ -2110,6 +2152,9 @@ input:focus, select:focus, textarea:focus {
 }
 @media (max-width: 1100px) {
   .comic-video-settings-grid {
+    grid-template-columns: 1fr;
+  }
+  .comic-panel-video-clip-settings {
     grid-template-columns: 1fr;
   }
   .comic-video-library-item {

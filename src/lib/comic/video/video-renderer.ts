@@ -8,6 +8,7 @@ import type { TTSGenerationResult, TTSProvider } from './tts-provider';
 import { normalizeComicPanelMotionEffect } from './motion-effects';
 import {
   normalizePanelVideoClipAudioMode,
+  normalizePanelVideoClipAudioVolume,
   normalizePanelVideoClipLoopMode,
   panelHasVideoClips,
   panelVideoClipAssetIds,
@@ -207,6 +208,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
   });
   const motionEffect = normalizeComicPanelMotionEffect(panel.motionEffect);
   const videoClipAudioMode = normalizePanelVideoClipAudioMode(panel.videoClipAudioMode);
+  const videoClipAudioVolume = normalizePanelVideoClipAudioVolume(panel.videoClipAudioVolume);
   const videoClipLoopMode = normalizePanelVideoClipLoopMode(panel.videoClipLoopMode);
   const visualDurationMs = videoClipAssets.reduce((total, item) => total + item.durationMs, 0);
   const canPreserveClipAudio = videoClipAssets.length > 0 && videoClipAssets.every((item) => item.hasAudio);
@@ -230,6 +232,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
       trailingSilenceMs,
       visualDurationMs,
       preserveClipAudio: effectiveVideoClipAudioMode === 'keep',
+      clipAudioVolume: videoClipAudioVolume / 100,
       loopVideo: videoClipLoopMode === 'loop',
       width: settings.width,
       height: settings.height,
@@ -275,6 +278,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
       motionEffect,
       videoClipAudioMode,
       effectiveVideoClipAudioMode,
+      videoClipAudioVolume,
       videoClipLoopMode,
       narrationHash: hashNarration(panel.narration),
       audioDurationMs: timing.audioDurationMs,
@@ -391,6 +395,8 @@ async function findReusableSegment(
     (expectedVisualSource === 'video_clips'
       && metadata.videoClipAudioMode !== normalizePanelVideoClipAudioMode(panel.videoClipAudioMode)) ||
     (expectedVisualSource === 'video_clips'
+      && metadata.videoClipAudioVolume !== normalizePanelVideoClipAudioVolume(panel.videoClipAudioVolume)) ||
+    (expectedVisualSource === 'video_clips'
       && metadata.videoClipLoopMode !== normalizePanelVideoClipLoopMode(panel.videoClipLoopMode)) ||
     (expectedVisualSource === 'image'
       && normalizeComicPanelMotionEffect(metadata.motionEffect) !== normalizeComicPanelMotionEffect(panel.motionEffect)) ||
@@ -419,6 +425,7 @@ interface SegmentMetadata {
   motionEffect?: string;
   videoClipAudioMode?: string;
   effectiveVideoClipAudioMode?: string;
+  videoClipAudioVolume?: number;
   videoClipLoopMode?: string;
   narrationHash: string;
   visualDurationMs?: number;

@@ -71,6 +71,7 @@ struct RenderVideoClipSegmentArgs {
   trailing_silence_ms: u64,
   visual_duration_ms: u64,
   preserve_clip_audio: bool,
+  clip_audio_volume: f64,
   loop_video: bool,
   width: u32,
   height: u32,
@@ -599,6 +600,7 @@ fn build_video_clip_filter(
   duration_ms: u64,
   visual_duration_ms: u64,
   preserve_clip_audio: bool,
+  clip_audio_volume: f64,
   loop_video: bool,
 ) -> String {
   let effective_fps = fps.max(1);
@@ -641,6 +643,7 @@ fn build_video_clip_filter(
   if !preserve_clip_audio {
     return append_indexed_audio_filter(parts.join(";"), clip_count, clip_count + 1);
   }
+  let safe_clip_audio_volume = clip_audio_volume.clamp(0.0, 2.0);
 
   for index in 0..clip_count {
     parts.push(format!(
@@ -667,8 +670,11 @@ fn build_video_clip_filter(
     )
   };
   parts.push(clip_audio_output);
+  parts.push(format!(
+    "[clipaudio]volume={safe_clip_audio_volume:.3}[clipaudio_adjusted]"
+  ));
   parts.push(narration_audio_filter(clip_count, clip_count + 1, "narration"));
-  parts.push("[clipaudio][narration]amix=inputs=2:duration=longest:dropout_transition=0[a]".to_string());
+  parts.push("[clipaudio_adjusted][narration]amix=inputs=2:duration=longest:dropout_transition=0[a]".to_string());
   parts.join(";")
 }
 
@@ -846,6 +852,7 @@ fn render_comic_video_clip_segment(args: RenderVideoClipSegmentArgs) -> Result<(
     args.duration_ms,
     args.visual_duration_ms,
     args.preserve_clip_audio,
+    args.clip_audio_volume,
     args.loop_video,
   );
 
@@ -2115,7 +2122,7 @@ mod tests {
 
   #[test]
   fn clip_video_filter_loops_video_when_requested() {
-    let filter = build_video_clip_filter(1, 1920, 1080, 30, 12400, 9000, false, true);
+    let filter = build_video_clip_filter(1, 1920, 1080, 30, 12400, 9000, false, 1.0, true);
 
     assert!(filter.contains("loop=loop=-1:size=270:start=0"));
     assert!(filter.contains("trim=duration=12.400"));
@@ -2124,11 +2131,12 @@ mod tests {
 
   #[test]
   fn clip_video_filter_mixes_original_clip_audio_when_requested() {
-    let filter = build_video_clip_filter(2, 1920, 1080, 30, 18400, 18000, true, false);
+    let filter = build_video_clip_filter(2, 1920, 1080, 30, 18400, 18000, true, 0.35, false);
 
     assert!(filter.contains("[0:a]aresample=44100"));
     assert!(filter.contains("[1:a]aresample=44100"));
     assert!(filter.contains("[a0][a1]concat=n=2:v=0:a=1[clipa]"));
-    assert!(filter.contains("[clipaudio][narration]amix=inputs=2"));
+    assert!(filter.contains("[clipaudio]volume=0.350[clipaudio_adjusted]"));
+    assert!(filter.contains("[clipaudio_adjusted][narration]amix=inputs=2"));
   }
 }

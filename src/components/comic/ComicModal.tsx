@@ -34,6 +34,7 @@ import { COMIC_VIDEO_MOTION_EFFECTS, normalizeComicPanelMotionEffect } from '../
 import {
   buildPanelVideoClipMetadata,
   normalizePanelVideoClipAudioMode,
+  normalizePanelVideoClipAudioVolume,
   normalizePanelVideoClipLoopMode,
   panelHasVideoClips,
   panelVideoClipAssetIds,
@@ -631,6 +632,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       durationSec: selectedPanel?.durationSec ?? 0,
       motionEffect: selectedPanel?.motionEffect ?? 'none',
       videoClipAudioMode: normalizePanelVideoClipAudioMode(selectedPanel?.videoClipAudioMode),
+      videoClipAudioVolume: normalizePanelVideoClipAudioVolume(selectedPanel?.videoClipAudioVolume),
       videoClipLoopMode: normalizePanelVideoClipLoopMode(selectedPanel?.videoClipLoopMode),
       status: 'draft',
       createdAt: now,
@@ -1651,7 +1653,10 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     }
   };
 
-  const updatePanelVideoClipSettings = async (panel: ComicPanel, patch: Pick<Partial<ComicPanel>, 'videoClipAudioMode' | 'videoClipLoopMode'>) => {
+  const updatePanelVideoClipSettings = async (
+    panel: ComicPanel,
+    patch: Pick<Partial<ComicPanel>, 'videoClipAudioMode' | 'videoClipAudioVolume' | 'videoClipLoopMode'>,
+  ) => {
     try {
       if (panel.segmentAssetId) await cleanupMediaAssetFile(panel.segmentAssetId);
       await updatePanel(panel, {
@@ -1946,17 +1951,56 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                         <small>沒有 MP4 素材時，單格輸出會使用目前圖片。</small>
                       )}
                       <div className="comic-panel-video-clip-settings">
-                        <label className="comic-checkbox-row">
-                          <input
-                            type="checkbox"
-                            checked={normalizePanelVideoClipAudioMode(selectedPanel.videoClipAudioMode) === 'keep'}
-                            disabled={busy || !selectedPanelVideoClips.length}
-                            onChange={(event) => void updatePanelVideoClipSettings(selectedPanel, {
-                              videoClipAudioMode: event.target.checked ? 'keep' : 'mute',
-                            })}
-                          />
-                          <span>保留影片原聲</span>
-                        </label>
+                        <div className="comic-panel-video-clip-audio-controls">
+                          <label className="comic-checkbox-row">
+                            <input
+                              type="checkbox"
+                              checked={normalizePanelVideoClipAudioMode(selectedPanel.videoClipAudioMode) === 'keep'}
+                              disabled={busy || !selectedPanelVideoClips.length}
+                              onChange={(event) => void updatePanelVideoClipSettings(selectedPanel, {
+                                videoClipAudioMode: event.target.checked ? 'keep' : 'mute',
+                              })}
+                            />
+                            <span>保留影片原聲</span>
+                          </label>
+                          <label className="comic-panel-video-clip-volume">
+                            <FieldLabel label="原聲音量" help="調整 MP4 素材原聲混入旁白時的音量；100% 代表原始音量。" />
+                            <div>
+                              <input
+                                type="range"
+                                min={0}
+                                max={200}
+                                step={5}
+                                value={normalizePanelVideoClipAudioVolume(selectedPanel.videoClipAudioVolume)}
+                                disabled={
+                                  busy
+                                  || !selectedPanelVideoClips.length
+                                  || normalizePanelVideoClipAudioMode(selectedPanel.videoClipAudioMode) !== 'keep'
+                                }
+                                onChange={(event) => void updatePanelVideoClipSettings(selectedPanel, {
+                                  videoClipAudioVolume: normalizePanelVideoClipAudioVolume(Number(event.target.value)),
+                                })}
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                max={200}
+                                step={5}
+                                value={normalizePanelVideoClipAudioVolume(selectedPanel.videoClipAudioVolume)}
+                                disabled={
+                                  busy
+                                  || !selectedPanelVideoClips.length
+                                  || normalizePanelVideoClipAudioMode(selectedPanel.videoClipAudioMode) !== 'keep'
+                                }
+                                onChange={(event) => void updatePanelVideoClipSettings(selectedPanel, {
+                                  videoClipAudioVolume: normalizePanelVideoClipAudioVolume(Number(event.target.value)),
+                                })}
+                                aria-label="原聲音量百分比"
+                              />
+                              <span>%</span>
+                            </div>
+                          </label>
+                        </div>
                         <label>
                           <FieldLabel label="旁白較長時" help="MP4 素材比旁白短時，選擇停在最後一幀或重播素材畫面。" />
                           <select

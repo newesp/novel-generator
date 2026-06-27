@@ -200,6 +200,7 @@ export interface ComicPanel {
   /** Uploaded MP4 clips used as this panel's visual source for TTS video segments. */
   videoClipAssetIds?: string[];
   videoClipAudioMode?: ComicPanelVideoClipAudioMode;
+  videoClipAudioVolume?: number;
   videoClipLoopMode?: ComicPanelVideoClipLoopMode;
   seed?: number;
   assetId?: string;

@@ -32,6 +32,12 @@ export function normalizePanelVideoClipAudioMode(
   return value === 'keep' ? 'keep' : 'mute';
 }
 
+export function normalizePanelVideoClipAudioVolume(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(200, Math.max(0, Math.round(value)))
+    : 100;
+}
+
 export function normalizePanelVideoClipLoopMode(
   value: unknown,
 ): ComicPanelVideoClipLoopMode {

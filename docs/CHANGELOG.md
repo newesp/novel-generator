@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-06-27 - Add MP4 source audio volume control
+
+- Added a per-panel MP4 source audio volume control for clip-based comic video segments.
+- Mixed preserved MP4 source audio through ffmpeg `volume` before combining it with narration.
+- Kept the `保留影片原聲` checkbox and label on one row and added responsive layout rules for the MP4 clip settings block.
+
+**Verification**
+- `tsc -b` passed.
+- `vitest run src/lib/comic/video/video-clips.test.ts src/lib/comic/video/video-renderer.test.ts src/lib/comic/storage-types.test.ts` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-clip-volume`.
+
 ## 2026-06-27 - Remove unavailable Edge-TTS voices
 
 - Trimmed the comic video narrator voice menu to the Chinese / Cantonese Edge-TTS voices currently reported by `edge-tts --list-voices`.
