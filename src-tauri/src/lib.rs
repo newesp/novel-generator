@@ -955,15 +955,22 @@ fn powershell_single_quoted(value: &str) -> String {
 }
 
 #[cfg(target_os = "windows")]
-fn pick_export_directory(title: &str) -> Result<Option<PathBuf>, String> {
+fn pick_export_file_path(title: &str, filename: &str) -> Result<Option<PathBuf>, String> {
   let title = powershell_single_quoted(title);
+  let filename = powershell_single_quoted(filename);
   let script = format!(
     "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8;\n\
      Add-Type -AssemblyName System.Windows.Forms;\n\
-     $dialog = New-Object System.Windows.Forms.FolderBrowserDialog;\n\
-     $dialog.Description = '{title}';\n\
-     $dialog.ShowNewFolderButton = $true;\n\
-     if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{ [Console]::WriteLine($dialog.SelectedPath) }}"
+     $dialog = New-Object System.Windows.Forms.SaveFileDialog;\n\
+     $dialog.Title = '{title}';\n\
+     $dialog.FileName = '{filename}';\n\
+     $dialog.Filter = 'JSON (*.json)|*.json';\n\
+     $dialog.DefaultExt = 'json';\n\
+     $dialog.AddExtension = $true;\n\
+     $dialog.OverwritePrompt = $true;\n\
+     $desktop = [Environment]::GetFolderPath('Desktop');\n\
+     if ($desktop) {{ $dialog.InitialDirectory = $desktop; }}\n\
+     if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {{ [Console]::WriteLine($dialog.FileName) }}"
   );
 
   let output = Command::new("powershell.exe")
@@ -972,11 +979,11 @@ fn pick_export_directory(title: &str) -> Result<Option<PathBuf>, String> {
     .arg("-Command")
     .arg(script)
     .output()
-    .map_err(|err| format!("Failed to open folder picker: {err}"))?;
+    .map_err(|err| format!("Failed to open save dialog: {err}"))?;
 
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    return Err(format!("Folder picker failed: {stderr}"));
+    return Err(format!("Save dialog failed: {stderr}"));
   }
 
   let selected = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -984,25 +991,27 @@ fn pick_export_directory(title: &str) -> Result<Option<PathBuf>, String> {
     return Ok(None);
   }
 
-  let dir = PathBuf::from(selected);
-  if !dir.is_dir() {
-    return Err(format!("Selected path is not a directory: {}", dir.display()));
-  }
-  Ok(Some(dir))
+  Ok(Some(PathBuf::from(selected)))
 }
 
 #[cfg(not(target_os = "windows"))]
-fn pick_export_directory(_title: &str) -> Result<Option<PathBuf>, String> {
-  Err("Folder picker is currently supported only on Windows desktop builds".to_string())
+fn pick_export_file_path(_title: &str, _filename: &str) -> Result<Option<PathBuf>, String> {
+  Err("Save dialog is currently supported only on Windows desktop builds".to_string())
 }
 
 #[tauri::command]
 fn export_json_file_to_picked_directory(args: ExportJsonFileArgs) -> Result<Option<String>, String> {
   let filename = safe_export_filename(&args.filename)?;
-  let Some(dir) = pick_export_directory(&args.title)? else {
+  let Some(path) = pick_export_file_path(&args.title, filename)? else {
     return Ok(None);
   };
-  let path = dir.join(filename);
+  if path
+    .extension()
+    .and_then(|ext| ext.to_str())
+    .map_or(true, |ext| !ext.eq_ignore_ascii_case("json"))
+  {
+    return Err("Selected export file must end with .json".to_string());
+  }
   fs::write(&path, args.content).map_err(|err| format!("Failed to write {}: {err}", path.display()))?;
   Ok(Some(path.to_string_lossy().to_string()))
 }

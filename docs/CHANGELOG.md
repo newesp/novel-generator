@@ -3,6 +3,7 @@
 ## 2026-06-27 - Backup export location and settings snapshots
 
 - Changed manual JSON backup export to use a save/folder picker when supported, including a Tauri Windows folder picker for desktop exports.
+- Replaced the Tauri Windows export picker with a modern Save File dialog so users can navigate from This PC, drives, Desktop, Downloads, and other common locations.
 - Added standalone preference settings export/import JSON with an opt-in checkbox for including API keys; exports omit API keys by default and imports preserve existing keys when the file does not contain them.
 - Added a narrow Tauri command that writes JSON only after the user picks an export directory and validates the generated filename.
 
