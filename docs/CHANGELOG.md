@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-27 - Comic image save location picker
+
+- Changed ComicModal panel-image and preview-image download actions to open a save-location picker instead of immediately downloading to the browser default folder.
+- Added shared Blob file saving support for Web `showSaveFilePicker` and a Tauri desktop image save dialog, with direct download kept only as the unsupported-browser fallback.
+
+**Verification**
+- `tsc -b` passed.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-comic-image-save`.
+
 ## 2026-06-27 - Stack MP4 clip audio controls
 
 - Changed the MP4 clip settings layout to three stable rows: keep source audio, source audio volume, and long-narration behavior.

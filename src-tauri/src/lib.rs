@@ -147,6 +147,16 @@ struct ExportJsonFileArgs {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ExportBinaryFileArgs {
+  filename: String,
+  bytes: Vec<u8>,
+  title: String,
+  filter: String,
+  default_extension: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ExportProjectArchiveArgs {
   filename: String,
   snapshot_json: String,
@@ -1032,7 +1042,10 @@ fn resolve_media_root(
   Ok(dir.to_string_lossy().to_string())
 }
 
-fn safe_export_filename_with_extension<'a>(filename: &'a str, extension: &str) -> Result<&'a str, String> {
+fn safe_export_filename_with_allowed_extensions<'a>(
+  filename: &'a str,
+  extensions: &[&str],
+) -> Result<&'a str, String> {
   if filename.trim().is_empty() || filename != filename.trim() {
     return Err("Export filename must be non-empty and must not have surrounding whitespace".to_string());
   }
@@ -1048,15 +1061,33 @@ fn safe_export_filename_with_extension<'a>(filename: &'a str, extension: &str) -
   if !matches!(components.next(), Some(Component::Normal(_))) || components.next().is_some() {
     return Err(format!("Invalid export filename: {filename}"));
   }
-  if path
+  let selected_extension = path
     .extension()
     .and_then(|ext| ext.to_str())
-    .map_or(true, |ext| !ext.eq_ignore_ascii_case(extension))
-  {
-    return Err(format!("Export filename must end with .{extension}"));
+    .ok_or_else(|| {
+      format!(
+        "Export filename must end with one of: {}",
+        extensions.iter().map(|ext| format!(".{ext}")).collect::<Vec<_>>().join(", ")
+      )
+    })?;
+  if !extensions.iter().any(|extension| selected_extension.eq_ignore_ascii_case(extension)) {
+    return Err(format!(
+      "Export filename must end with one of: {}",
+      extensions.iter().map(|ext| format!(".{ext}")).collect::<Vec<_>>().join(", ")
+    ));
   }
 
   Ok(filename)
+}
+
+fn safe_export_filename_with_extension<'a>(filename: &'a str, extension: &str) -> Result<&'a str, String> {
+  safe_export_filename_with_allowed_extensions(filename, &[extension]).map_err(|err| {
+    if err.starts_with("Export filename must end with one of:") {
+      format!("Export filename must end with .{extension}")
+    } else {
+      err
+    }
+  })
 }
 
 fn safe_export_filename(filename: &str) -> Result<&str, String> {
@@ -1065,6 +1096,10 @@ fn safe_export_filename(filename: &str) -> Result<&str, String> {
 
 fn safe_archive_filename(filename: &str) -> Result<&str, String> {
   safe_export_filename_with_extension(filename, "zip")
+}
+
+fn safe_image_filename(filename: &str) -> Result<&str, String> {
+  safe_export_filename_with_allowed_extensions(filename, &["png", "jpg", "jpeg", "webp", "gif"])
 }
 
 fn write_u16<W: Write>(writer: &mut W, value: u16) -> Result<(), String> {
@@ -1815,6 +1850,30 @@ fn export_json_file_to_picked_directory(args: ExportJsonFileArgs) -> Result<Opti
 }
 
 #[tauri::command]
+fn export_binary_file_to_picked_file(args: ExportBinaryFileArgs) -> Result<Option<String>, String> {
+  let filename = safe_image_filename(&args.filename)?;
+  let default_extension = args.default_extension.trim_start_matches('.').to_ascii_lowercase();
+  if !matches!(default_extension.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif") {
+    return Err(format!("Unsupported image extension: {}", args.default_extension));
+  }
+  if args.filter.trim().is_empty() || args.filter.chars().any(char::is_control) {
+    return Err("Invalid save dialog filter".to_string());
+  }
+  let Some(path) = pick_save_file_path(&args.title, filename, &args.filter, &default_extension)? else {
+    return Ok(None);
+  };
+  if path
+    .extension()
+    .and_then(|ext| ext.to_str())
+    .map_or(true, |ext| !ext.eq_ignore_ascii_case(&default_extension))
+  {
+    return Err(format!("Selected image file must end with .{default_extension}"));
+  }
+  fs::write(&path, args.bytes).map_err(|err| format!("Failed to write {}: {err}", path.display()))?;
+  Ok(Some(path.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
 fn export_project_archive_to_picked_file(
   args: ExportProjectArchiveArgs,
 ) -> Result<Option<ExportProjectArchiveResult>, String> {
@@ -1953,6 +2012,7 @@ pub fn run() {
       write_binary_file,
       resolve_media_root,
       export_json_file_to_picked_directory,
+      export_binary_file_to_picked_file,
       export_project_archive_to_picked_file,
       import_project_archive_from_picked_file,
     ])

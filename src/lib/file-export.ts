@@ -6,16 +6,35 @@ export interface SaveTextFileResult {
   path?: string;
 }
 
+export type SaveFileResult = SaveTextFileResult;
+
 interface SaveJsonFileOptions {
   filename: string;
   content: string;
   pickerTitle: string;
 }
 
+interface SaveBlobFileOptions {
+  filename: string;
+  blob: Blob;
+  pickerTitle: string;
+  description: string;
+  accept: Record<string, string[]>;
+  defaultExtension: string;
+}
+
 interface TauriExportJsonFileArgs {
   filename: string;
   content: string;
   title: string;
+}
+
+interface TauriExportBinaryFileArgs {
+  filename: string;
+  bytes: number[];
+  title: string;
+  filter: string;
+  defaultExtension: string;
 }
 
 type SaveFilePicker = (options: {
@@ -67,8 +86,53 @@ export async function saveJsonFile(options: SaveJsonFileOptions): Promise<SaveTe
   return { status: 'downloaded' };
 }
 
+export async function saveBlobFile(options: SaveBlobFileOptions): Promise<SaveFileResult> {
+  if (isTauri()) {
+    const bytes = Array.from(new Uint8Array(await options.blob.arrayBuffer()));
+    const extensions = Object.values(options.accept).flat();
+    const filterExtensions = extensions.length ? extensions.join(';') : `.${options.defaultExtension}`;
+    const path = await invoke<string | null>('export_binary_file_to_picked_file', {
+      args: {
+        filename: options.filename,
+        bytes,
+        title: options.pickerTitle,
+        filter: `${options.description} (${filterExtensions})|${filterExtensions}`,
+        defaultExtension: options.defaultExtension,
+      } satisfies TauriExportBinaryFileArgs,
+    });
+    return path ? { status: 'saved', path } : { status: 'cancelled' };
+  }
+
+  const savePicker = (globalThis as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+  if (savePicker) {
+    try {
+      const fileHandle = await savePicker({
+        suggestedName: options.filename,
+        types: [{
+          description: options.description,
+          accept: options.accept,
+        }],
+      });
+      const writable = await fileHandle.createWritable();
+      await writable.write(options.blob);
+      await writable.close();
+      return { status: 'saved' };
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return { status: 'cancelled' };
+      throw err;
+    }
+  }
+
+  downloadBlobFile(options.blob, options.filename);
+  return { status: 'downloaded' };
+}
+
 export function downloadTextFile(content: string, filename: string, type: string): void {
   const blob = new Blob([content], { type });
+  downloadBlobFile(blob, filename);
+}
+
+function downloadBlobFile(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

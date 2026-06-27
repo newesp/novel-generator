@@ -45,6 +45,7 @@ import {
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
+import { saveBlobFile } from '../../lib/file-export';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
@@ -174,9 +175,39 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     persistComicWorkspaceState({ panelId });
   }, [persistComicWorkspaceState]);
 
-  const markDownloadStarted = (key: string, fileName: string) => {
-    setDownloadNotice({ key, label: `已開始下載 ${fileName}` });
-    setMessage(`已開始下載 ${fileName}。若瀏覽器詢問，請確認儲存位置。`);
+  const saveComicImage = async (asset: MediaAsset, key: string, baseName: string) => {
+    if (!asset.url) return;
+    let fileName = `${baseName}.${imageExtension(asset)}`;
+    setDownloadNotice({ key, label: '準備圖片...' });
+    setMessage('正在準備圖片檔案...');
+    try {
+      const blob = await imageAssetBlob(asset);
+      const extension = imageExtension(asset, blob.type);
+      fileName = `${baseName}.${extension}`;
+      setDownloadNotice({ key, label: `選擇儲存位置：${fileName}` });
+      setMessage(`請選擇「${fileName}」的儲存位置。`);
+      const result = await saveBlobFile({
+        filename: fileName,
+        blob,
+        pickerTitle: '選擇漫畫圖片儲存位置',
+        description: imagePickerDescription(extension),
+        accept: { [blob.type || asset.mimeType || 'image/png']: [`.${extension}`] },
+        defaultExtension: extension,
+      });
+      if (result.status === 'cancelled') {
+        setDownloadNotice({ key, label: `已取消儲存：${fileName}` });
+        setMessage(`已取消儲存 ${fileName}。`);
+      } else if (result.path) {
+        setDownloadNotice({ key, label: `已儲存：${fileName}` });
+        setMessage(`已儲存圖片到 ${result.path}`);
+      } else {
+        setDownloadNotice({ key, label: result.status === 'downloaded' ? `已開始下載：${fileName}` : `已儲存：${fileName}` });
+        setMessage(result.status === 'downloaded' ? `瀏覽器已開始下載 ${fileName}。` : `已儲存圖片 ${fileName}。`);
+      }
+    } catch (err) {
+      setDownloadNotice({ key, label: `儲存失敗：${fileName}` });
+      setMessage(`儲存圖片失敗：${errorMessage(err)}`);
+    }
   };
 
   useEffect(() => {
@@ -1867,14 +1898,13 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
                         </button>
                         <figcaption>
                           <button type="button" onClick={() => setPreviewAsset(selectedPanelAsset)}>預覽</button>
-                          <a
-                            href={selectedPanelAsset.url}
-                            download={`comic-panel-${selectedPanel.order}.png`}
+                          <button
+                            type="button"
                             className={downloadNotice?.key === `panel-${selectedPanel.id}` ? 'download-started' : ''}
-                            onClick={() => markDownloadStarted(`panel-${selectedPanel.id}`, `comic-panel-${selectedPanel.order}.png`)}
+                            onClick={() => void saveComicImage(selectedPanelAsset, `panel-${selectedPanel.id}`, `comic-panel-${selectedPanel.order}`)}
                           >
-                            {downloadNotice?.key === `panel-${selectedPanel.id}` ? '已開始下載' : '下載'}
-                          </a>
+                            {downloadNotice?.key === `panel-${selectedPanel.id}` ? '處理中' : '下載'}
+                          </button>
                           <button type="button" onClick={() => void navigator.clipboard?.writeText(selectedPanelAsset.url ?? '')}>
                             複製 URL
                           </button>
@@ -2555,14 +2585,13 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               <button type="button" className="comic-image-preview-close" onClick={() => setPreviewAsset(null)}>×</button>
               <img src={previewAsset.url} alt="漫畫圖片預覽" />
               <div className="comic-image-preview-actions">
-                <a
-                  href={previewAsset.url}
-                  download="comic-panel.png"
+                <button
+                  type="button"
                   className={downloadNotice?.key === `preview-${previewAsset.id}` ? 'download-started' : ''}
-                  onClick={() => markDownloadStarted(`preview-${previewAsset.id}`, 'comic-panel.png')}
+                  onClick={() => void saveComicImage(previewAsset, `preview-${previewAsset.id}`, 'comic-panel')}
                 >
-                  {downloadNotice?.key === `preview-${previewAsset.id}` ? '已開始下載' : '下載圖片'}
-                </a>
+                  {downloadNotice?.key === `preview-${previewAsset.id}` ? '處理中' : '下載圖片'}
+                </button>
                 <button type="button" onClick={() => void navigator.clipboard?.writeText(previewAsset.url ?? '')}>
                   複製 URL
                 </button>
@@ -2611,6 +2640,44 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
       </div>
     </Modal>
   );
+}
+
+async function imageAssetBlob(asset: MediaAsset): Promise<Blob> {
+  if (!asset.url) throw new Error('圖片沒有可儲存的 URL');
+  const response = await fetch(asset.url);
+  if (!response.ok) throw new Error(`讀取圖片失敗：HTTP ${response.status}`);
+  const blob = await response.blob();
+  const mimeType = imageMimeType(asset, blob.type);
+  return blob.type === mimeType ? blob : new Blob([await blob.arrayBuffer()], { type: mimeType });
+}
+
+function imageExtension(asset: MediaAsset, fallback?: string): string {
+  const mimeType = imageMimeType(asset, fallback);
+  if (mimeType === 'image/jpeg') return 'jpg';
+  if (mimeType === 'image/webp') return 'webp';
+  if (mimeType === 'image/gif') return 'gif';
+  return 'png';
+}
+
+function imageMimeType(asset: MediaAsset, fallback?: string): string {
+  const candidates = [
+    asset.mimeType,
+    fallback,
+    dataUrlMimeType(asset.url),
+  ];
+  return candidates.find((item) => item?.startsWith('image/') && item !== 'image/*') ?? 'image/png';
+}
+
+function dataUrlMimeType(url?: string): string | undefined {
+  if (!url?.startsWith('data:')) return undefined;
+  return /^data:([^;,]+)/.exec(url)?.[1];
+}
+
+function imagePickerDescription(extension: string): string {
+  if (extension === 'jpg') return 'JPEG image';
+  if (extension === 'webp') return 'WebP image';
+  if (extension === 'gif') return 'GIF image';
+  return 'PNG image';
 }
 
 function referenceBindingPrompt(bindings: ComicReferenceBinding[]): string {

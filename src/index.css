@@ -2336,7 +2336,9 @@ input:focus, select:focus, textarea:focus {
   color: var(--text-primary);
   border-color: var(--accent);
 }
+.comic-panel-image button.download-started,
 .comic-panel-image a.download-started,
+.comic-image-preview-actions button.download-started,
 .comic-image-preview-actions a.download-started {
   border-color: rgba(34, 197, 94, 0.65);
   background: rgba(34, 197, 94, 0.14);
