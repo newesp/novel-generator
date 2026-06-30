@@ -19,7 +19,7 @@ import {
 type Commands = Pick<
   typeof desktopComicVideoCommands,
   'concatVideo' | 'deleteMediaFile' | 'renderSegment' | 'writeBinaryFile'
-> & Partial<Pick<typeof desktopComicVideoCommands, 'renderVideoClipSegment'>>;
+> & Partial<Pick<typeof desktopComicVideoCommands, 'mediaFileExists' | 'renderVideoClipSegment'>>;
 type VideoRendererStorage = {
   mediaAssets: Pick<StorageAdapter['mediaAssets'], 'add' | 'delete' | 'get'>;
   comicPanels: Pick<StorageAdapter['comicPanels'], 'update'>;
@@ -80,7 +80,7 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
     if (!panel.assetId && !panelHasVideoClips(panel)) throw new Error(`Panel #${panel.order} has no visual asset.`);
     if (!panel.narration.trim()) throw new Error(`Panel #${panel.order} has empty narration.`);
 
-    const reusableSegment = await findReusableSegment(panel, storage, settings);
+    const reusableSegment = await findReusableSegment(panel, storage, commands, settings);
     if (reusableSegment?.path) {
       const durationMs = segmentDurationMs(reusableSegment);
       segmentPaths.push(reusableSegment.path);
@@ -172,7 +172,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
   if (!panel.assetId && !videoClipIds.length) throw new Error(`Panel #${panel.order} has no visual asset.`);
   if (!panel.narration.trim()) throw new Error(`Panel #${panel.order} has empty narration.`);
 
-  const reusableSegment = input.forceRender ? null : await findReusableSegment(panel, storage, settings);
+  const reusableSegment = input.forceRender ? null : await findReusableSegment(panel, storage, commands, settings);
   if (reusableSegment) return reusableSegment;
 
   const paddedOrder = String(panel.order).padStart(3, '0');
@@ -189,7 +189,7 @@ export async function renderComicPanelSegment(input: RenderComicPanelSegmentInpu
 
   await deleteAssetFileAndRecord(panel.segmentAssetId, storage, commands);
 
-  const reusableTts = await findReusableTts(panel, storage, settings);
+  const reusableTts = await findReusableTts(panel, storage, commands, settings);
   const tts = reusableTts ?? await generatePanelTts({
     comic,
     panel,
@@ -350,10 +350,16 @@ async function generatePanelTts({
   return tts;
 }
 
-async function findReusableTts(panel: ComicPanel, storage: VideoRendererStorage, settings: ComicVideoSettings) {
+async function findReusableTts(
+  panel: ComicPanel,
+  storage: VideoRendererStorage,
+  commands: Commands,
+  settings: ComicVideoSettings,
+) {
   if (!panel.ttsAssetId || panel.ttsVoice !== settings.voice || !panel.ttsDurationMs) return null;
   const asset = await storage.mediaAssets.get(panel.ttsAssetId);
   if (!asset?.path) return null;
+  if (!await mediaFileExists(asset.path, commands)) return null;
   const subtitleText = ttsAssetSubtitleText(asset);
   if (!subtitleText) return null;
   return {
@@ -368,11 +374,13 @@ async function findReusableTts(panel: ComicPanel, storage: VideoRendererStorage,
 async function findReusableSegment(
   panel: ComicPanel,
   storage: VideoRendererStorage,
+  commands: Commands,
   settings: ComicVideoSettings,
 ): Promise<MediaAsset | null> {
   if (!panel.segmentAssetId) return null;
   const asset = await storage.mediaAssets.get(panel.segmentAssetId);
   if (!asset?.path || !asset.generationParamsJson) return null;
+  if (!await mediaFileExists(asset.path, commands)) return null;
   let metadata: Partial<SegmentMetadata>;
   try {
     metadata = JSON.parse(asset.generationParamsJson) as Partial<SegmentMetadata>;
@@ -406,6 +414,15 @@ async function findReusableSegment(
   }
   if (!Array.isArray(metadata.subtitleCues) || !metadata.subtitleCues.length) return null;
   return asset;
+}
+
+async function mediaFileExists(path: string, commands: Commands): Promise<boolean> {
+  if (!commands.mediaFileExists) return true;
+  try {
+    return await commands.mediaFileExists({ path });
+  } catch {
+    return false;
+  }
 }
 
 interface SegmentMetadata {

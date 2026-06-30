@@ -677,6 +677,128 @@ describe('renderComicVideo', () => {
     expect(result.id).not.toBe('segment-1');
   });
 
+  it('regenerates reusable TTS when the audio file is missing before rendering video clips', async () => {
+    const assets: Record<string, MediaAsset> = {
+      'clip-1': {
+        id: 'clip-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'video',
+        path: 'C:/media/clip-1.mp4',
+        mimeType: 'video/mp4',
+        generationParamsJson: JSON.stringify({ durationMs: 9000, hasAudio: true }),
+        createdAt: 1,
+      },
+      'tts-1': {
+        id: 'tts-1',
+        projectId: 'book',
+        chapterId: 'chapter',
+        kind: 'tts_audio',
+        path: 'C:/media/missing-audio.mp3',
+        mimeType: 'audio/mpeg',
+        generationParamsJson: JSON.stringify({
+          subtitleText: [
+            '1',
+            '00:00:00,000 --> 00:00:02,200',
+            'Old narration',
+            '',
+          ].join('\n'),
+        }),
+        createdAt: 2,
+      },
+    };
+    const storage = {
+      mediaAssets: {
+        get: vi.fn(async (id: string) => assets[id]),
+        add: vi.fn(async (asset: MediaAsset) => {
+          assets[asset.id] = asset;
+        }),
+        delete: vi.fn(async () => undefined),
+      },
+      comicPanels: {
+        update: vi.fn(async () => undefined),
+      },
+      comics: {
+        update: vi.fn(async () => undefined),
+      },
+    };
+    const ttsProvider = {
+      id: 'edge-tts',
+      label: 'Edge-TTS',
+      generate: vi.fn(async (request: { outputPath: string }) => ({
+        asset: {
+          id: 'tts-2',
+          projectId: 'book',
+          chapterId: 'chapter',
+          kind: 'tts_audio' as const,
+          path: request.outputPath,
+          mimeType: 'audio/mpeg',
+          generationParamsJson: JSON.stringify({
+            subtitleText: [
+              '1',
+              '00:00:00,000 --> 00:00:02,200',
+              'Fresh narration',
+              '',
+            ].join('\n'),
+          }),
+          createdAt: 4,
+        },
+        durationMs: 2200,
+        providerId: 'edge-tts',
+        voice: 'zh-TW-HsiaoChenNeural',
+        subtitleText: [
+          '1',
+          '00:00:00,000 --> 00:00:02,200',
+          'Fresh narration',
+          '',
+        ].join('\n'),
+      })),
+    };
+    const commands = {
+      renderSegment: vi.fn(async () => undefined),
+      renderVideoClipSegment: vi.fn(async () => undefined),
+      concatVideo: vi.fn(async () => undefined),
+      deleteMediaFile: vi.fn(async () => undefined),
+      writeBinaryFile: vi.fn(async () => undefined),
+      mediaFileExists: vi.fn(async ({ path }: { path: string }) => !path.endsWith('missing-audio.mp3')),
+    };
+
+    await renderComicPanelSegment({
+      comic,
+      panel: panel({
+        id: 'panel-1',
+        assetId: undefined,
+        videoClipAssetIds: ['clip-1'],
+        narration: 'Fresh narration',
+        ttsAssetId: 'tts-1',
+        ttsDurationMs: 2200,
+        ttsVoice: 'zh-TW-HsiaoChenNeural',
+      } as Partial<ComicPanel>),
+      storage,
+      ttsProvider,
+      commands,
+      settings: {
+        mediaRoot: 'C:/media/book/chapter/comic-video',
+        edgeTtsBin: 'edge-tts',
+        ffmpegBin: 'ffmpeg',
+        ffprobeBin: 'ffprobe',
+        voice: 'zh-TW-HsiaoChenNeural',
+        panelPauseMs: 400,
+        width: 1920,
+        height: 1080,
+        fps: 30,
+      },
+    });
+
+    expect(commands.mediaFileExists).toHaveBeenCalledWith({ path: 'C:/media/missing-audio.mp3' });
+    expect(commands.deleteMediaFile).toHaveBeenCalledWith({ path: 'C:/media/missing-audio.mp3' });
+    expect(storage.mediaAssets.delete).toHaveBeenCalledWith('tts-1');
+    expect(ttsProvider.generate).toHaveBeenCalledTimes(1);
+    expect(commands.renderVideoClipSegment).toHaveBeenCalledWith(expect.objectContaining({
+      audioPath: 'C:/media/book/chapter/comic-video/audio/panel-001.mp3',
+    }));
+  });
+
   it('reuses matching panel segments when rendering the chapter video', async () => {
     const reusableSegment: MediaAsset = {
       id: 'segment-1',

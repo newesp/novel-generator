@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-06-30 - Regenerate missing comic TTS audio
+
+- Checked reusable comic TTS audio and panel segment files against the desktop media filesystem before reusing them.
+- Regenerated missing panel narration MP3 files before rendering uploaded MP4 clip segments, avoiding ffmpeg failures from stale `MediaAsset.path` records.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-27 - Comic image save location picker
 
 - Changed ComicModal panel-image and preview-image download actions to open a save-location picker instead of immediately downloading to the browser default folder.
