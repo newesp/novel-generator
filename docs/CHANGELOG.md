@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-06-30 - Tighten comic sidebar headings and checkbox spacing
+
+- Matched ComicModal sidebar headings such as `角色`, `參考圖`, `場景`, and `場景視覺設定` to the compact 12px label scale.
+- Fixed the `保留影片原聲` checkbox spacing by overriding the full-width panel input rule and using a fixed 14px checkbox column with a 4px label gap.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-30 - Normalize comic panel MP4 settings typography
 
 - Normalized ComicModal MP4 clip setting labels and controls to a compact 12px label scale.

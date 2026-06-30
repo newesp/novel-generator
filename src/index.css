@@ -1445,11 +1445,12 @@ input:focus, select:focus, textarea:focus {
   min-width: 0;
 }
 .comic-panel-video-clip-audio-controls .comic-checkbox-row {
-  display: inline-flex;
+  display: inline-grid;
+  grid-template-columns: 14px max-content;
   align-items: center;
   justify-content: flex-start;
   justify-self: start;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
   width: fit-content;
   max-width: 100%;
@@ -1582,8 +1583,10 @@ input:focus, select:focus, textarea:focus {
 }
 .comic-side-section h3 {
   margin: 0;
-  color: var(--text-primary);
-  font-size: 15px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 .comic-empty-state {
   min-height: 320px;
@@ -2005,6 +2008,14 @@ input:focus, select:focus, textarea:focus {
   padding: 8px;
   font: inherit;
   font-size: 12px;
+}
+.comic-panel-card .comic-panel-video-clip-audio-controls .comic-checkbox-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  padding: 0;
+  flex: 0 0 14px;
+  justify-self: start;
 }
 .comic-panel-card select option {
   color: #111827;
