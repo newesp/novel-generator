@@ -1433,22 +1433,33 @@ input:focus, select:focus, textarea:focus {
   grid-template-columns: 1fr;
   gap: 10px;
   align-items: stretch;
+  justify-items: stretch;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
 }
 .comic-panel-video-clip-audio-controls {
   display: grid;
   gap: 10px;
+  justify-items: start;
   min-width: 0;
 }
 .comic-panel-video-clip-audio-controls .comic-checkbox-row {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
+  justify-self: start;
   gap: 8px;
   min-width: 0;
   width: fit-content;
   max-width: 100%;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
 }
 .comic-panel-video-clip-audio-controls .comic-checkbox-row input {
   flex: 0 0 auto;
+  margin: 0;
 }
 .comic-panel-video-clip-audio-controls .comic-checkbox-row span {
   white-space: nowrap;
@@ -1456,6 +1467,7 @@ input:focus, select:focus, textarea:focus {
 .comic-panel-video-clip-volume {
   display: grid;
   gap: 6px;
+  justify-self: stretch;
   min-width: 0;
 }
 .comic-panel-video-clip-volume > div {
@@ -1466,6 +1478,9 @@ input:focus, select:focus, textarea:focus {
 }
 .comic-panel-video-clip-settings label {
   min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
 }
 .comic-panel-video-clip-settings select {
   width: 100%;
@@ -1476,6 +1491,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg-secondary);
   color: var(--text-primary);
   font: inherit;
+  font-size: 12px;
 }
 .comic-panel-video-clip-volume input[type="range"] {
   min-width: 0;
@@ -1489,6 +1505,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--bg-secondary);
   color: var(--text-primary);
   font: inherit;
+  font-size: 12px;
 }
 .comic-panel-video-clip-volume span {
   color: var(--text-secondary);
@@ -1875,6 +1892,10 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   gap: 5px;
   min-width: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 .comic-help {
   width: 16px;

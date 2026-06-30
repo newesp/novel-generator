@@ -1,5 +1,14 @@
 # 開發日誌
 
+## 2026-06-30 - Normalize comic panel MP4 settings typography
+
+- Normalized ComicModal MP4 clip setting labels and controls to a compact 12px label scale.
+- Left-aligned the `保留影片原聲` checkbox row so the checkbox and label stay close together.
+- Fixed shared comic `FieldLabel` typography so labels such as `手動秒數` match smaller section headers like `旁白腳本`.
+
+**Verification**
+- `tsc -b` passed.
+
 ## 2026-06-30 - Re-encode chapter MP4 audio concat
 
 - Changed full-chapter comic MP4 export to re-encode concatenated segments as H.264/AAC instead of stream-copying them.
