@@ -81,14 +81,18 @@ input:focus, select:focus, textarea:focus {
   padding: 0 16px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
 }
+.toolbar > button { flex: 0 0 auto; }
 .toolbar-logo {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
   margin-right: 8px;
+  flex: 0 0 auto;
 }
-.toolbar-spacer { flex: 1; }
+.toolbar-spacer { flex: 1 0 8px; }
 
 /* ====== Layout ====== */
 .layout {
@@ -651,6 +655,93 @@ input:focus, select:focus, textarea:focus {
   border-top: 1px solid var(--border);
   background: var(--bg-secondary);
   flex: 0 0 auto;
+}
+
+/* ====== Book Export ====== */
+.book-export-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.book-export-summary {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+}
+.book-export-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+.book-export-summary span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.book-export-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.book-export-option {
+  min-width: 0;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+}
+.book-export-option:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+.book-export-option-label {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+.book-export-option span:last-child {
+  font-size: 12px;
+  line-height: 1.55;
+}
+.book-export-message {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.book-export-message.ok {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+.book-export-message.err {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+.book-export-message.info {
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .book-export-options {
+    grid-template-columns: 1fr;
+  }
+  .book-export-option {
+    min-height: 86px;
+  }
 }
 
 /* ====== Version Panel ====== */

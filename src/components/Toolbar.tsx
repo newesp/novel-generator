@@ -44,6 +44,7 @@ import { EditPreviewTabs, type EditPreviewMode } from './common/EditPreviewTabs'
 import { MarkdownView } from './common/MarkdownView';
 import { BackupModal } from './BackupModal';
 import { GlobalSearchModal } from './search/GlobalSearchModal';
+import { BookExportModal } from './export/BookExportModal';
 import type { LLMProvider } from '../types';
 
 /** 偏好設定 Modal 的分頁 */
@@ -57,7 +58,7 @@ const PREFS_TABS: { key: PrefsTab; label: string }[] = [
 ];
 
 export function Toolbar() {
-  const { project } = useProjectStore();
+  const { project, chapters } = useProjectStore();
   const { view, setView } = useUIStore();
   const {
     llmConfig, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs,
@@ -65,6 +66,7 @@ export function Toolbar() {
   } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [activePrefsTab, setActivePrefsTab] = useState<PrefsTab>('llm');
   const [draftLlm, setDraftLlm] = useState(llmConfig);
@@ -236,12 +238,23 @@ export function Toolbar() {
         {view === 'editor' && project && storage.search && (
           <Button variant="secondary" onClick={() => setShowSearchModal(true)}>🔎 全文搜尋</Button>
         )}
+        {view === 'editor' && project && (
+          <Button variant="secondary" onClick={() => setShowExportModal(true)}>📤 匯出</Button>
+        )}
         <Button variant="secondary" onClick={() => setShowBackupModal(true)}>💾 備份</Button>
         <Button variant="secondary" onClick={openPrefs}>⚙️ 偏好設定</Button>
       </div>
 
       <BackupModal open={showBackupModal} onClose={() => setShowBackupModal(false)} />
       <GlobalSearchModal open={showSearchModal} onClose={() => setShowSearchModal(false)} />
+      {project && (
+        <BookExportModal
+          open={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          project={project}
+          chapters={chapters}
+        />
+      )}
 
       <Modal
         open={showPrefsModal}

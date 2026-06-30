@@ -8,6 +8,19 @@
 **Verification**
 - `tsc -b` passed.
 
+## 2026-06-30 - Phase 3 book export
+
+- Added full-book export for `.txt`, `.html`, and `.epub` from the editor toolbar.
+- Added a shared book export builder with sorted chapters, HTML escaping, and a dependency-free EPUB 3 ZIP package.
+- Added a book export modal that uses the existing Web save picker / Tauri native save dialog flow and reports saved, downloaded, cancelled, and failure states.
+- Updated the output format spec for the implemented export pipeline.
+
+**Verification**
+- `npx.cmd vitest run src/lib/book-export.test.ts` passed: 1 file, 5 tests.
+- `npx.cmd tsc -b` passed.
+- `npm.cmd run dev -- --host 127.0.0.1` reached Vite ready state in foreground.
+- Browser visual QA was not completed because background Vite processes launched from this PowerShell environment exited before port 5173 stayed reachable; layout was checked by code review against the toolbar flex row and export modal responsive grid.
+
 ## 2026-06-27 - Comic image save location picker
 
 - Changed ComicModal panel-image and preview-image download actions to open a save-location picker instead of immediately downloading to the browser default folder.
