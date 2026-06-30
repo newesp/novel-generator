@@ -3,11 +3,13 @@
 ## 2026-06-30 - Re-encode chapter MP4 audio concat
 
 - Changed full-chapter comic MP4 export to re-encode concatenated segments as H.264/AAC instead of stream-copying them.
-- Regenerated audio timestamps during concat so chapter exports keep narration after the first reused single-panel segment.
+- Changed chapter concatenation to pass each panel segment as an independent ffmpeg input and join them with the concat filter, avoiding AAC decoder failures at MP4 segment boundaries.
 
 **Verification**
 - `tsc -b` passed.
+- `npx.cmd vitest run src/lib/comic/video/video-renderer.test.ts` passed.
 - `cargo check --manifest-path src-tauri/Cargo.toml` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-concat-audio`.
+- `cargo test --manifest-path src-tauri/Cargo.toml chapter_concat_filter_decodes_each_segment_independently` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-concat-audio`.
 
 ## 2026-06-30 - Regenerate missing comic TTS audio
 

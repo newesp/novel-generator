@@ -60,7 +60,11 @@ export interface RenderVideoClipSegmentArgs {
 export interface ConcatVideoArgs {
   ffmpegBin: string;
   concatListPath: string;
+  segmentPaths: string[];
   outputPath: string;
+  width: number;
+  height: number;
+  fps: number;
 }
 
 export interface DeleteMediaFileArgs {

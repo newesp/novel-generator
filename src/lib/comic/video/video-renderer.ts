@@ -114,7 +114,15 @@ export async function renderComicVideo(input: RenderComicVideoInput): Promise<Me
 
   const outputPath = `${settings.mediaRoot}/chapter-video.mp4`;
   await storage.comics.update(comic.id, { videoStatus: 'concatenating', updatedAt: Date.now() });
-  await commands.concatVideo({ ffmpegBin: settings.ffmpegBin, concatListPath, outputPath });
+  await commands.concatVideo({
+    ffmpegBin: settings.ffmpegBin,
+    concatListPath,
+    segmentPaths,
+    outputPath,
+    width: settings.width,
+    height: settings.height,
+    fps: settings.fps,
+  });
 
   const subtitlePath = `${settings.mediaRoot}/chapter-video.srt`;
   const subtitleText = buildOffsetSrt(subtitleGroups);

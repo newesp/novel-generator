@@ -904,6 +904,14 @@ describe('renderComicVideo', () => {
       "file 'C:/media/segments/segment-001.mp4'\n",
     );
     expect(commands.concatVideo).toHaveBeenCalledTimes(1);
+    expect(commands.concatVideo).toHaveBeenCalledWith(expect.objectContaining({
+      concatListPath: 'C:/media/book/chapter/comic-video/concat.txt',
+      segmentPaths: ['C:/media/segments/segment-001.mp4'],
+      outputPath: 'C:/media/book/chapter/comic-video/chapter-video.mp4',
+      width: 1920,
+      height: 1080,
+      fps: 30,
+    }));
   });
 
   it('writes a sidecar SRT subtitle asset when rendering the chapter video', async () => {

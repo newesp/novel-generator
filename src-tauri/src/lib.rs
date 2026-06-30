@@ -83,7 +83,11 @@ struct RenderVideoClipSegmentArgs {
 struct ConcatVideoArgs {
   ffmpeg_bin: String,
   concat_list_path: String,
+  segment_paths: Vec<String>,
   output_path: String,
+  width: u32,
+  height: u32,
+  fps: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -688,6 +692,27 @@ fn build_video_clip_filter(
   parts.join(";")
 }
 
+fn build_chapter_concat_filter(segment_count: usize, width: u32, height: u32, fps: u32) -> String {
+  let effective_fps = fps.max(1);
+  let mut parts: Vec<String> = Vec::new();
+
+  for index in 0..segment_count {
+    parts.push(format!(
+      "[{index}:v]scale=w={width}:h={height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={effective_fps},setsar=1,settb=AVTB,setpts=PTS-STARTPTS,format=yuv420p[v{index}]",
+    ));
+    parts.push(format!(
+      "[{index}:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS[a{index}]",
+    ));
+  }
+
+  let inputs = (0..segment_count)
+    .map(|index| format!("[v{index}][a{index}]"))
+    .collect::<Vec<_>>()
+    .join("");
+  parts.push(format!("{inputs}concat=n={segment_count}:v=1:a=1[v][a]"));
+  parts.join(";")
+}
+
 #[tauri::command]
 fn generate_tts_audio(args: GenerateTtsAudioArgs) -> Result<GenerateTtsAudioResult, String> {
   let output_path = safe_media_file_path(&args.output_path, true)?;
@@ -904,24 +929,32 @@ fn render_comic_video_clip_segment(args: RenderVideoClipSegmentArgs) -> Result<(
 
 #[tauri::command]
 fn concat_comic_video(args: ConcatVideoArgs) -> Result<(), String> {
-  let concat_list_path = safe_media_file_path(&args.concat_list_path, false)?;
+  let _concat_list_path = safe_media_file_path(&args.concat_list_path, false)?;
+  if args.segment_paths.is_empty() {
+    return Err("At least one segment is required.".to_string());
+  }
+  let segment_paths = args
+    .segment_paths
+    .iter()
+    .map(|path| safe_media_file_path(path, false))
+    .collect::<Result<Vec<_>, _>>()?;
   let output_path = safe_media_file_path(&args.output_path, true)?;
+  let filter = build_chapter_concat_filter(segment_paths.len(), args.width, args.height, args.fps);
 
   let mut command = Command::new(args.ffmpeg_bin);
+  command.arg("-y");
+  for path in segment_paths {
+    command.arg("-i").arg(path);
+  }
   command
-    .arg("-y")
-    .arg("-fflags")
-    .arg("+genpts")
-    .arg("-f")
-    .arg("concat")
-    .arg("-safe")
-    .arg("0")
-    .arg("-i")
-    .arg(concat_list_path)
+    .arg("-filter_complex")
+    .arg(filter)
     .arg("-map")
-    .arg("0:v:0")
+    .arg("[v]")
     .arg("-map")
-    .arg("0:a:0")
+    .arg("[a]")
+    .arg("-r")
+    .arg(args.fps.to_string())
     .arg("-c:v")
     .arg("libx264")
     .arg("-preset")
@@ -930,8 +963,6 @@ fn concat_comic_video(args: ConcatVideoArgs) -> Result<(), String> {
     .arg("yuv420p")
     .arg("-c:a")
     .arg("aac")
-    .arg("-af")
-    .arg("aresample=async=1:first_pts=0")
     .arg("-movflags")
     .arg("+faststart")
     .arg(output_path);
@@ -2214,5 +2245,16 @@ mod tests {
     assert!(filter.contains("[a0][a1]concat=n=2:v=0:a=1[clipa]"));
     assert!(filter.contains("[clipaudio]volume=0.350[clipaudio_adjusted]"));
     assert!(filter.contains("[clipaudio_adjusted][narration]amix=inputs=2"));
+  }
+
+  #[test]
+  fn chapter_concat_filter_decodes_each_segment_independently() {
+    let filter = build_chapter_concat_filter(2, 1920, 1080, 30);
+
+    assert!(filter.contains("[0:v]scale=w=1920:h=1080"));
+    assert!(filter.contains("[0:a]aresample=44100"));
+    assert!(filter.contains("[1:v]scale=w=1920:h=1080"));
+    assert!(filter.contains("[1:a]aresample=44100"));
+    assert!(filter.contains("[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]"));
   }
 }
