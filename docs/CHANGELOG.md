@@ -1,5 +1,16 @@
 # 開發日誌
 
+## 2026-07-02 - Fix desktop book export save dialog
+
+- Fixed Tauri desktop book export so `.txt`, `.html`, and `.epub` are accepted by the shared binary save dialog.
+- Replaced the image-only extension whitelist in the desktop binary export command with a validated per-call extension, preserving filename and selected-path safety checks.
+- Added Rust regression coverage for book export extensions and unsafe extension rejection.
+
+**Verification**
+- `npx.cmd tsc -b` passed.
+- `cargo test --manifest-path src-tauri/Cargo.toml binary_export --lib` passed with `CARGO_TARGET_DIR=%TEMP%\novel-generator-cargo-target-export-fix`: 2 tests.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passed with the same Cargo target dir.
+
 ## 2026-06-30 - Tighten comic sidebar headings and checkbox spacing
 
 - Matched ComicModal sidebar headings such as `角色`, `參考圖`, `場景`, and `場景視覺設定` to the compact 12px label scale.

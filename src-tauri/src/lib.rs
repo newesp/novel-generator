@@ -1145,8 +1145,18 @@ fn safe_archive_filename(filename: &str) -> Result<&str, String> {
   safe_export_filename_with_extension(filename, "zip")
 }
 
-fn safe_image_filename(filename: &str) -> Result<&str, String> {
-  safe_export_filename_with_allowed_extensions(filename, &["png", "jpg", "jpeg", "webp", "gif"])
+fn safe_export_default_extension(extension: &str) -> Result<String, String> {
+  if extension.trim() != extension || extension.chars().any(char::is_control) {
+    return Err(format!("Invalid export extension: {extension}"));
+  }
+  let normalized = extension.trim_start_matches('.').to_ascii_lowercase();
+  if normalized.is_empty()
+    || normalized.len() > 16
+    || !normalized.chars().all(|ch| ch.is_ascii_alphanumeric())
+  {
+    return Err(format!("Invalid export extension: {extension}"));
+  }
+  Ok(normalized)
 }
 
 fn write_u16<W: Write>(writer: &mut W, value: u16) -> Result<(), String> {
@@ -1898,13 +1908,13 @@ fn export_json_file_to_picked_directory(args: ExportJsonFileArgs) -> Result<Opti
 
 #[tauri::command]
 fn export_binary_file_to_picked_file(args: ExportBinaryFileArgs) -> Result<Option<String>, String> {
-  let filename = safe_image_filename(&args.filename)?;
-  let default_extension = args.default_extension.trim_start_matches('.').to_ascii_lowercase();
-  if !matches!(default_extension.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif") {
-    return Err(format!("Unsupported image extension: {}", args.default_extension));
-  }
+  let default_extension = safe_export_default_extension(&args.default_extension)?;
+  let filename = safe_export_filename_with_extension(&args.filename, &default_extension)?;
   if args.filter.trim().is_empty() || args.filter.chars().any(char::is_control) {
     return Err("Invalid save dialog filter".to_string());
+  }
+  if !args.filter.to_ascii_lowercase().contains(&format!(".{default_extension}")) {
+    return Err(format!("Save dialog filter must include .{default_extension}"));
   }
   let Some(path) = pick_save_file_path(&args.title, filename, &args.filter, &default_extension)? else {
     return Ok(None);
@@ -1914,7 +1924,7 @@ fn export_binary_file_to_picked_file(args: ExportBinaryFileArgs) -> Result<Optio
     .and_then(|ext| ext.to_str())
     .map_or(true, |ext| !ext.eq_ignore_ascii_case(&default_extension))
   {
-    return Err(format!("Selected image file must end with .{default_extension}"));
+    return Err(format!("Selected export file must end with .{default_extension}"));
   }
   fs::write(&path, args.bytes).map_err(|err| format!("Failed to write {}: {err}", path.display()))?;
   Ok(Some(path.to_string_lossy().to_string()))
@@ -2119,6 +2129,25 @@ mod tests {
     assert!(safe_export_filename(r"..\backup.json").is_err());
     assert!(safe_export_filename("backup.txt").is_err());
     assert_eq!(safe_export_filename("novel-generator-backup.json"), Ok("novel-generator-backup.json"));
+  }
+
+  #[test]
+  fn binary_export_filename_accepts_book_formats() {
+    for extension in ["txt", "html", "epub", ".png"] {
+      let normalized = safe_export_default_extension(extension).unwrap();
+      let filename = format!("novel-export.{normalized}");
+      assert_eq!(
+        safe_export_filename_with_extension(&filename, &normalized),
+        Ok(filename.as_str()),
+      );
+    }
+  }
+
+  #[test]
+  fn binary_export_extension_rejects_unsafe_values() {
+    for extension in ["", ".", "../txt", "tar.gz", "txt\n", "verylongextensionname"] {
+      assert!(safe_export_default_extension(extension).is_err());
+    }
   }
 
   #[test]
