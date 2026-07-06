@@ -3,14 +3,14 @@
 [繁體中文](README.md)
 
 > Version: 1.10 (Phase 6 comic image / TTS / MP4 / SRT / motion-effect video library implemented)  
-> Updated: 2026-06-25
+> Updated: 2026-07-06
 
 A local-first Chinese novel writing tool available as a browser Web App and a Windows desktop app built with Tauri. The core workflow covers book management, outlines, characters, chapter drafting, versions, LLM Wiki, full-text search, knowledge graph, comic image generation, and desktop comic TTS / MP4 / SRT output, including single-panel video rerendering, motion effects, and a chapter-level video library.
 
 - Target language: Chinese novels first
 - Usage: local browser or Windows desktop app
 - Current data layer: IndexedDB (Dexie) in browser; SQLite (`tauri-plugin-sql`) on desktop
-- Export formats: `.txt` / `.html` / `.epub` are still planned for Phase 3
+- Export formats: full-book `.txt` / `.html` / `.epub` export is implemented
 
 ---
 
@@ -41,6 +41,16 @@ npm run tauri build
 ```
 
 Browser data can be moved to the desktop app through "export JSON -> import in desktop".
+
+---
+
+## CI/CD
+
+GitHub Actions uses `.github/workflows/ci-cd.yml`:
+
+- Pull Requests run `npm ci`, `npm run lint`, `npm run test`, and `npm run build` on `ubuntu-latest`.
+- Pushes to `main` run the same CI first; after it passes, `windows-latest` builds the Tauri Windows MSI and uploads it as a workflow artifact.
+- GitHub Pages is not deployed. Static Pages cannot provide Tauri SQLite, native file dialogs, ffmpeg / Edge-TTS sidecars, or the Vite dev-only `/llm-proxy`, so the installable desktop artifact is the current CD target.
 
 ---
 
@@ -87,7 +97,7 @@ Browser data can be moved to the desktop app through "export JSON -> import in d
 ## Remaining Work
 
 - Phase 2.5 polish: manual batch summary rebuild, LLM pick-pages, advanced Graph event extraction / causal reasoning.
-- Phase 3: `.txt` / `.html` / `.epub` export, full content polish editor, ongoing UI/UX polish.
+- Phase 3: full content polish editor and ongoing UI/UX polish.
 - Phase 4 / 6: Multi-Agent, cover image generation, full Visual Bible management, provider reference weighting, full-book media library, batch image/video export, video orphan cleanup, multi-character/dialogue TTS, Web fallback for video features.
 - Phase 5 / 7: macOS / Linux packaging, code signing, automatic first-launch IndexedDB -> SQLite migration (currently manual JSON), `WaSqliteAdapter` / `WebMediaAdapter`, and PWA redeployment.
 

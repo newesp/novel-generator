@@ -67,7 +67,7 @@ export function parseAndValidatePlan(raw: string, ctx: PlanValidationContext): P
   try {
     json = JSON.parse(extractJson(raw));
   } catch (e) {
-    throw new Error(`Plan JSON 解析失敗：${(e as Error).message}`);
+    throw new Error(`Plan JSON 解析失敗：${(e as Error).message}`, { cause: e });
   }
   if (!json || typeof json !== 'object') throw new Error('Plan 不是物件');
 

@@ -76,7 +76,7 @@ export function buildTxtExport(input: BookExportInput & { exportedAt?: Date }): 
   for (const [index, chapter] of sortChapters(input.chapters).entries()) {
     lines.push(
       '',
-      `第 ${index + 1} 章　${chapter.title || '未命名章節'}`,
+      `第 ${index + 1} 章\u3000${chapter.title || '未命名章節'}`,
       '',
       chapter.content.trim() || '（本章尚無正文）',
       '',
@@ -98,7 +98,7 @@ export function buildHtmlExport(input: BookExportInput & { exportedAt?: Date }):
       const title = escapeHtml(chapter.title || '未命名章節');
       const body = paragraphsToHtml(chapter.content.trim() || '（本章尚無正文）');
       return `<section id="chapter-${index + 1}" class="chapter">
-  <h2>第 ${index + 1} 章　${title}</h2>
+  <h2>第 ${index + 1} 章\u3000${title}</h2>
 ${body}
 </section>`;
     })
@@ -180,6 +180,8 @@ export function buildEpubExport(input: BookExportInput & { exportedAt?: Date }):
 export function sanitizeFilename(name: string): string {
   const sanitized = name
     .trim()
+    // Strip filesystem-forbidden characters and ASCII control characters.
+    // eslint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
     .replace(/\s+/g, ' ')
     .replace(/[. ]+$/g, '')
@@ -220,7 +222,7 @@ function chapterToXhtml(chapter: Chapter, index: number): string {
 </head>
 <body>
   <section epub:type="chapter">
-    <h1>第 ${index + 1} 章　${escapeHtml(title)}</h1>
+    <h1>第 ${index + 1} 章\u3000${escapeHtml(title)}</h1>
 ${body}
   </section>
 </body>

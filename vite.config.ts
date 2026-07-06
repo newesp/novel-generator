@@ -109,7 +109,7 @@ function promptLogPlugin(): Plugin {
               res.writeHead(400); res.end('bad body'); return
             }
             // sanitize：只保留檔名本體，禁止子目錄
-            const safe = path.basename(filename).replace(/[^\w.\-]/g, '_')
+            const safe = path.basename(filename).replace(/[^\w.-]/g, '_')
             const dir = path.resolve(process.cwd(), 'temp')
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
             const full = path.join(dir, safe)

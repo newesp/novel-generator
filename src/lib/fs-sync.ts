@@ -22,10 +22,22 @@ import {
 
 const HANDLE_META_KEY = 'fs-sync-folder-handle';
 
+type FileSystemAccessGlobal = typeof globalThis & {
+  showDirectoryPicker?: (options: {
+    mode: 'read' | 'readwrite';
+    id?: string;
+    startIn?: string;
+  }) => Promise<FileSystemDirectoryHandle>;
+};
+
+function fileSystemAccessGlobal(): FileSystemAccessGlobal {
+  return globalThis as FileSystemAccessGlobal;
+}
+
 /** Vendor-prefixed API 不存在的瀏覽器（Firefox / Safari）會回 false。Tauri 桌面版亦回 false（改走後續手動 export/import）。 */
 export function isFsAccessSupported(): boolean {
   if (isTauri()) return false;
-  return typeof (globalThis as any).showDirectoryPicker === 'function';
+  return typeof fileSystemAccessGlobal().showDirectoryPicker === 'function';
 }
 
 async function saveHandle(handle: FileSystemDirectoryHandle): Promise<void> {
@@ -62,7 +74,11 @@ export async function pickAndLinkFolder(): Promise<FileSystemDirectoryHandle | n
     throw new Error('此瀏覽器不支援 File System Access API（請使用 Chrome / Edge / Opera）');
   }
   try {
-    const handle: FileSystemDirectoryHandle = await (globalThis as any).showDirectoryPicker({
+    const showDirectoryPicker = fileSystemAccessGlobal().showDirectoryPicker;
+    if (!showDirectoryPicker) {
+      throw new Error('此瀏覽器不支援 File System Access API（請使用 Chrome / Edge / Opera）');
+    }
+    const handle = await showDirectoryPicker({
       mode: 'readwrite',
       id: 'novel-generator-sync',
       startIn: 'documents',

@@ -9,6 +9,7 @@ interface PersistableImageOutput {
   mimeType: string;
 }
 
+/** Converts temporary remote image URLs to data URLs before persisting them in local storage. */
 export async function persistableImageOutput({
   url,
   mimeType,
@@ -20,10 +21,9 @@ export async function persistableImageOutput({
   if (!response.ok) {
     throw new Error(`Unable to download generated image before saving: HTTP ${response.status}`);
   }
-  const blob = await response.blob();
-  const storedMimeType = blob.type || mimeType;
+  const storedMimeType = response.headers.get('content-type')?.split(';')[0]?.trim() || mimeType;
   return {
-    url: await blobToDataUrl(blob, storedMimeType),
+    url: bytesToDataUrl(new Uint8Array(await response.arrayBuffer()), storedMimeType),
     mimeType: storedMimeType,
   };
 }
@@ -32,8 +32,7 @@ function isRemoteImageUrl(url: string): boolean {
   return url.startsWith('http://') || url.startsWith('https://');
 }
 
-async function blobToDataUrl(blob: Blob, mimeType: string): Promise<string> {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
+function bytesToDataUrl(bytes: Uint8Array, mimeType: string): string {
   let binary = '';
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);

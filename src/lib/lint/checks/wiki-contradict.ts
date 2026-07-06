@@ -57,7 +57,7 @@ export const wikiContradictCheck: LintCheck = {
       try {
         raw = await complete(prompt, { maxTokens: 2048 }, ctx.signal);
       } catch (e) {
-        throw new Error(`Wiki 內部矛盾 LLM (${type}) 失敗：${(e as Error).message}`);
+        throw new Error(`Wiki 內部矛盾 LLM (${type}) 失敗：${(e as Error).message}`, { cause: e });
       }
 
       let parsed: ContradictResult;

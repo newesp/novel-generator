@@ -1,5 +1,23 @@
 # 開發日誌
 
+## 2026-07-06 - Add GitHub Actions CI/CD
+
+- Added a focused GitHub Actions workflow for PR `lint` / `test` / `build` checks and `main` Windows Tauri MSI workflow artifacts.
+- Pinned all workflow actions to full commit SHAs verified by `git ls-remote`, disabled checkout credential persistence, and added a CI job timeout.
+- Documented why the current CD target is a downloadable desktop artifact instead of GitHub Pages.
+- Updated README, book module, and roadmap export-format status to match the implemented `.txt`, `.html`, and `.epub` full-book export flow.
+- Resolved lint/test blockers required to make the new CI meaningful: kept React compiler-only lint rules disabled with an explicit rationale, removed a dead assignment, tightened File System Access typing, preserved caught-error causes, and made remote image persistence read `Response.arrayBuffer()` directly.
+
+**Self-review**
+- Correctness: CI commands match `package.json`; `main` desktop artifact build is gated by the CI job; GitHub Pages is intentionally excluded because it would not support Tauri-native capabilities.
+- Security/data: workflow permissions are read-only; checkout credentials are not persisted; actions are pinned to immutable full SHAs; the only token reference is GitHub's scoped `GITHUB_TOKEN`; no new secrets, PII, or customer-identifiable data were added.
+- Maintainability: docs now describe CI/CD behavior and export status; remaining React Hook dependency warnings are existing codebase cleanup, deferred to avoid broad UI refactors in this CI/CD change. Cargo caching and explicit MSI artifact retention are deferred because the current workflow is correct without them; they can be added later if main-branch build time or artifact retention policy becomes a problem.
+
+**Verification**
+- `npm.cmd run lint` passed with 8 existing React Hook dependency warnings.
+- `npm.cmd run test` passed: 59 files, 216 tests.
+- `npm.cmd run build` passed; Vite reported the existing large chunk / plugin timing warnings.
+
 ## 2026-07-02 - Fix desktop book export save dialog
 
 - Fixed Tauri desktop book export so `.txt`, `.html`, and `.epub` are accepted by the shared binary save dialog.

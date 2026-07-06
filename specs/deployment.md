@@ -10,6 +10,12 @@
 - LLM 文字生成在瀏覽器開發環境走 Vite `/llm-proxy` 避開 CORS；Tauri 桌面版直接 fetch 目標 API
 - 若使用外部 LLM / image provider，生成能力仍取決於 API 可用性
 
+### CI 驗證
+
+- Pull Request 會透過 GitHub Actions 在 `ubuntu-latest` 執行 `npm ci`、`npm run lint`、`npm run test`、`npm run build`
+- 這個 job 驗證瀏覽器版 production build 與 TypeScript / ESLint / Vitest；不代表 Tauri native 功能已在 Linux runner 上執行
+- Node 版本由 `.github/workflows/ci-cd.yml` 的 `NODE_VERSION` 控制
+
 ### 已知限制
 
 - **無痕模式關閉後資料會被清光**（IndexedDB 被瀏覽器清空）— 這是瀏覽器規範，非 bug
@@ -29,6 +35,12 @@
 - 影片合成走 native **ffmpeg sidecar**（已實作單格 MP4、整章 MP4 concat、motion effects 與旁掛 SRT）
 - Windows MSI：`npm run tauri build` → `Novel Generator_0.1.0_x64_en-US.msi`（4.25 MB）
 - macOS / Linux 打包：之後補
+
+### CD 產物
+
+- `main` push 通過 CI 後，GitHub Actions 會在 `windows-latest` 建置 Tauri MSI
+- MSI 會上傳為 workflow artifact，方便從 Actions run 下載測試；目前不自動建立 GitHub Release、也不做 code signing
+- GitHub Pages 暫不啟用：靜態頁無法提供 Tauri SQLite、native file dialog、ffmpeg / Edge-TTS sidecar，且 production 靜態站沒有 Vite dev-only `/llm-proxy`
 
 ### 遷移策略（已實作）
 

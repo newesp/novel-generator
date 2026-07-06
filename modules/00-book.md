@@ -35,7 +35,7 @@
 - ✅ **備份/匯出全部**（單檔 JSON snapshot，含書本、章節、版本、角色、Wiki、漫畫、媒體資產、場景視覺）
 - ✅ **匯入 JSON**（取代本機資料）
 - ✅ **連結同步資料夾**（File System Access API，自動寫入；建議選 OneDrive/Google Drive 同步資料夾）
-- ❌ 匯出整本書（成書格式 .txt/.html/.epub，觸發 specs/output-formats）[Phase 3]
+- ✅ 匯出整本書（成書格式 .txt/.html/.epub，見 specs/output-formats）[Phase 3]
 - ❌ 書本層級設定（預設 LLM provider、語言風格等）[Phase 2]；目前 LLM / 圖片 provider 設定仍是全域偏好設定
 
 ---

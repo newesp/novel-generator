@@ -55,9 +55,9 @@
 
 ---
 
-## Phase 3 — 輸出與體驗（❌ 未開始）
+## Phase 3 — 輸出與體驗（🟡 部分完成）
 
-1. ❌ 導出功能（.txt / .html / .epub）→ specs/output-formats
+1. ✅ 導出功能（.txt / .html / .epub，2026-06-30）→ specs/output-formats
 2. ❌ 內容潤色器 → 06-polish
 3. ⚠️ UI 美化與使用體驗優化（持續進行，基礎樣式已完成）
 

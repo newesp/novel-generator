@@ -121,7 +121,7 @@ export const wikiVsChapterCheck: LintCheck = {
       try {
         raw = await complete(prompt, { maxTokens: 2048 }, ctx.signal);
       } catch (e) {
-        throw new Error(`Wiki vs 章節 LLM (${item.character.name}) 失敗：${(e as Error).message}`);
+        throw new Error(`Wiki vs 章節 LLM (${item.character.name}) 失敗：${(e as Error).message}`, { cause: e });
       }
 
       let parsed: VsChapterResult;

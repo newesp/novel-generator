@@ -107,8 +107,9 @@ export function describeSettingsSnapshot(snapshot: SettingsBackupSnapshot): stri
 }
 
 function omitApiKey<T extends { apiKey: string }>(value: T): Omit<T, 'apiKey'> {
-  const { apiKey: _apiKey, ...rest } = value;
-  return rest;
+  const rest: Partial<T> = { ...value };
+  delete rest.apiKey;
+  return rest as Omit<T, 'apiKey'>;
 }
 
 function mergeApiKeyAware<T extends { apiKey: string }>(

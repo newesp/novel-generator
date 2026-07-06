@@ -80,11 +80,11 @@ async function recoverMissingPanelSegmentAssets({
   await Promise.all(panelsWithMissingSegmentAssets.map(async (panel) => {
     if (!panel.segmentAssetId) return;
     const path = `${mediaRoot}/segments/segment-${String(panel.order).padStart(3, '0')}.mp4`;
-    let exists = false;
+    let exists: boolean;
     try {
       exists = await commands.mediaFileExists({ path });
     } catch {
-      exists = false;
+      return;
     }
     if (!exists) return;
     assets[panel.segmentAssetId] = {

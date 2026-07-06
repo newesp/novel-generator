@@ -193,7 +193,7 @@ export const unrecordedCheck: LintCheck = {
     try {
       raw = await complete(prompt, { maxTokens: 2048 }, ctx.signal);
     } catch (e) {
-      throw new Error(`未登錄角色 LLM verify 失敗：${(e as Error).message}`);
+      throw new Error(`未登錄角色 LLM verify 失敗：${(e as Error).message}`, { cause: e });
     }
 
     let parsed: LlmVerifyResult;
