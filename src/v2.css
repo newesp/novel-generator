@@ -157,6 +157,16 @@
   flex-direction: column;
 }
 
+.v2-single-resource-pane {
+  width: min(520px, 100%);
+  height: 100%;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
 .v2-empty-state {
   height: 100%;
   display: grid;
@@ -309,9 +319,10 @@
 }
 
 .comic-workspace-scene .comic-workspace {
-  grid-template-columns: 260px minmax(420px, 1fr);
+  grid-template-columns: minmax(420px, 1fr);
 }
 
+.comic-workspace-scene .comic-rail,
 .comic-workspace-scene .comic-detail,
 .comic-workspace-scene .comic-character-section,
 .comic-workspace-scene .comic-reference-section {
@@ -323,10 +334,39 @@
   background: var(--bg-primary);
 }
 
-.comic-workspace-scene .comic-scene-list {
+.scene-source-toolbar {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: minmax(220px, 0.7fr) minmax(280px, 1fr);
   gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-secondary);
+}
+
+.scene-source-toolbar label {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.scene-source-toolbar select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.comic-scene-create-button {
+  align-self: flex-start;
+  width: auto;
+}
+
+.comic-workspace-scene .comic-scene-list {
+  display: block;
+}
+
+.comic-workspace-scene .comic-scene-card {
+  width: min(820px, 100%);
 }
 
 @media (max-width: 1040px) {

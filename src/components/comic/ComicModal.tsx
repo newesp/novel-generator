@@ -1,4 +1,5 @@
 import { type PointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Select as MantineSelect } from '@mantine/core';
 import { v4 as uuid } from 'uuid';
 import type { Chapter, ChapterComic, Character, ComicPanel, ComicPanelImageVariant, ImageProviderConfig, MediaAsset, Project, SceneVisual } from '../../types';
 import { storage } from '../../lib/storage';
@@ -43,7 +44,7 @@ import {
   panelVideoClipHasAudio,
 } from '../../lib/comic/video/video-clips';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
-import { createDefaultSceneVisual, filterSceneVisuals, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
+import { createDefaultSceneVisual, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
 import { errorMessage } from '../../lib/error-message';
 import { saveBlobFile } from '../../lib/file-export';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -100,6 +101,7 @@ export function ComicModal({
   const [message, setMessage] = useState('');
   const [panelVariantNotice, setPanelVariantNotice] = useState<Record<string, string>>({});
   const [selectorSearch, setSelectorSearch] = useState('');
+  const [sceneWorkspaceSlug, setSceneWorkspaceSlug] = useState('__none__');
   const [selectedPanelId, setSelectedPanelId] = useState<string | null>(null);
   const [pendingWorkspaceState, setPendingWorkspaceState] = useState<ComicWorkspaceState | null>(null);
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
@@ -123,6 +125,7 @@ export function ComicModal({
   const [ffprobeBin, setFfprobeBin] = useState('ffprobe');
   const [panelDurationDraft, setPanelDurationDraft] = useState<Record<string, string>>({});
   const restoredWorkspaceProjectRef = useRef<string | null>(null);
+  const sceneWorkspaceContextRef = useRef('');
   const referencePickerMenuRef = useRef<HTMLDivElement | null>(null);
   const activeReferenceChapterRef = useRef<HTMLElement | null>(null);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1176,8 +1179,9 @@ export function ComicModal({
     || `${character.name} ${character.appearance} ${character.race}`.toLocaleLowerCase().includes(selectorSearch.trim().toLocaleLowerCase())
   ));
 
-  const filteredScenes = filterSceneVisuals(scenes, selectorSearch);
   const selectedPanel = panels.find((panel) => panel.id === selectedPanelId) ?? panels[0];
+  const selectedSceneSlug = workspaceMode === 'scene' ? sceneWorkspaceSlug : selectedPanel?.sceneSlug;
+  const selectedScene = scenes.find((scene) => scene.slug === selectedSceneSlug);
   const selectedPanelReferenceOptions = selectedPanel ? referenceOptionsForPanel(selectedPanel) : [];
   const referenceChapterKey = selectedPanelReferenceOptions.map((option) => option.chapter.id).join('|');
   const selectedPanelAsset = selectedPanel ? panelAssets[selectedPanel.id] : undefined;
@@ -1192,6 +1196,14 @@ export function ComicModal({
     panels,
     assets: Object.values(videoLibraryAssets),
   });
+
+  useEffect(() => {
+    if (workspaceMode !== 'scene') return;
+    const contextKey = `${chapter.id}:${selectedPanel?.id ?? 'none'}:${scenes.length}`;
+    if (sceneWorkspaceContextRef.current === contextKey) return;
+    sceneWorkspaceContextRef.current = contextKey;
+    setSceneWorkspaceSlug(selectedPanel?.sceneSlug ?? scenes[0]?.slug ?? '__none__');
+  }, [workspaceMode, chapter.id, selectedPanel?.id, selectedPanel?.sceneSlug, scenes]);
 
   useEffect(() => {
     if (!open || !selectedPanel) return;
@@ -1302,6 +1314,7 @@ export function ComicModal({
       .map((assetId) => sceneReferenceAssets[assetId])
       .filter((asset): asset is MediaAsset => Boolean(asset))
   );
+  const selectedSceneReferenceAssets = selectedScene ? sceneReferenceList(selectedScene) : [];
 
   const assetIsReferencedOutsideScene = (assetId: string, sceneId: string) => (
     scenes.some((scene) => scene.id !== sceneId && scene.referenceAssetIds.includes(assetId))
@@ -2234,15 +2247,54 @@ export function ComicModal({
           </section>
 
           <aside className="comic-side">
-            <section className="comic-selector-search">
-              <FieldLabel label="搜尋角色、參考圖、場景" help="用關鍵字篩選角色、參考圖與場景視覺設定。" />
-              <input
-                className="toolbar-input"
-                value={selectorSearch}
-                onChange={(event) => setSelectorSearch(event.target.value)}
-                placeholder="搜尋角色、場景、章節或分鏡..."
-              />
-            </section>
+            {workspaceMode === 'scene' && (
+              <section className="scene-source-toolbar">
+                <label>
+                  <FieldLabel label="章節" help="切換要檢視場景指派的章節。" />
+                  <select
+                    value={chapter.id}
+                    onChange={(event) => {
+                      persistComicWorkspaceState({ chapterId: event.target.value });
+                      onChapterChange?.(event.target.value);
+                    }}
+                    disabled={busy || !onChapterChange}
+                  >
+                    {chapters.map((item) => (
+                      <option value={item.id} key={item.id}>
+                        第 {item.order + 1} 章｜{item.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <FieldLabel label="分鏡來源" help="選擇要指派場景或作為建立場景來源的分鏡。" />
+                  <select
+                    value={selectedPanel?.id ?? ''}
+                    onChange={(event) => selectPanel(event.target.value)}
+                    disabled={busy || panels.length === 0}
+                  >
+                    {panels.length === 0 && <option value="">尚無分鏡</option>}
+                    {panels.map((panel) => (
+                      <option value={panel.id} key={panel.id}>
+                        #{panel.order}｜{panel.beat}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </section>
+            )}
+
+            {workspaceMode !== 'scene' && (
+              <section className="comic-selector-search">
+                <FieldLabel label="搜尋角色、參考圖、場景" help="用關鍵字篩選角色、參考圖與場景視覺設定。" />
+                <input
+                  className="toolbar-input"
+                  value={selectorSearch}
+                  onChange={(event) => setSelectorSearch(event.target.value)}
+                  placeholder="搜尋角色、場景、章節或分鏡..."
+                />
+              </section>
+            )}
 
             {selectedPanel && (
               <section className="comic-side-section comic-character-section">
@@ -2338,80 +2390,67 @@ export function ComicModal({
               </section>
             )}
 
-            {selectedPanel && (
+            {(selectedPanel || workspaceMode === 'scene') && (
               <section className="comic-side-section comic-scene-assignment-section">
                 <h3>場景</h3>
-                <details className="comic-scene-picker" open>
-                  <summary>
-                    <span className="comic-scene-summary-text">{activeScene(selectedPanel)?.title ?? '無場景'}</span>
-                  </summary>
-                  <div className="comic-scene-picker-menu">
-                    <label className="comic-checkbox-row">
-                      <input
-                        type="radio"
-                        name={`scene-${selectedPanel.id}`}
-                        checked={!selectedPanel.sceneSlug}
-                        onChange={() => updatePanel(selectedPanel, { sceneSlug: undefined })}
-                      />
-                      <VisualReferenceThumb label="無場景" />
-                      <span>無場景</span>
-                    </label>
-                    {filteredScenes.map((scene) => (
-                      <label className="comic-checkbox-row" key={scene.id}>
-                        <input
-                          type="radio"
-                          name={`scene-${selectedPanel.id}`}
-                          checked={selectedPanel.sceneSlug === scene.slug}
-                          onChange={() => updatePanel(selectedPanel, { sceneSlug: scene.slug })}
-                        />
-                        <VisualReferenceThumb
-                          url={referenceThumbnail(scene)}
-                          label={scene.title}
-                          onPreview={(url) => previewImageUrl(url, scene.title)}
-                        />
-                        <span>{scene.title}</span>
-                        <small>{scene.referenceAssetIds.length} 張</small>
-                      </label>
-                    ))}
-                  </div>
-                </details>
-                <Button variant="secondary" onClick={() => createSceneFromPanel(selectedPanel)} disabled={busy}>
+                <MantineSelect
+                  searchable
+                  allowDeselect={false}
+                  value={workspaceMode === 'scene' ? sceneWorkspaceSlug : selectedPanel?.sceneSlug ?? '__none__'}
+                  data={[
+                    { value: '__none__', label: '無場景' },
+                    ...scenes.map((scene) => ({
+                      value: scene.slug,
+                      label: `${scene.title} · ${scene.referenceAssetIds.length} 張參考圖`,
+                    })),
+                  ]}
+                  onChange={(value) => {
+                    const nextSlug = !value || value === '__none__' ? undefined : value;
+                    if (workspaceMode === 'scene') setSceneWorkspaceSlug(nextSlug ?? '__none__');
+                    if (selectedPanel) void updatePanel(selectedPanel, { sceneSlug: nextSlug });
+                  }}
+                  placeholder="搜尋或選擇場景"
+                  nothingFoundMessage="沒有符合的場景"
+                />
+                <Button
+                  variant="secondary"
+                  className="comic-scene-create-button"
+                  onClick={() => selectedPanel && createSceneFromPanel(selectedPanel)}
+                  disabled={busy || !selectedPanel}
+                >
                   從此格建立場景
                 </Button>
               </section>
             )}
 
-            {filteredScenes.length > 0 && (
+            {selectedScene && (
               <section className="comic-side-section comic-scene-library-section">
                 <h3>場景視覺設定</h3>
                 <div className="comic-scene-list">
-                  {filteredScenes.map((scene) => {
-                    const referenceAssets = sceneReferenceList(scene);
-                    return (
-                    <details className="comic-scene-card" key={scene.id} open={workspaceMode === 'scene'}>
+                    <details className="comic-scene-card" key={selectedScene.id} open={workspaceMode === 'scene'}>
                       <summary>
                         <VisualReferenceThumb
-                          url={referenceThumbnail(scene)}
-                          label={scene.title}
-                          onPreview={(url) => previewImageUrl(url, scene.title)}
+                          url={referenceThumbnail(selectedScene)}
+                          label={selectedScene.title}
+                          onPreview={(url) => previewImageUrl(url, selectedScene.title)}
                         />
-                        <span className="comic-scene-card-title">{scene.title}</span>
-                        <span>{scene.slug}</span>
+                        <span className="comic-scene-card-title">{selectedScene.title}</span>
+                        <span>{selectedScene.slug}</span>
                       </summary>
                       <div className="comic-scene-card-actions">
-                        <button type="button" onClick={() => deleteScene(scene)}>刪除</button>
+                        <button type="button" onClick={() => deleteScene(selectedScene)}>刪除</button>
                       </div>
                       <label>
                         <FieldLabel label="場景名稱" help="只改顯示名稱；穩定識別用的 slug 會保留，避免已選分鏡失效。" />
-                        <input value={scene.title} onChange={(event) => void updateScene(scene, { title: event.target.value })} />
+                        <input value={selectedScene.title} onChange={(event) => void updateScene(selectedScene, { title: event.target.value })} />
                       </label>
                       <label>
                         <FieldLabel label="場景提示詞" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
-                        <textarea value={scene.prompt} onChange={(event) => void updateScene(scene, { prompt: event.target.value })} />
+                        <textarea value={selectedScene.prompt} onChange={(event) => void updateScene(selectedScene, { prompt: event.target.value })} />
                       </label>
                       <label>
                         <FieldLabel label="場景排除詞" help="避免場景跑偏的內容，例如 modern apartment、clean lab、futuristic city。" />
-                        <input value={scene.negativePrompt} onChange={(event) => void updateScene(scene, { negativePrompt: event.target.value })} />
+                        <input value={selectedScene.negativePrompt} onChange={(event) => void updateScene(selectedScene, { negativePrompt: event.target.value })} />
                       </label>
                       <label>
                         <FieldLabel label="參考圖" help="上傳場景參考圖。支援 reference image 的 provider 會自動帶入。" />
@@ -2420,14 +2459,14 @@ export function ComicModal({
                           accept="image/*"
                           multiple
                           onChange={(event) => {
-                            void uploadSceneReference(scene, event.target.files);
+                            void uploadSceneReference(selectedScene, event.target.files);
                             event.currentTarget.value = '';
                           }}
                         />
                       </label>
-                      {referenceAssets.length > 0 ? (
-                        <div className="comic-scene-reference-grid" aria-label={`${scene.title} reference images`}>
-                          {referenceAssets.map((asset, index) => (
+                      {selectedSceneReferenceAssets.length > 0 ? (
+                        <div className="comic-scene-reference-grid" aria-label={`${selectedScene.title} reference images`}>
+                          {selectedSceneReferenceAssets.map((asset, index) => (
                             <figure className="comic-scene-reference-item" key={asset.id}>
                               <button
                                 type="button"
@@ -2435,14 +2474,14 @@ export function ComicModal({
                                 onClick={() => setPreviewAsset(asset)}
                                 title="預覽場景參考圖"
                               >
-                                <img src={asset.url} alt={`${scene.title} reference ${index + 1}`} loading="lazy" />
+                                <img src={asset.url} alt={`${selectedScene.title} reference ${index + 1}`} loading="lazy" />
                               </button>
                               <figcaption>
                                 <span>#{index + 1}</span>
                                 <button
                                   type="button"
                                   className="comic-scene-reference-delete"
-                                  onClick={() => void removeSceneReference(scene, asset.id)}
+                                  onClick={() => void removeSceneReference(selectedScene, asset.id)}
                                   title="刪除場景參考圖"
                                 >
                                   刪除
@@ -2455,8 +2494,6 @@ export function ComicModal({
                         <p className="comic-message">尚無場景參考圖</p>
                       )}
                     </details>
-                    );
-                  })}
                 </div>
               </section>
             )}

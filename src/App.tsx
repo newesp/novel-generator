@@ -74,13 +74,11 @@ export default function App() {
     <div className="v2-empty-state">請從左側選擇或新增章節</div>
   );
 
-  const standardWorkspace = (
+  const chapterWorkspace = (
     <ResizablePane
       left={
         <div className="v2-resource-pane">
-          {workspace === 'outline' && <OutlinePanel />}
-          {workspace === 'characters' && <CharactersPanel />}
-          {workspace === 'chapters' && <ChaptersPanel />}
+          <ChaptersPanel />
         </div>
       }
       right={editor}
@@ -132,7 +130,13 @@ export default function App() {
       <main className="v2-main">
         <Toolbar variant="workspace" />
         <div className="v2-workspace">
-          {(workspace === 'outline' || workspace === 'characters' || workspace === 'chapters') && standardWorkspace}
+          {workspace === 'outline' && (
+            <div className="v2-single-resource-pane"><OutlinePanel /></div>
+          )}
+          {workspace === 'characters' && (
+            <div className="v2-single-resource-pane"><CharactersPanel /></div>
+          )}
+          {workspace === 'chapters' && chapterWorkspace}
           {workspace === 'wiki' && <WikiPanel workspace />}
           {mediaMode && selectedChapter && project && (
             <ComicModal

@@ -1,5 +1,18 @@
 # 開發日誌
 
+## 2026-07-17 - Refine v2 resource and scene workspaces
+
+- Removed the unrelated chapter editor from Outline and Character workspaces; each now uses one focused resource pane.
+- Removed the chapter/panel rail from the dedicated Scene workspace and moved its chapter/panel context controls into a compact top row.
+- Replaced the always-expanded scene list with a searchable single-select control, including the `無場景` option, and render only the selected scene's visual-settings card.
+- Kept existing scenes editable even when no comic panel exists; only the panel-dependent `從此格建立場景` action is disabled.
+- Removed the duplicate `轉漫畫` action from the Chapter editor because the Comic workspace is now the canonical entry point.
+
+**Verification**
+- `tsc -b` passed.
+- Edge visual QA passed at 1440×900 and 1024×768 with no page-level horizontal overflow or clipped visible controls.
+- Browser interaction QA confirmed one rendered scene card for three stored scenes, scene-card replacement after selection, a compact 128px create button, hidden Scene rail, and no Chapter `轉漫畫` button.
+
 ## 2026-07-17 - Start the Mantine v2 local workspace UI
 
 - Marked the pre-v2 baseline as tag `v1.0.0` and branch `release/v1`; v2 development continues on `codex/v2-local-ui`.

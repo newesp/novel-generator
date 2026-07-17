@@ -21,7 +21,6 @@ import { undoBatch, findLatestIngestBatch } from '../../lib/wiki-undo';
 import { IngestToast } from '../wiki/IngestToast';
 import { IngestDiffModal } from '../wiki/IngestDiffModal';
 import { WikiPartialModal } from '../wiki/WikiPartialModal';
-import { ComicModal } from '../comic/ComicModal';
 
 const BEATS = [
   '引入 (Inciting Incident)',
@@ -68,7 +67,6 @@ export function ChapterEditor() {
   const [showDiff, setShowDiff] = useState<string | null>(null);
   const [showPartial, setShowPartial] = useState(false);
   const [failedCount, setFailedCount] = useState(0);
-  const [showComicModal, setShowComicModal] = useState(false);
 
   useEffect(() => {
     if (!chapter) { setFailedCount(0); return; }
@@ -341,9 +339,6 @@ export function ChapterEditor() {
       <div className="action-bar">
         <Button variant="secondary" onClick={handleSaveVersion} disabled={!content.trim()}>
           💾 存入版本
-        </Button>
-        <Button variant="secondary" onClick={() => setShowComicModal(true)} disabled={!content.trim() || !project}>
-          🎬 轉漫畫
         </Button>
         {(() => {
           const s = chapter.wikiSyncStatus;
@@ -626,17 +621,6 @@ export function ChapterEditor() {
         />
       )}
 
-      {project && (
-        <ComicModal
-          open={showComicModal}
-          onClose={() => setShowComicModal(false)}
-          project={project}
-          chapter={{ ...chapter, title, content, beat, points }}
-          chapters={chapters}
-          onChapterChange={setSelectedChapterId}
-          characters={characters}
-        />
-      )}
     </>
   );
 }
