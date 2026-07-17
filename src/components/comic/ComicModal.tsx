@@ -58,9 +58,23 @@ interface ComicModalProps {
   chapters?: Chapter[];
   onChapterChange?: (chapterId: string) => void;
   characters: Character[];
+  embedded?: boolean;
+  workspaceMode?: ComicWorkspaceMode;
 }
 
-export function ComicModal({ open, onClose, project, chapter, chapters = [chapter], onChapterChange, characters }: ComicModalProps) {
+export type ComicWorkspaceMode = 'scene' | 'comic' | 'video';
+
+export function ComicModal({
+  open,
+  onClose,
+  project,
+  chapter,
+  chapters = [chapter],
+  onChapterChange,
+  characters,
+  embedded = false,
+  workspaceMode = 'comic',
+}: ComicModalProps) {
   const { imageGenerationPrefs, setImageGenerationPrefs } = useSettingsStore();
   const [comic, setComic] = useState<ChapterComic | null>(null);
   const [panels, setPanels] = useState<ComicPanel[]>([]);
@@ -1705,42 +1719,53 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
     <Modal
       open={open}
       onClose={() => !busy && onClose()}
-      title={`轉漫畫：${chapter.title}`}
+      title={`${workspaceMode === 'scene' ? '場景' : workspaceMode === 'video' ? '影片' : '漫畫'}：${chapter.title}`}
       width={1100}
       fullScreen
-      footer={
+      embedded={embedded}
+      footer={workspaceMode === 'scene' && embedded ? undefined : (
         <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>關閉</Button>
-          <div style={{ flex: 1 }} />
-          <Button variant="secondary" onClick={generateStoryboard} disabled={busy || !chapter.content.trim()}>
-            {panels.length ? '重新生成分鏡' : '生成分鏡'}
-          </Button>
-          <Button variant="primary" onClick={generateImages} disabled={busy || !panels.length || !provider}>
-            開始生圖
-          </Button>
-          <Button variant="secondary" onClick={() => setChapterVideoSettingsOpen(true)} disabled={busy || !comic}>
-            整章影片設定
-          </Button>
-          <Button variant="secondary" onClick={() => setVideoLibraryOpen(true)} disabled={!comic}>
-            影片庫
-          </Button>
-          <Button variant="primary" onClick={() => void renderVideo()} disabled={busy || !comic || panels.length === 0}>
-            整章輸出 MP4
-          </Button>
+          {!embedded && <Button variant="secondary" onClick={onClose} disabled={busy}>關閉</Button>}
+          {!embedded && <div style={{ flex: 1 }} />}
+          {workspaceMode === 'comic' && (
+            <>
+              <Button variant="secondary" onClick={generateStoryboard} disabled={busy || !chapter.content.trim()}>
+                {panels.length ? '重新生成分鏡' : '生成分鏡'}
+              </Button>
+              <Button variant="primary" onClick={generateImages} disabled={busy || !panels.length || !provider}>
+                開始生圖
+              </Button>
+            </>
+          )}
+          {workspaceMode === 'video' && (
+            <>
+              <Button variant="secondary" onClick={() => setChapterVideoSettingsOpen(true)} disabled={busy || !comic}>
+                整章影片設定
+              </Button>
+              <Button variant="secondary" onClick={() => setVideoLibraryOpen(true)} disabled={!comic}>
+                影片庫
+              </Button>
+              <Button variant="primary" onClick={() => void renderVideo()} disabled={busy || !comic || panels.length === 0}>
+                整章輸出 MP4
+              </Button>
+            </>
+          )}
         </>
-      }
+      )}
     >
-      <div className="comic-modal">
-        <button
-          type="button"
-          className="comic-main-close-button"
-          onClick={onClose}
-          disabled={busy}
-          aria-label="關閉轉漫畫"
-          title="關閉"
-        >
-          ×
-        </button>
+      <div className={`comic-modal comic-workspace-${workspaceMode}`}>
+        {!embedded && (
+          <button
+            type="button"
+            className="comic-main-close-button"
+            onClick={onClose}
+            disabled={busy}
+            aria-label="關閉轉漫畫"
+            title="關閉"
+          >
+            ×
+          </button>
+        )}
         {videoMessage && (
           <div className="comic-top-message" role="status" aria-live="polite">
             <span>{videoMessage}</span>
@@ -1754,7 +1779,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             </button>
           </div>
         )}
-        <section className="comic-settings">
+        {workspaceMode === 'comic' && <section className="comic-settings">
           <div className="comic-provider-summary">
             <FieldLabel label="圖片提供商" help="圖片 provider 在「偏好設定 → 圖片生成」調整。這裡只顯示目前使用的全域設定。" />
             <strong>{providerLabel}</strong>
@@ -1776,7 +1801,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
               onChange={(event) => setImageGenerationPrefs({ targetPanelCount: Number(event.target.value) || 8 })}
             />
           </label>
-        </section>
+        </section>}
 
         {message && <p className="comic-message">{message}</p>}
         {downloadNotice && <p className="comic-download-notice" aria-live="polite">{downloadNotice.label}</p>}
@@ -2220,7 +2245,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             </section>
 
             {selectedPanel && (
-              <section className="comic-side-section">
+              <section className="comic-side-section comic-character-section">
                 <h3>角色</h3>
                 <details className="comic-character-picker" open>
                   <summary>
@@ -2263,7 +2288,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             )}
 
             {selectedPanel && (
-              <section className="comic-side-section">
+              <section className="comic-side-section comic-reference-section">
                 <h3>參考圖</h3>
                 <details className="comic-reference-picker" open>
                   <summary>已選 {selectedPanel.referenceAssetIds?.length ?? 0} 張</summary>
@@ -2314,7 +2339,7 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             )}
 
             {selectedPanel && (
-              <section className="comic-side-section">
+              <section className="comic-side-section comic-scene-assignment-section">
                 <h3>場景</h3>
                 <details className="comic-scene-picker" open>
                   <summary>
@@ -2357,13 +2382,13 @@ export function ComicModal({ open, onClose, project, chapter, chapters = [chapte
             )}
 
             {filteredScenes.length > 0 && (
-              <section className="comic-side-section">
+              <section className="comic-side-section comic-scene-library-section">
                 <h3>場景視覺設定</h3>
                 <div className="comic-scene-list">
                   {filteredScenes.map((scene) => {
                     const referenceAssets = sceneReferenceList(scene);
                     return (
-                    <details className="comic-scene-card" key={scene.id}>
+                    <details className="comic-scene-card" key={scene.id} open={workspaceMode === 'scene'}>
                       <summary>
                         <VisualReferenceThumb
                           url={referenceThumbnail(scene)}

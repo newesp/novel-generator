@@ -55,7 +55,7 @@ GitHub Actions 使用 `.github/workflows/ci-cd.yml`：
 
 ## 系統分層
 
-1. **UI 層** — React 19 + TypeScript strict + Vite 8 + 自製 CSS variables 元件。
+1. **UI 層** — React 19 + TypeScript strict + Vite 8 + Mantine Gray 主題；既有自製元件保留為功能相容層。
 2. **業務邏輯層** — 大綱、角色、章節、版本、LLM Wiki、Context Budget、Lint、Graph、漫畫圖片。
 3. **LLM 適配層** — 自定義 OpenAI-compatible、Google Gemini、Grok（文字）；ComfyUI、OpenAI-compatible image、DeepInfra FLUX、Google Gemini Image（圖片）。
 4. **儲存層** — `StorageAdapter` 統一介面；瀏覽器版走 Dexie / IndexedDB，桌面版走 Tauri SQLite + FTS5。

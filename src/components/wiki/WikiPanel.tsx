@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { ClipboardCheck, History, MessageCircleQuestion, Network, Plus, ScanSearch } from 'lucide-react';
 import { useWikiStore } from '../../stores/wikiStore';
 import { useProjectStore } from '../../stores/projectStore';
 import { useLintStore } from '../../stores/lintStore';
@@ -42,7 +43,7 @@ const WIKI_TOOLBAR_STYLE: CSSProperties = {
   width: '100%',
 };
 
-export function WikiPanel() {
+export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
   const { project, chapters, characters, loadChapters, loadCharacters } = useProjectStore();
   const { pages, log, selectedPageId, totalLength, loadForBook, selectPage, createPageBlank } = useWikiStore();
   const { runLint, isRunning: lintRunning } = useLintStore();
@@ -103,8 +104,8 @@ export function WikiPanel() {
   if (!project) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ padding: 12, borderBottom: '1px solid var(--border, #ccc)' }}>
+    <div className={`wiki-panel${workspace ? ' wiki-panel-workspace' : ''}`} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div className="wiki-panel-toolbar" style={{ padding: 12, borderBottom: '1px solid var(--border, #ccc)' }}>
         <div style={{ marginBottom: 8 }}>
           <div style={WIKI_TOOLBAR_STYLE}>
             <Button
@@ -114,7 +115,7 @@ export function WikiPanel() {
               disabled={!project || pages.length === 0}
               title="用目前 Wiki 內容回答問題"
               style={WIKI_TOOL_BUTTON_STYLE}
-            >💬 提問</Button>
+            ><MessageCircleQuestion size={15} />問 Wiki</Button>
             <Button
               variant="secondary"
               size="sm"
@@ -122,7 +123,7 @@ export function WikiPanel() {
               disabled={!project}
               title="檢查 summary/ch-N 品質並重建 Wiki 摘要"
               style={WIKI_TOOL_BUTTON_STYLE}
-            >📋 品質</Button>
+            ><ClipboardCheck size={15} />摘要品質</Button>
             <Button
               variant="secondary"
               size="sm"
@@ -130,7 +131,7 @@ export function WikiPanel() {
               disabled={!project}
               title="查詢角色與 Wiki 的 2-hop Graph 關聯"
               style={WIKI_TOOL_BUTTON_STYLE}
-            >◎ 關係</Button>
+            ><Network size={15} />關係查詢</Button>
             <Button
               variant="secondary"
               size="sm"
@@ -138,21 +139,21 @@ export function WikiPanel() {
               disabled={lintRunning || !project}
               title="跑一致性 Lint：broken link、孤頁、別名重複、未登錄角色、wiki 內部矛盾、wiki vs 章節"
               style={WIKI_TOOL_BUTTON_STYLE}
-            >🔍 Lint</Button>
+            ><ScanSearch size={15} />執行 Lint</Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setLogOpen(true)}
               title="顯示操作記錄"
               style={WIKI_TOOL_BUTTON_STYLE}
-            >📜 紀錄</Button>
+            ><History size={15} />操作紀錄</Button>
             <Button
               variant="primary"
               size="sm"
               onClick={() => setShowNew(true)}
               title="新增 Wiki 頁面"
               style={WIKI_TOOL_BUTTON_STYLE}
-            >＋ 新增</Button>
+            ><Plus size={15} />新增頁面</Button>
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-tertiary, #888)' }}>
@@ -184,7 +185,7 @@ export function WikiPanel() {
 
       <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
         {/* 左欄：分組列表 */}
-        <div style={{ flex: '0 0 50%', minWidth: 0, borderRight: '1px solid var(--border, #ccc)', overflowY: 'auto' }}>
+        <div className="wiki-page-browser" style={{ flex: workspace ? '0 0 340px' : '0 0 50%', minWidth: 0, borderRight: '1px solid var(--border, #ccc)', overflowY: 'auto' }}>
           {(Object.keys(grouped) as WikiPageType[]).map((type) => {
             const arr = grouped[type];
             if (arr.length === 0) return null;
@@ -240,7 +241,7 @@ export function WikiPanel() {
         </div>
 
         {/* 右欄：選中頁的編輯區 */}
-        <div style={{ flex: '0 0 50%', position: 'relative', minWidth: 0 }}>
+        <div className="wiki-page-editor-pane" style={{ flex: workspace ? '1 1 auto' : '0 0 50%', position: 'relative', minWidth: 0 }}>
           {selected ? (
             <WikiPageEditor page={selected} />
           ) : (

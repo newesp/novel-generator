@@ -1,5 +1,18 @@
 # 開發日誌
 
+## 2026-07-17 - Start the Mantine v2 local workspace UI
+
+- Marked the pre-v2 baseline as tag `v1.0.0` and branch `release/v1`; v2 development continues on `codex/v2-local-ui`.
+- Added Mantine with the default Gray palette and Lucide icons, then rebuilt the editor around a fixed workspace sidebar and compact project toolbar.
+- Added independent Scene, Comic, and Video workspace presentations while retaining the existing shared comic storage, generation, TTS, ffmpeg, MP4, SRT, and media-library logic.
+- Moved reference chapter, target word count, chapter tone, and chapter points into one Chapter Settings dialog; chapter points now follow chapter tone directly.
+- Expanded Wiki into a full-width workspace and replaced browser `prompt()` slug renaming with a validated Mantine input dialog that still updates internal Wiki references through the existing rename mutation.
+
+**Verification**
+- `tsc -b` passed.
+- Browser interaction QA passed in Edge at 1440×900 and 1024×768: chapter settings, Wiki create/rename, Scene/Comic/Video workspace switching, video source-audio controls, and video settings dialog.
+- No page-level horizontal overflow or clipped visible button labels were detected at 1024px.
+
 ## 2026-07-06 - Add GitHub Actions CI/CD
 
 - Added a focused GitHub Actions workflow for PR `lint` / `test` / `build` checks and `main` Windows Tauri MSI workflow artifacts.

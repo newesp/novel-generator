@@ -1,4 +1,5 @@
 import { useState, useEffect, type CSSProperties } from 'react';
+import { Modal as MantineModal, TextInput } from '@mantine/core';
 import type { WikiPage } from '../../types';
 import { useWikiStore } from '../../stores/wikiStore';
 import { Button } from '../common/Button';
@@ -22,6 +23,9 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
   const [dirty, setDirty] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [renamingSlug, setRenamingSlug] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameDraft, setRenameDraft] = useState(page.slug);
+  const [renameError, setRenameError] = useState('');
 
   // ESC 退出全屏
   useEffect(() => {
@@ -47,25 +51,34 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
     await deletePage(page.id);
   };
 
-  const onRenameSlug = async () => {
+  const openRenameSlug = () => {
     if (dirty) {
       alert('請先儲存目前編輯內容，再重命名 slug。');
       return;
     }
 
-    const next = prompt(`重命名 ${page.type}/${page.slug}`, page.slug);
-    if (next === null) return;
+    setRenameDraft(page.slug);
+    setRenameError('');
+    setRenameOpen(true);
+  };
 
-    const newSlug = next.trim().toLowerCase();
-    if (!newSlug || newSlug === page.slug) return;
-
-    if (!confirm(`將 ${page.type}/${page.slug} 改成 ${page.type}/${newSlug}，並同步更新所有 Wiki 內部引用？`)) return;
+  const onRenameSlug = async () => {
+    const newSlug = renameDraft.trim().toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(newSlug)) {
+      setRenameError('請使用小寫英數字與連字號，且不能以連字號開頭。');
+      return;
+    }
+    if (newSlug === page.slug) {
+      setRenameOpen(false);
+      return;
+    }
 
     setRenamingSlug(true);
     try {
       await renamePageSlug(page.id, newSlug);
+      setRenameOpen(false);
     } catch (e) {
-      alert((e as Error).message);
+      setRenameError((e as Error).message);
     } finally {
       setRenamingSlug(false);
     }
@@ -170,7 +183,7 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
       }}>
         <Button
           variant="secondary"
-          onClick={onRenameSlug}
+          onClick={openRenameSlug}
           disabled={renamingSlug}
           title="重新命名 slug，並同步更新所有 Wiki 內部引用"
           style={ACTION_BUTTON_STYLE}
@@ -180,6 +193,41 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
         <Button variant="secondary" onClick={onDelete} style={ACTION_BUTTON_STYLE}>🗑 刪除</Button>
         <Button variant="primary" onClick={onSave} disabled={!dirty} style={ACTION_BUTTON_STYLE}>💾 儲存</Button>
       </div>
+
+      <MantineModal
+        opened={renameOpen}
+        onClose={() => !renamingSlug && setRenameOpen(false)}
+        title={`重命名 ${page.type}/${page.slug}`}
+        centered
+        size="sm"
+        closeOnClickOutside={!renamingSlug}
+        closeOnEscape={!renamingSlug}
+      >
+        <TextInput
+          label="Slug"
+          description={`儲存後會同步更新所有指向 ${page.type}/${page.slug} 的 Wiki 內部引用。`}
+          value={renameDraft}
+          onChange={(event) => {
+            setRenameDraft(event.currentTarget.value.toLowerCase());
+            setRenameError('');
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void onRenameSlug();
+          }}
+          error={renameError || undefined}
+          autoFocus
+          data-autofocus
+          disabled={renamingSlug}
+        />
+        <div className="wiki-rename-actions">
+          <Button variant="secondary" onClick={() => setRenameOpen(false)} disabled={renamingSlug}>
+            取消
+          </Button>
+          <Button variant="primary" onClick={() => void onRenameSlug()} disabled={renamingSlug || !renameDraft.trim()}>
+            {renamingSlug ? '更新中…' : '確定'}
+          </Button>
+        </div>
+      </MantineModal>
     </div>
   );
 }

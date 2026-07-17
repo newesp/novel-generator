@@ -297,62 +297,17 @@ export function ChapterEditor() {
       </div>
 
       <div className="editor-toolbar">
-        <span className="toolbar-label">參考章節</span>
-        <select
-          className="toolbar-select"
-          value={referenceChapterId}
-          onChange={(e) => {
-            const v = e.target.value;
-            setReferenceChapterId(v);
-            // 下拉選單沒有 onBlur 概念，即時持久化
-            updateChapter(chapter.id, { referenceChapterId: v || null });
-          }}
-        >
-          <option value="">無</option>
-          {otherChapters.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}{c.content ? '' : '（無內容）'}
-            </option>
-          ))}
-        </select>
-
-        <div className="toolbar-divider" />
-
-        <span className="toolbar-label">故事節拍</span>
-        <input
-          className="toolbar-input"
-          style={{ width: 200 }}
-          list="beat-list"
-          value={beat}
-          onChange={(e) => setBeat(e.target.value)}
-          placeholder="點擊選擇或輸入..."
-        />
-        <datalist id="beat-list">
-          {BEATS.map((b) => <option key={b} value={b} />)}
-        </datalist>
-
-        <div className="toolbar-divider" />
-
-        <span className="toolbar-label">目標字數</span>
-        <input
-          type="number"
-          className="toolbar-input"
-          value={targetWords}
-          onChange={(e) => setTargetWords(e.target.value)}
-          placeholder="留空"
-          style={{ width: 90 }}
-        />
-
-        <div className="toolbar-divider" />
-
         <Button
-          variant="text"
-          style={{ height: 30, fontSize: 13 }}
+          variant="secondary"
+          style={{ height: 32, fontSize: 13 }}
           onClick={() => setShowPointsModal(true)}
         >
-          📝 章節要點 {points && `(${points.length})`}
+          章節設定
         </Button>
-
+        <span className="chapter-settings-summary">
+          {beat || '未設定語氣'} · {targetWords ? `${targetWords} 字` : '未設定字數'}
+          {points ? ` · 要點 ${points.length} 字` : ''}
+        </span>
         <div className="toolbar-spacer" />
       </div>
 
@@ -458,52 +413,102 @@ export function ChapterEditor() {
         </Button>
       </div>
 
-      {/* 章節要點 Modal */}
+      {/* 章節設定 Modal */}
       <Modal
         open={showPointsModal}
         onClose={() => !isRegeneratingPoints && setShowPointsModal(false)}
-        title="章節要點"
+        title="章節設定"
+        width={620}
         footer={
           <>
-            <Button
-              variant="secondary"
-              onClick={handleRegeneratePoints}
-              disabled={isRegeneratingPoints || !apiReady}
-              title={
-                !apiReady ? '請先設定 API'
-                : !beat ? '建議先設定故事節拍以獲得更精準的要點'
-                : ''
-              }
-            >
-              {isRegeneratingPoints ? '✨ 生成中...' : '✨ 重新生成'}
-            </Button>
-            <div style={{ flex: 1 }} />
             <Button variant="secondary" onClick={() => setShowPointsModal(false)} disabled={isRegeneratingPoints}>取消</Button>
             <Button variant="primary" disabled={isRegeneratingPoints} onClick={async () => {
-              await updateChapter(chapter.id, { points });
+              await updateChapter(chapter.id, {
+                referenceChapterId: referenceChapterId || null,
+                beat,
+                targetWords: targetWords ? parseInt(targetWords, 10) : null,
+                points,
+              });
               setShowPointsModal(false);
             }}>儲存</Button>
           </>
         }
       >
-        <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px', lineHeight: 1.6 }}>
-          整章生成時的指引。需要對「整章」做風格/方向調整，請寫在這裡。
-          <br />
-          點擊「✨ 重新生成」會依本章的<strong>故事節拍</strong>
-          {referenceChapterId
-            ? <> 與<strong>參考章節</strong>（{chapters.find((c) => c.id === referenceChapterId)?.title || '未知'}）</>
-            : <>（未設定參考章節）</>
-          }
-          ，由 AI 重寫要點。
-        </p>
-        <textarea
-          className="form-textarea"
-          value={points}
-          onChange={(e) => setPoints(e.target.value)}
-          placeholder="輸入給 AI 的額外提示詞，引導本章節的生成方向..."
-          style={{ minHeight: 140 }}
-          disabled={isRegeneratingPoints}
-        />
+        <div className="chapter-settings-form">
+          <label className="form-group">
+            <span className="form-label">參考章節</span>
+            <select
+              className="form-select"
+              value={referenceChapterId}
+              onChange={(event) => setReferenceChapterId(event.target.value)}
+              disabled={isRegeneratingPoints}
+            >
+              <option value="">無</option>
+              {otherChapters.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.title}{item.content ? '' : '（無內容）'}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="form-group">
+            <span className="form-label">目標字數</span>
+            <input
+              type="number"
+              className="form-input"
+              value={targetWords}
+              onChange={(event) => setTargetWords(event.target.value)}
+              placeholder="留空讓 AI 自行決定"
+              disabled={isRegeneratingPoints}
+            />
+          </label>
+
+          <label className="form-group">
+            <span className="form-label">章節語氣</span>
+            <input
+              className="form-input"
+              list="beat-list"
+              value={beat}
+              onChange={(event) => setBeat(event.target.value)}
+              placeholder="選擇或輸入自訂語氣"
+              disabled={isRegeneratingPoints}
+            />
+            <datalist id="beat-list">
+              {BEATS.map((item) => <option key={item} value={item} />)}
+            </datalist>
+          </label>
+
+          <div className="form-group">
+            <div className="chapter-points-label">
+              <span className="form-label">章節要點</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRegeneratePoints}
+                disabled={isRegeneratingPoints || !apiReady}
+                title={!apiReady ? '請先設定 API' : !beat ? '建議先設定章節語氣' : ''}
+              >
+                {isRegeneratingPoints ? '生成中…' : 'AI 重新整理'}
+              </Button>
+            </div>
+            <textarea
+              className="form-textarea"
+              value={points}
+              onChange={(event) => setPoints(event.target.value)}
+              placeholder="輸入整章的情節、語氣或方向提示"
+              style={{ minHeight: 160 }}
+              disabled={isRegeneratingPoints}
+            />
+            <p className="form-hint">
+              AI 重新整理會依章節語氣
+              {referenceChapterId
+                ? `與參考章節「${chapters.find((item) => item.id === referenceChapterId)?.title || '未知'}」`
+                : '（未設定參考章節）'}
+              產生要點。
+            </p>
+          </div>
+        </div>
       </Modal>
 
       {/* 右鍵選單 */}
