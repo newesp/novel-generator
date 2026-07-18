@@ -2,8 +2,9 @@
 
 [繁體中文](README.md)
 
-> Version: 1.10 (Phase 6 comic image / TTS / MP4 / SRT / motion-effect video library implemented)  
-> Updated: 2026-07-06
+> Version: 1.11 (Mantine v2 local workspace UI)
+>
+> Updated: 2026-07-18
 
 A local-first Chinese novel writing tool available as a browser Web App and a Windows desktop app built with Tauri. The core workflow covers book management, outlines, characters, chapter drafting, versions, LLM Wiki, full-text search, knowledge graph, comic image generation, and desktop comic TTS / MP4 / SRT output, including single-panel video rerendering, motion effects, and a chapter-level video library.
 
@@ -11,6 +12,7 @@ A local-first Chinese novel writing tool available as a browser Web App and a Wi
 - Usage: local browser or Windows desktop app
 - Current data layer: IndexedDB (Dexie) in browser; SQLite (`tauri-plugin-sql`) on desktop
 - Export formats: full-book `.txt` / `.html` / `.epub` export is implemented
+- Current UI: Mantine Gray theme with independent Outline, Character, Scene, Chapter, Wiki, Comic, and Video workspaces; v1 remains available at tag `v1.0.0` and branch `release/v1`
 
 ---
 
@@ -56,7 +58,7 @@ GitHub Actions uses `.github/workflows/ci-cd.yml`:
 
 ## System Layers
 
-1. **UI layer** - React 19 + TypeScript strict + Vite 8 + custom CSS variables components.
+1. **UI layer** - React 19 + TypeScript strict + Vite 8 + Mantine Gray theme; existing custom components remain as a compatibility layer.
 2. **Business logic layer** - outlines, characters, chapters, versions, LLM Wiki, Context Budget, Lint, Graph, and comic images.
 3. **LLM adapter layer** - custom OpenAI-compatible, Google Gemini, and Grok for text; ComfyUI, OpenAI-compatible image, DeepInfra FLUX, and Google Gemini Image for images.
 4. **Storage layer** - unified `StorageAdapter`; browser uses Dexie / IndexedDB, desktop uses Tauri SQLite + FTS5.
@@ -97,7 +99,7 @@ GitHub Actions uses `.github/workflows/ci-cd.yml`:
 ## Remaining Work
 
 - Phase 2.5 polish: manual batch summary rebuild, LLM pick-pages, advanced Graph event extraction / causal reasoning.
-- Phase 3: full content polish editor and ongoing UI/UX polish.
+- Phase 3: full content polish editor; the v2 workspace foundation is complete, with focused UI/UX polish continuing.
 - Phase 4 / 6: Multi-Agent, cover image generation, full Visual Bible management, provider reference weighting, full-book media library, batch image/video export, video orphan cleanup, multi-character/dialogue TTS, Web fallback for video features.
 - Phase 5 / 7: macOS / Linux packaging, code signing, automatic first-launch IndexedDB -> SQLite migration (currently manual JSON), `WaSqliteAdapter` / `WebMediaAdapter`, and PWA redeployment.
 

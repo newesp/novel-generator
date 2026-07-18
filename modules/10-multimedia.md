@@ -15,9 +15,11 @@
 
 ## 整合方式
 
-- 章節工具列已提供「轉漫畫」流程（ComicModal）
+- v2 側欄提供獨立「漫畫」與「影片」工作區，兩者共用既有 ComicModal、Store、StorageAdapter 與生成／輸出邏輯
+- 章節頁的重複「轉漫畫」入口已移除；漫畫工作區是正式入口
+- 場景另有獨立工作區，可選章節／分鏡、搜尋或指派場景，並編輯單一場景的 prompt、negative prompt 與參考圖
 - 生成後可預覽、單格重生、切換歷史圖、手動上傳替換、單圖下載
-- 桌面版 ComicModal 已提供單格 MP4、整章 MP4、自動旁掛 SRT 字幕、每格 motion effect、整章影片設定與章節內「影片庫」
+- 桌面版影片工作區已提供單格 MP4、整章 MP4、自動旁掛 SRT 字幕、每格 motion effect、整章影片設定與章節內「影片庫」
 - EPUB 輸出時可選擇嵌入封面與插圖
 
 ---
@@ -66,7 +68,8 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 
 ### 2026-06 Phase 6 editing/history update
 
-- Comic modal now uses a full-screen three-column workspace: chapter/panel rail, selected panel editor, and shared selectors/sidebar.
+- v2 Comic workspace uses three regions: chapter/panel rail, selected panel editor, and shared character/reference/scene tools.
+- The dedicated Scene workspace hides the comic rail and shows a compact chapter/panel context row plus a two-column scene text/reference editor.
 - Panels can be inserted, deleted, renamed, and reordered with pointer-based dragging.
 - Each generated or uploaded panel image is stored as a `ComicPanelImageVariant`; the panel keeps only the current selected `assetId`.
 - Users can upload an image for the selected panel, switch current variants, delete non-current variants, and download the selected image with visible feedback.

@@ -1,5 +1,12 @@
 # 開發日誌
 
+## 2026-07-18 - Synchronize v2 UI documentation
+
+- Replaced the obsolete Apple/red and draggable-tab layout specs with the implemented Mantine Gray v2 design system and fixed workspace shell.
+- Documented the independent Outline, Character, Scene, Chapter, Wiki, Comic, and Video workspaces, including local-scroll and 1024px layout rules.
+- Updated README, roadmap, and affected module docs to use the v2 entry points and removed documentation for the duplicate Chapter `轉漫畫` action.
+- Kept v1 preservation explicit at tag `v1.0.0` and branch `release/v1`.
+
 ## 2026-07-18 - Optimize v2 outline, character, and scene workspaces
 
 - Rebuilt Outline as a full-height workspace with a fixed basic-settings column and responsive world/plot editors; text areas scroll locally without creating a page-level scrollbar.

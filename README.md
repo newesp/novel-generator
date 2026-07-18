@@ -2,7 +2,7 @@
 
 [English](README.en.md)
 
-> 版本：1.10（Phase 6 comic image / TTS / MP4 / SRT / motion-effect video library implemented）　更新：2026-07-06
+> 版本：1.11（Mantine v2 本機工作區 UI）　更新：2026-07-18
 
 本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出、單格影片重輸出、鏡頭動態效果與章節內影片庫。
 
@@ -10,6 +10,7 @@
 - 使用方式：本機瀏覽器或 Windows 桌面版
 - 目前資料層：瀏覽器版 IndexedDB（Dexie）；桌面版 SQLite（`tauri-plugin-sql`）
 - 輸出格式：已支援整本 `.txt` / `.html` / `.epub` 導出
+- 目前介面：Mantine Gray 主題；大綱、角色、場景、章節、Wiki、漫畫、影片各自使用獨立工作區，v1 保留於 tag `v1.0.0` / branch `release/v1`
 
 ---
 
@@ -96,7 +97,7 @@ GitHub Actions 使用 `.github/workflows/ci-cd.yml`：
 ## 接下來未完成重點
 
 - Phase 2.5 polish：手動批次摘要重建、LLM pick-pages、Graph 進階事件抽取 / 因果推理。
-- Phase 3：完整內容潤色器、持續 UI/UX polish。
+- Phase 3：完整內容潤色器；v2 工作區基礎重整已完成，後續持續做局部 UI/UX polish。
 - Phase 4 / 6：Multi-Agent、封面圖生成、完整 Visual Bible 管理、provider reference weighting、全書級媒體庫、批次圖片/影片匯出、video orphan cleanup、多角色/對話 TTS、Web 版影片降級。
 - Phase 5 / 7：macOS / Linux 打包、code signing、首次啟動自動 IndexedDB→SQLite 遷移（目前採手動 JSON）、`WaSqliteAdapter` / `WebMediaAdapter` / PWA 回部署。
 
