@@ -104,100 +104,119 @@ export function OutlinePanel() {
   };
 
   return (
-    <div className="tab-panel">
-      <div className="section">
-        <div className="section-title">基本設定</div>
-        <div className="form-group">
-          <label className="form-label">書名</label>
-          <input
-            className="form-input"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={save}
-          />
+    <div className="outline-workspace">
+      <aside className="outline-basics">
+        <div className="outline-basics-content">
+          <div className="section-title">基本設定</div>
+          <div className="form-group">
+            <label className="form-label">書名</label>
+            <input
+              className="form-input"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={save}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">題材</label>
+            <input
+              className="form-input"
+              list="genre-list"
+              value={genre}
+              onChange={(e) => setGenre(e.target.value)}
+              placeholder="點擊選擇或輸入..."
+            />
+            <datalist id="genre-list">
+              {GENRES.map((g) => <option key={g} value={g} />)}
+            </datalist>
+          </div>
+          <div className="form-group">
+            <label className="form-label">風格</label>
+            <input
+              className="form-input"
+              list="style-list"
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              placeholder="點擊選擇或輸入..."
+            />
+            <datalist id="style-list">
+              {STYLES.map((s) => <option key={s} value={s} />)}
+            </datalist>
+          </div>
+          <Button
+            variant="primary"
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={generateWorld}
+            disabled={genWorldBusy || !apiReady || (!genre && !style)}
+            title={
+              !apiReady ? '請先設定 API'
+              : (!genre && !style) ? '請先填寫題材或風格'
+              : ''
+            }
+          >
+            {genWorldBusy ? '✨ 生成中...' : '✨ AI 生成世界觀 / 主線劇情'}
+          </Button>
+          {!apiReady && (
+            <p className="outline-api-note">
+              請先在工具列「🔑 API 設定」中設定 LLM endpoint 與 API Key
+            </p>
+          )}
         </div>
-        <div className="form-group">
-          <label className="form-label">題材</label>
-          <input
-            className="form-input"
-            list="genre-list"
-            value={genre}
-            onChange={(e) => setGenre(e.target.value)}
-            placeholder="點擊選擇或輸入..."
-          />
-          <datalist id="genre-list">
-            {GENRES.map((g) => <option key={g} value={g} />)}
-          </datalist>
+        <div className="outline-save-bar">
+          <Button
+            variant="secondary"
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={save}
+            disabled={!isDirty}
+            title={!isDirty ? '無變更' : ''}
+          >
+            {isDirty ? saveLabel : '✅ 已儲存'}
+          </Button>
         </div>
-        <div className="form-group">
-          <label className="form-label">風格</label>
-          <input
-            className="form-input"
-            list="style-list"
-            value={style}
-            onChange={(e) => setStyle(e.target.value)}
-            placeholder="點擊選擇或輸入..."
-          />
-          <datalist id="style-list">
-            {STYLES.map((s) => <option key={s} value={s} />)}
-          </datalist>
-        </div>
-        <Button
-          variant="primary"
-          style={{ width: '100%', justifyContent: 'center' }}
-          onClick={generateWorld}
-          disabled={genWorldBusy || !apiReady || (!genre && !style)}
-          title={
-            !apiReady ? '請先設定 API'
-            : (!genre && !style) ? '請先填寫題材或風格'
-            : ''
-          }
-        >
-          {genWorldBusy ? '✨ 生成中...' : '✨ AI 生成世界觀 / 主線劇情'}
-        </Button>
-        {!apiReady && (
-          <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '6px 0 0' }}>
-            請先在工具列「🔑 API 設定」中設定 LLM endpoint 與 API Key
-          </p>
-        )}
-      </div>
+      </aside>
 
-      <div className="section">
-        <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>世界觀設定</span>
-          <button
-            type="button"
-            onClick={() => setFullscreen('world')}
-            title="展開全螢幕編輯"
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, padding: 2 }}
-          >⛶</button>
-        </div>
-        <textarea
-          className="form-textarea"
-          value={worldSetting}
-          onChange={(e) => setWorldSetting(e.target.value)}
-          placeholder="描述故事發生的世界、規則、勢力格局..."
-          style={{ minHeight: 100 }}
-        />
-      </div>
+      <div className="outline-editors">
+        <section className="outline-editor">
+          <div className="outline-editor-header">
+            <div>
+              <div className="section-title">世界觀設定</div>
+              <p>時空背景、制度、規則與世界運作方式</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFullscreen('world')}
+              title="展開全螢幕編輯"
+              aria-label="展開世界觀全螢幕編輯"
+            >⛶</button>
+          </div>
+          <textarea
+            className="form-textarea outline-editor-textarea"
+            value={worldSetting}
+            onChange={(e) => setWorldSetting(e.target.value)}
+            placeholder="描述故事發生的世界、規則、勢力格局..."
+          />
+        </section>
 
-      <div className="section">
-        <div className="section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span>主線劇情架構</span>
-          <button
-            type="button"
-            onClick={() => setFullscreen('plot')}
-            title="展開全螢幕編輯"
-            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, padding: 2 }}
-          >⛶</button>
-        </div>
-        <textarea
-          className="form-textarea"
-          value={mainPlot}
-          onChange={(e) => setMainPlot(e.target.value)}
-          placeholder="概述故事主線走向與核心衝突..."
-          style={{ minHeight: 100 }}
-        />
+        <section className="outline-editor">
+          <div className="outline-editor-header">
+            <div>
+              <div className="section-title">主線劇情架構</div>
+              <p>主要衝突、角色目標與故事發展方向</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFullscreen('plot')}
+              title="展開全螢幕編輯"
+              aria-label="展開主線劇情全螢幕編輯"
+            >⛶</button>
+          </div>
+          <textarea
+            className="form-textarea outline-editor-textarea"
+            value={mainPlot}
+            onChange={(e) => setMainPlot(e.target.value)}
+            placeholder="概述故事主線走向與核心衝突..."
+          />
+        </section>
       </div>
 
       {fullscreen && (
@@ -225,17 +244,6 @@ export function OutlinePanel() {
         </div>
       )}
 
-      <div className="section" style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-        <Button
-          variant="secondary"
-          style={{ width: '100%', justifyContent: 'center' }}
-          onClick={save}
-          disabled={!isDirty}
-          title={!isDirty ? '無變更' : ''}
-        >
-          {isDirty ? saveLabel : '✅ 已儲存'}
-        </Button>
-      </div>
     </div>
   );
 }

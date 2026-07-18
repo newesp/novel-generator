@@ -2423,11 +2423,90 @@ export function ComicModal({
               </section>
             )}
 
-            {selectedScene && (
+            {selectedScene && workspaceMode === 'scene' && (
+              <section className="scene-visual-workspace">
+                <section className="scene-text-settings">
+                  <header className="scene-settings-header">
+                    <div>
+                      <h3>{selectedScene.title}</h3>
+                      <span>{selectedScene.slug}</span>
+                    </div>
+                    <button type="button" onClick={() => deleteScene(selectedScene)}>刪除場景</button>
+                  </header>
+                  <label>
+                    <FieldLabel label="場景名稱" help="只改顯示名稱；穩定識別用的 slug 會保留，避免已選分鏡失效。" />
+                    <input value={selectedScene.title} onChange={(event) => void updateScene(selectedScene, { title: event.target.value })} />
+                  </label>
+                  <label className="scene-prompt-field">
+                    <FieldLabel label="場景提示詞" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
+                    <textarea value={selectedScene.prompt} onChange={(event) => void updateScene(selectedScene, { prompt: event.target.value })} />
+                  </label>
+                  <label>
+                    <FieldLabel label="場景排除詞" help="避免場景跑偏的內容，例如 modern apartment、clean lab、futuristic city。" />
+                    <input value={selectedScene.negativePrompt} onChange={(event) => void updateScene(selectedScene, { negativePrompt: event.target.value })} />
+                  </label>
+                </section>
+
+                <section className="scene-reference-settings">
+                  <header className="scene-settings-header">
+                    <div>
+                      <h3>場景參考圖</h3>
+                      <span>{selectedSceneReferenceAssets.length} 張圖片</span>
+                    </div>
+                  </header>
+                  <label className="scene-reference-upload">
+                    <FieldLabel label="加入參考圖" help="支援 reference image 的 provider 會自動帶入這些圖片。" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(event) => {
+                        void uploadSceneReference(selectedScene, event.target.files);
+                        event.currentTarget.value = '';
+                      }}
+                    />
+                  </label>
+                  {selectedSceneReferenceAssets.length > 0 ? (
+                    <div className="comic-scene-reference-grid scene-reference-gallery" aria-label={`${selectedScene.title} reference images`}>
+                      {selectedSceneReferenceAssets.map((asset, index) => (
+                        <figure className="comic-scene-reference-item" key={asset.id}>
+                          <button
+                            type="button"
+                            className="comic-scene-reference-thumb"
+                            onClick={() => setPreviewAsset(asset)}
+                            title="預覽場景參考圖"
+                          >
+                            <img src={asset.url} alt={`${selectedScene.title} reference ${index + 1}`} loading="lazy" />
+                          </button>
+                          <figcaption>
+                            <span>#{index + 1}</span>
+                            <button
+                              type="button"
+                              className="comic-scene-reference-delete"
+                              onClick={() => void removeSceneReference(selectedScene, asset.id)}
+                              title="刪除場景參考圖"
+                            >
+                              刪除
+                            </button>
+                          </figcaption>
+                        </figure>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="scene-reference-empty">
+                      <span>尚無場景參考圖</span>
+                      <small>可加入不同角度或光線版本，協助維持場景一致性。</small>
+                    </div>
+                  )}
+                </section>
+              </section>
+            )}
+
+            {selectedScene && workspaceMode !== 'scene' && (
               <section className="comic-side-section comic-scene-library-section">
                 <h3>場景視覺設定</h3>
                 <div className="comic-scene-list">
-                    <details className="comic-scene-card" key={selectedScene.id} open={workspaceMode === 'scene'}>
+                    <details className="comic-scene-card" key={selectedScene.id}>
                       <summary>
                         <VisualReferenceThumb
                           url={referenceThumbnail(selectedScene)}

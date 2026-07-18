@@ -1,5 +1,18 @@
 # 開發日誌
 
+## 2026-07-18 - Optimize v2 outline, character, and scene workspaces
+
+- Rebuilt Outline as a full-height workspace with a fixed basic-settings column and responsive world/plot editors; text areas scroll locally without creating a page-level scrollbar.
+- Reworked Characters into a master/detail workspace with a searchable local list, inline editing, Basic/Story/Comic Visual tabs, and the existing relationship graph as an alternate detail view.
+- Kept character CRUD, AI generation/fill, relationship data, visual prompts, and reference-image storage on their existing handlers and data model.
+- Flattened the selected Scene editor into text and reference-image columns while preserving chapter/panel context, scene assignment, creation, deletion, upload, preview, and storage behavior.
+- Added responsive 1024px constraints so editor columns remain usable without clipping or horizontal overflow.
+
+**Verification**
+- `tsc -b` passed.
+- Edge visual QA passed at 1440×900 and 1024×768 for Outline, Character Story/Comic Visual, and Scene workspaces.
+- Browser measurements confirmed the body and v2 workspace have matching scroll/client dimensions at both tested viewports; only intended text and gallery regions can scroll locally.
+
 ## 2026-07-17 - Refine v2 resource and scene workspaces
 
 - Removed the unrelated chapter editor from Outline and Character workspaces; each now uses one focused resource pane.

@@ -131,10 +131,10 @@ export default function App() {
         <Toolbar variant="workspace" />
         <div className="v2-workspace">
           {workspace === 'outline' && (
-            <div className="v2-single-resource-pane"><OutlinePanel /></div>
+            <div className="v2-full-resource-workspace"><OutlinePanel /></div>
           )}
           {workspace === 'characters' && (
-            <div className="v2-single-resource-pane"><CharactersPanel /></div>
+            <div className="v2-full-resource-workspace"><CharactersPanel /></div>
           )}
           {workspace === 'chapters' && chapterWorkspace}
           {workspace === 'wiki' && <WikiPanel workspace />}
