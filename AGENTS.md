@@ -34,5 +34,5 @@
 - 所有資料以 `bookId` 為根鍵；**瀏覽器版**存於 IndexedDB（Dexie）、**桌面版（Tauri）**存於 SQLite（`%AppData%\com.novelgenerator.app\novel-generator.db`）。UI / stores 只依賴 `src/lib/storage/` 的 `StorageAdapter` 介面，不直接 import `db`。
 - 非硬性規定，但建議使用順序：CLI > API > MCP。
 - 僅讀 main 分支。
-- 技術棧現況（權威來源是 `package.json`）：React 19 / TypeScript strict / Vite 8 / Zustand 5 / Dexie 4 / Tauri 2.x（桌面殼層） / tauri-plugin-sql（SQLite） / 自製 UI 元件（無 shadcn、無 Tailwind，使用 CSS variables）。
+- 技術棧現況（權威來源是 `package.json`）：React 19 / TypeScript strict / Vite 8 / Mantine（v2 Gray 主題） / Zustand 5 / Dexie 4 / Tauri 2.x（桌面殼層） / tauri-plugin-sql（SQLite） / 既有自製 UI 元件相容層（無 shadcn、無 Tailwind）。
 - **驗證範圍**：程式碼變更只跑 `tsc -b`。完整 `vitest run`、browser 驗證留到階段完成，或使用者要求時。純 Markdown 文件整理不需要跑 `tsc -b`，但需以 `package.json`、`src/types/`、`src/lib/storage/` 與相關實作檔交叉檢查。驗證通過就 commit，並更新 `docs/CHANGELOG.md`。

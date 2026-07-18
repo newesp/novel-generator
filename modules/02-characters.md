@@ -26,6 +26,16 @@
 - 關係圖視覺化 MVP（✅ 2026-05-28）：角色分頁可切換「列表 / 關係圖」，目前以 `Character.relations` 文字中提到的其他角色名字推導連線；Wiki 面板另有 `knowledge-graph.ts` 建立 characters + wiki pages 的 2-hop 查詢圖。
 
 ---
+
+## v2 介面
+
+- 左側 320px master list 提供搜尋、AI 生成、新增、多選刪除與列表／關係圖切換。
+- 右側直接編輯選中角色，不再使用長表單 Modal。
+- 欄位分為「基本資料」「故事設定」「漫畫視覺」三個 Tabs。
+- 漫畫視覺保留外貌、角色 Negative Prompt、多張參考圖上傳與移除。
+- AI 批次生成仍使用 Modal；AI 填寫內容位於右側編輯器工具列。
+
+---
 ## 角色欄位
 
 | 欄位   | 說明               |

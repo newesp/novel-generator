@@ -1,5 +1,53 @@
 # 開發日誌
 
+## 2026-07-18 - Synchronize v2 UI documentation
+
+- Replaced the obsolete Apple/red and draggable-tab layout specs with the implemented Mantine Gray v2 design system and fixed workspace shell.
+- Documented the independent Outline, Character, Scene, Chapter, Wiki, Comic, and Video workspaces, including local-scroll and 1024px layout rules.
+- Updated README, roadmap, and affected module docs to use the v2 entry points and removed documentation for the duplicate Chapter `轉漫畫` action.
+- Kept v1 preservation explicit at tag `v1.0.0` and branch `release/v1`.
+
+## 2026-07-18 - Optimize v2 outline, character, and scene workspaces
+
+- Rebuilt Outline as a full-height workspace with a fixed basic-settings column and responsive world/plot editors; text areas scroll locally without creating a page-level scrollbar.
+- Reworked Characters into a master/detail workspace with a searchable local list, inline editing, Basic/Story/Comic Visual tabs, and the existing relationship graph as an alternate detail view.
+- Kept character CRUD, AI generation/fill, relationship data, visual prompts, and reference-image storage on their existing handlers and data model.
+- Flattened the selected Scene editor into text and reference-image columns while preserving chapter/panel context, scene assignment, creation, deletion, upload, preview, and storage behavior.
+- Added responsive 1024px constraints so editor columns remain usable without clipping or horizontal overflow.
+- Tightened the Scene assignment row so its label, dropdown, and content-width create button remain grouped, and removed the excess gap between the scene-prompt label and textarea.
+
+**Verification**
+- `tsc -b` passed.
+- Edge visual QA passed at 1440×900 and 1024×768 for Outline, Character Story/Comic Visual, and Scene workspaces.
+- Browser measurements confirmed the body and v2 workspace have matching scroll/client dimensions at both tested viewports; only intended text and gallery regions can scroll locally.
+- Scene spacing QA confirmed a 128px create button, a 520px dropdown cap, a 6px prompt label gap, and no horizontal overflow at both tested widths.
+
+## 2026-07-17 - Refine v2 resource and scene workspaces
+
+- Removed the unrelated chapter editor from Outline and Character workspaces; each now uses one focused resource pane.
+- Removed the chapter/panel rail from the dedicated Scene workspace and moved its chapter/panel context controls into a compact top row.
+- Replaced the always-expanded scene list with a searchable single-select control, including the `無場景` option, and render only the selected scene's visual-settings card.
+- Kept existing scenes editable even when no comic panel exists; only the panel-dependent `從此格建立場景` action is disabled.
+- Removed the duplicate `轉漫畫` action from the Chapter editor because the Comic workspace is now the canonical entry point.
+
+**Verification**
+- `tsc -b` passed.
+- Edge visual QA passed at 1440×900 and 1024×768 with no page-level horizontal overflow or clipped visible controls.
+- Browser interaction QA confirmed one rendered scene card for three stored scenes, scene-card replacement after selection, a compact 128px create button, hidden Scene rail, and no Chapter `轉漫畫` button.
+
+## 2026-07-17 - Start the Mantine v2 local workspace UI
+
+- Marked the pre-v2 baseline as tag `v1.0.0` and branch `release/v1`; v2 development continues on `codex/v2-local-ui`.
+- Added Mantine with the default Gray palette and Lucide icons, then rebuilt the editor around a fixed workspace sidebar and compact project toolbar.
+- Added independent Scene, Comic, and Video workspace presentations while retaining the existing shared comic storage, generation, TTS, ffmpeg, MP4, SRT, and media-library logic.
+- Moved reference chapter, target word count, chapter tone, and chapter points into one Chapter Settings dialog; chapter points now follow chapter tone directly.
+- Expanded Wiki into a full-width workspace and replaced browser `prompt()` slug renaming with a validated Mantine input dialog that still updates internal Wiki references through the existing rename mutation.
+
+**Verification**
+- `tsc -b` passed.
+- Browser interaction QA passed in Edge at 1440×900 and 1024×768: chapter settings, Wiki create/rename, Scene/Comic/Video workspace switching, video source-audio controls, and video settings dialog.
+- No page-level horizontal overflow or clipped visible button labels were detected at 1024px.
+
 ## 2026-07-06 - Add GitHub Actions CI/CD
 
 - Added a focused GitHub Actions workflow for PR `lint` / `test` / `build` checks and `main` Windows Tauri MSI workflow artifacts.

@@ -39,6 +39,7 @@ export function CharactersPanel() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (project) loadCharacters(project.id);
@@ -48,6 +49,15 @@ export function CharactersPanel() {
     const ids = new Set(characters.map((c) => c.id));
     return new Set([...selected].filter((id) => ids.has(id)));
   }, [characters, selected]);
+
+  const filteredCharacters = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    if (!query) return characters;
+    return characters.filter((character) =>
+      [character.name, character.gender, character.race, character.personality]
+        .some((value) => value?.toLocaleLowerCase().includes(query)),
+    );
+  }, [characters, search]);
 
   const toggleOne = (id: string) => {
     setSelected((prev) => {
@@ -134,35 +144,14 @@ export function CharactersPanel() {
   };
 
   return (
-    <div className="tab-panel">
-      <div className="section">
-        <Button
-          variant="primary"
-          style={{ width: '100%', justifyContent: 'center', marginBottom: 8 }}
-          onClick={() => setShowAIModal(true)}
-          disabled={!apiReady || !outlineReady}
-          title={
-            !apiReady ? '請先設定 API'
-            : !outlineReady ? '請先在大綱頁填寫世界觀或主線劇情'
-            : ''
-          }
-        >
-          ✨ AI 生成角色
-        </Button>
-        <Button
-          variant="secondary"
-          style={{ width: '100%', justifyContent: 'center' }}
-          onClick={() => setEditing(EMPTY_CHARACTER(project.id))}
-        >
-          ➕ 新增角色
-        </Button>
-      </div>
-
-      <div className="section">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <div className="section-title" style={{ marginBottom: 0 }}>角色（{characters.length}）</div>
-          <span style={{ flex: 1 }} />
-          <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+    <div className="characters-workspace">
+      <aside className="character-browser">
+        <header className="character-browser-header">
+          <div>
+            <h2>角色</h2>
+            <span>{characters.length} 位角色</span>
+          </div>
+          <div className="character-view-toggle" aria-label="角色檢視模式">
             {([
               ['list', '列表'],
               ['graph', '關係圖'],
@@ -170,29 +159,49 @@ export function CharactersPanel() {
               <button
                 key={mode}
                 type="button"
+                className={viewMode === mode ? 'active' : ''}
                 onClick={() => setViewMode(mode)}
-                style={{
-                  height: 26,
-                  padding: '0 9px',
-                  border: 0,
-                  borderLeft: mode === 'list' ? 0 : '1px solid var(--border)',
-                  background: viewMode === mode ? 'var(--accent)' : 'transparent',
-                  color: viewMode === mode ? '#fff' : 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                }}
               >
                 {label}
               </button>
             ))}
           </div>
+        </header>
+
+        <div className="character-browser-actions">
+          <Button
+            variant="primary"
+            onClick={() => setShowAIModal(true)}
+            disabled={!apiReady || !outlineReady}
+            title={
+              !apiReady ? '請先設定 API'
+              : !outlineReady ? '請先在大綱頁填寫世界觀或主線劇情'
+              : ''
+            }
+          >
+            ✨ AI 生成
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setViewMode('list');
+              setEditing(EMPTY_CHARACTER(project.id));
+            }}
+          >
+            ＋ 新增角色
+          </Button>
         </div>
-        {viewMode === 'list' && characters.length > 0 && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '6px 0 8px', fontSize: 12, color: 'var(--text-secondary)',
-          }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+
+        <input
+          className="form-input character-search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="搜尋姓名、種族或性格"
+        />
+
+        {characters.length > 0 && (
+          <div className="character-batch-bar">
+            <label>
               <input
                 type="checkbox"
                 checked={allChecked}
@@ -201,67 +210,82 @@ export function CharactersPanel() {
               />
               全選
             </label>
-            <span style={{ flex: 1 }} />
-            <span>已勾選 {selectedCharacterIds.size}</span>
-            <Button
-              variant="ghost"
+            <span>已選 {selectedCharacterIds.size}</span>
+            <button
+              type="button"
               onClick={handleDeleteSelected}
               disabled={selectedCharacterIds.size === 0}
-              style={{ color: selectedCharacterIds.size > 0 ? 'var(--accent)' : undefined }}
             >
-              🗑 刪除勾選
-            </Button>
+              刪除
+            </button>
           </div>
         )}
-        {viewMode === 'list' ? (
-          <>
-            {characters.map((char) => (
-              <div
-                key={char.id}
-                className="char-item"
-                onClick={() => setEditing(char)}
-                style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedCharacterIds.has(char.id)}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={() => toggleOne(char.id)}
-                  style={{ marginTop: 3, cursor: 'pointer' }}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="char-item-name">{char.name || '(未命名)'}</div>
-                  <div className="char-item-meta">
-                    {[char.gender, char.age && `${char.age}歲`, char.race && `種族：${char.race}`]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </div>
+
+        <div className="character-list">
+          {filteredCharacters.map((char) => (
+            <div
+              key={char.id}
+              className={`char-item${editing?.id === char.id ? ' active' : ''}`}
+              onClick={() => {
+                setViewMode('list');
+                setEditing(char);
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selectedCharacterIds.has(char.id)}
+                onClick={(event) => event.stopPropagation()}
+                onChange={() => toggleOne(char.id)}
+              />
+              <div>
+                <div className="char-item-name">{char.name || '(未命名)'}</div>
+                <div className="char-item-meta">
+                  {[char.gender, char.age && `${char.age}歲`, char.race && `種族：${char.race}`]
+                    .filter(Boolean)
+                    .join(' · ') || '尚無基本資料'}
                 </div>
               </div>
-            ))}
-            {characters.length === 0 && (
-              <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: '8px 0' }}>
-                尚未建立角色，點擊上方按鈕新增
-              </div>
-            )}
-          </>
-        ) : (
-          <CharacterGraphView characters={characters} onSelectCharacter={setEditing} />
-        )}
-      </div>
+            </div>
+          ))}
+          {characters.length === 0 && (
+            <div className="character-list-empty">尚未建立角色</div>
+          )}
+          {characters.length > 0 && filteredCharacters.length === 0 && (
+            <div className="character-list-empty">找不到符合的角色</div>
+          )}
+        </div>
+      </aside>
 
-      {editing && (
-        <CharacterEditorModal
-          character={editing}
-          onClose={() => setEditing(null)}
-          onSave={handleSave}
-          onDelete={editing.id ? handleDelete : undefined}
-          worldSetting={project.worldSetting || ''}
-          mainPlot={project.mainPlot || ''}
-          otherCharacters={characters.filter((c) => c.id !== editing.id).map((c) => ({ name: c.name, personality: c.personality, background: c.background }))}
-          llmReady={isLLMReady(llmConfig)}
-        />
-      )}
+      <section className="character-detail">
+        {viewMode === 'graph' ? (
+          <div className="character-graph-workspace">
+            <CharacterGraphView
+              characters={characters}
+              onSelectCharacter={(character) => {
+                setEditing(character);
+                setViewMode('list');
+              }}
+            />
+          </div>
+        ) : editing ? (
+          <CharacterEditor
+            key={editing.id || 'new-character'}
+            character={editing}
+            onClose={() => setEditing(null)}
+            onSave={handleSave}
+            onDelete={editing.id ? handleDelete : undefined}
+            worldSetting={project.worldSetting || ''}
+            mainPlot={project.mainPlot || ''}
+            otherCharacters={characters.filter((c) => c.id !== editing.id).map((c) => ({ name: c.name, personality: c.personality, background: c.background }))}
+            llmReady={isLLMReady(llmConfig)}
+          />
+        ) : (
+          <div className="character-detail-empty">
+            <strong>選擇角色開始編輯</strong>
+            <span>也可以新增角色，或切換到關係圖檢視。</span>
+          </div>
+        )}
+      </section>
 
       <Modal
         open={showAIModal}
@@ -328,9 +352,10 @@ interface ModalProps {
   llmReady: boolean;
 }
 
-function CharacterEditorModal({ character, onClose, onSave, onDelete, worldSetting, mainPlot, otherCharacters, llmReady }: ModalProps) {
+function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, mainPlot, otherCharacters, llmReady }: ModalProps) {
   const [aiFilling, setAiFilling] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'basic' | 'story' | 'visual'>('basic');
   const [form, setForm] = useState({
     name: character.name,
     gender: character.gender,
@@ -437,14 +462,15 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete, worldSetti
   };
 
   return (
-    <Modal
-      open
-      onClose={onClose}
-      title={character.id ? '編輯角色' : '新增角色'}
-      footer={
-        <>
+    <div className="character-editor">
+      <header className="character-editor-header">
+        <div>
+          <h2>{character.id ? (form.name || '未命名角色') : '新增角色'}</h2>
+          <span>{character.id ? '編輯角色設定' : '填寫基本資料後儲存角色'}</span>
+        </div>
+        <div className="character-editor-actions">
           {onDelete && (
-            <Button variant="ghost" onClick={onDelete} style={{ color: 'var(--accent)' }}>
+            <Button variant="ghost" onClick={onDelete} style={{ color: 'var(--danger, #e03131)' }}>
               刪除
             </Button>
           )}
@@ -456,80 +482,115 @@ function CharacterEditorModal({ character, onClose, onSave, onDelete, worldSetti
           >
             {aiFilling ? '生成中...' : '✨ AI 填寫內容'}
           </Button>
-          <div style={{ flex: 1 }} />
           <Button variant="secondary" onClick={onClose} disabled={aiFilling}>取消</Button>
           <Button variant="primary" onClick={() => onSave(form)} disabled={aiFilling}>儲存</Button>
-        </>
-      }
-    >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        </div>
+      </header>
+
+      <nav className="character-editor-tabs" aria-label="角色設定分類">
+        {([
+          ['basic', '基本資料'],
+          ['story', '故事設定'],
+          ['visual', '漫畫視覺'],
+        ] as const).map(([tab, label]) => (
+          <button
+            key={tab}
+            type="button"
+            className={activeTab === tab ? 'active' : ''}
+            onClick={() => setActiveTab(tab)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="character-editor-content">
         {aiError && (
-          <div style={{ padding: '8px 10px', background: 'var(--bg-tertiary)', border: '1px solid var(--accent)', borderRadius: 6, color: 'var(--accent)', fontSize: 12 }}>
+          <div className="character-ai-error">
             {aiError}
           </div>
         )}
-        <Input label="姓名" value={form.name} onChange={(e) => update('name', e.target.value)} />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Input label="性別" value={form.gender} onChange={(e) => update('gender', e.target.value)} />
-          <Input label="年齡" value={form.age} onChange={(e) => update('age', e.target.value)} />
-        </div>
-        <Input label="種族" value={form.race} onChange={(e) => update('race', e.target.value)} />
-        <Input label="性格" value={form.personality} onChange={(e) => update('personality', e.target.value)} />
-        <Textarea label="背景" value={form.background} onChange={(e) => update('background', e.target.value)} />
-        <Textarea label="能力" value={form.abilities} onChange={(e) => update('abilities', e.target.value)} />
-        <Textarea label="關係" value={form.relations} onChange={(e) => update('relations', e.target.value)} />
-        <Textarea
-          label="成長弧線"
-          value={form.arc}
-          onChange={(e) => update('arc', e.target.value)}
-          placeholder="從故事開頭到結局，此角色的內在轉變（與主線劇情相呼應）..."
-        />
-        <div className="character-visual-section">
-          <div className="section-title">漫畫視覺設定</div>
-          <Textarea
-            label="外貌"
-            value={form.appearance}
-            onChange={(e) => update('appearance', e.target.value)}
-            placeholder="固定髮型、臉部特徵、體型、服裝、標誌物；例如：阿飛，年輕男性，短黑髮，藍灰色舊工作服..."
-          />
-          <p className="character-visual-note">故事生成與漫畫生圖都會使用這個外貌欄位；漫畫生圖會把它作為角色視覺 prompt。</p>
-          <Textarea
-            label="角色 Negative Prompt"
-            value={form.visualNegativePrompt}
-            onChange={(e) => update('visualNegativePrompt', e.target.value)}
-            placeholder="只填要排除的錯誤外觀，不要填角色應保留的特徵；例如：old, overweight, clean elegant dress, male, soft delicate hands"
-          />
-          <div>
-            <label className="form-label">角色參考圖</label>
-            {character.id ? (
-              <>
-                <input
-                  className="form-input"
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(event) => void handleReferenceUpload(event.target.files)}
-                />
-                <div className="character-reference-grid">
-                  {referenceAssets.map((asset, index) => (
-                    <figure className="character-reference-card" key={asset.id}>
-                      {asset.url && <img src={asset.url} alt={`${form.name || '角色'}參考圖 ${index + 1}`} />}
-                      <figcaption>
-                        <span>{index === 0 ? '主參考' : `參考 ${index + 1}`}</span>
-                        <button type="button" onClick={() => removeReferenceAsset(asset.id)}>移除</button>
-                      </figcaption>
-                    </figure>
-                  ))}
-                </div>
-                <p className="character-visual-note">儲存角色後，轉漫畫會自動把視覺 prompt 注入對應角色的分鏡；參考圖會先保存，待 provider 支援 reference image 時使用。</p>
-              </>
-            ) : (
-              <p className="character-visual-note">先儲存新角色，再重新打開即可上傳多張角色參考圖。</p>
-            )}
+
+        {activeTab === 'basic' && (
+          <div className="character-form-grid character-basic-form">
+            <Input label="姓名" value={form.name} onChange={(e) => update('name', e.target.value)} />
+            <Input label="種族" value={form.race} onChange={(e) => update('race', e.target.value)} />
+            <Input label="性別" value={form.gender} onChange={(e) => update('gender', e.target.value)} />
+            <Input label="年齡" value={form.age} onChange={(e) => update('age', e.target.value)} />
+            <div className="character-form-wide">
+              <Textarea label="性格" value={form.personality} onChange={(e) => update('personality', e.target.value)} />
+            </div>
           </div>
-        </div>
+        )}
+
+        {activeTab === 'story' && (
+          <div className="character-form-grid character-story-form">
+            <Textarea label="背景" value={form.background} onChange={(e) => update('background', e.target.value)} />
+            <Textarea label="能力" value={form.abilities} onChange={(e) => update('abilities', e.target.value)} />
+            <Textarea label="關係" value={form.relations} onChange={(e) => update('relations', e.target.value)} />
+            <Textarea
+              label="成長弧線"
+              value={form.arc}
+              onChange={(e) => update('arc', e.target.value)}
+              placeholder="從故事開頭到結局，此角色的內在轉變（與主線劇情相呼應）..."
+            />
+          </div>
+        )}
+
+        {activeTab === 'visual' && (
+          <div className="character-visual-layout">
+            <section className="character-visual-fields">
+              <Textarea
+                label="外貌"
+                value={form.appearance}
+                onChange={(e) => update('appearance', e.target.value)}
+                placeholder="固定髮型、臉部特徵、體型、服裝與標誌物..."
+              />
+              <Textarea
+                label="角色 Negative Prompt"
+                value={form.visualNegativePrompt}
+                onChange={(e) => update('visualNegativePrompt', e.target.value)}
+                placeholder="只填要排除的錯誤外觀..."
+              />
+              <p className="character-visual-note">故事生成與漫畫生圖都會使用外貌欄位；漫畫生圖會將它作為角色視覺 prompt。</p>
+            </section>
+            <section className="character-reference-panel">
+              <div>
+                <strong>角色參考圖</strong>
+                <span>{referenceAssets.length} 張圖片</span>
+              </div>
+              {character.id ? (
+                <>
+                  <input
+                    className="form-input"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(event) => void handleReferenceUpload(event.target.files)}
+                  />
+                  <div className="character-reference-grid">
+                    {referenceAssets.map((asset, index) => (
+                      <figure className="character-reference-card" key={asset.id}>
+                        {asset.url && <img src={asset.url} alt={`${form.name || '角色'}參考圖 ${index + 1}`} />}
+                        <figcaption>
+                          <span>{index === 0 ? '主參考' : `參考 ${index + 1}`}</span>
+                          <button type="button" onClick={() => removeReferenceAsset(asset.id)}>移除</button>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                  {referenceAssets.length === 0 && (
+                    <div className="character-reference-empty">尚未加入角色參考圖</div>
+                  )}
+                </>
+              ) : (
+                <div className="character-reference-empty">先儲存新角色，再加入參考圖。</div>
+              )}
+            </section>
+          </div>
+        )}
       </div>
-    </Modal>
+    </div>
   );
 }
 

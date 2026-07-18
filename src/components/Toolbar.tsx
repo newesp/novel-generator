@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { ArrowLeft, Archive, Search, Settings, Upload } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
 import { useSettingsStore, type InlineEditContextMode, type AIPromptPrefs } from '../stores/settingsStore';
@@ -57,7 +58,11 @@ const PREFS_TABS: { key: PrefsTab; label: string }[] = [
   { key: 'wiki',       label: '📚 Wiki 設定' },
 ];
 
-export function Toolbar() {
+interface ToolbarProps {
+  variant?: 'classic' | 'workspace';
+}
+
+export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   const { project, chapters } = useProjectStore();
   const { view, setView } = useUIStore();
   const {
@@ -211,23 +216,32 @@ export function Toolbar() {
 
   return (
     <>
-      <div className="toolbar">
-        <span
-          className="toolbar-logo"
-          style={{ cursor: 'pointer' }}
-          onClick={goHome}
-          title="返回書庫"
-        >
-          📖 小說產生器
-        </span>
+      <div className={`toolbar${variant === 'workspace' ? ' v2-workspace-toolbar' : ''}`}>
+        {variant === 'classic' ? (
+          <span
+            className="toolbar-logo"
+            style={{ cursor: 'pointer' }}
+            onClick={goHome}
+            title="返回書庫"
+          >
+            📖 小說產生器
+          </span>
+        ) : (
+          <button type="button" className="v2-breadcrumb-back" onClick={goHome} title="返回書庫">
+            <ArrowLeft size={16} />
+            <span>書庫</span>
+          </button>
+        )}
 
         {view === 'editor' && (
           <>
-            <Button variant="text" onClick={goHome} style={{ fontSize: 12, height: 28 }}>
-              ← 書庫
-            </Button>
+            {variant === 'classic' && (
+              <Button variant="text" onClick={goHome} style={{ fontSize: 12, height: 28 }}>
+                ← 書庫
+              </Button>
+            )}
             {project && (
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span className={variant === 'workspace' ? 'v2-project-title' : undefined} style={{ fontSize: 13, color: 'var(--text-secondary)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {project.title}
               </span>
             )}
@@ -236,13 +250,25 @@ export function Toolbar() {
 
         <div className="toolbar-spacer" />
         {view === 'editor' && project && storage.search && (
-          <Button variant="secondary" onClick={() => setShowSearchModal(true)}>🔎 全文搜尋</Button>
+          <Button variant="secondary" onClick={() => setShowSearchModal(true)}>
+            {variant === 'workspace' && <Search size={15} />}
+            {variant === 'workspace' ? '全文搜尋' : '🔎 全文搜尋'}
+          </Button>
         )}
         {view === 'editor' && project && (
-          <Button variant="secondary" onClick={() => setShowExportModal(true)}>📤 匯出</Button>
+          <Button variant="secondary" onClick={() => setShowExportModal(true)}>
+            {variant === 'workspace' && <Upload size={15} />}
+            {variant === 'workspace' ? '匯出' : '📤 匯出'}
+          </Button>
         )}
-        <Button variant="secondary" onClick={() => setShowBackupModal(true)}>💾 備份</Button>
-        <Button variant="secondary" onClick={openPrefs}>⚙️ 偏好設定</Button>
+        <Button variant="secondary" onClick={() => setShowBackupModal(true)}>
+          {variant === 'workspace' && <Archive size={15} />}
+          {variant === 'workspace' ? '備份' : '💾 備份'}
+        </Button>
+        <Button variant="secondary" onClick={openPrefs}>
+          {variant === 'workspace' && <Settings size={15} />}
+          {variant === 'workspace' ? '偏好設定' : '⚙️ 偏好設定'}
+        </Button>
       </div>
 
       <BackupModal open={showBackupModal} onClose={() => setShowBackupModal(false)} />

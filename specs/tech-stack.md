@@ -11,8 +11,8 @@
 | 前端框架 | React + TypeScript（strict） |
 | 建構工具 | Vite |
 | 狀態管理 | Zustand + persist |
-| 樣式 | CSS variables（無 Tailwind） |
-| UI 元件 | 自製元件（無 shadcn / Radix） |
+| 樣式 | Mantine theme + CSS variables（無 Tailwind） |
+| UI 元件 | Mantine（v2）+ 既有自製元件相容層 |
 | 本地存儲（瀏覽器版） | IndexedDB (Dexie.js) + File System Access API 備份 |
 | 本地存儲（桌面版） | SQLite（native，透過 `tauri-plugin-sql`，已落地 2026-05） |
 | 本地存儲（Phase 7，Web 版回部署） | wa-sqlite + OPFS（與桌面共用 SQL schema） |

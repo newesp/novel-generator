@@ -221,4 +221,4 @@
 
 ---
 
-> 主編輯介面的完整佈局規範（雙欄結構、左側分頁、右側工具列、底部動作列）請參見 [specs/ui-layout.md](../specs/ui-layout.md)
+> v2 主編輯器以固定側欄切換獨立工作區；章節工作區仍保留左側章節清單、右側正文與動作列。完整規範請參見 [specs/UI-layout.md](../specs/UI-layout.md)。

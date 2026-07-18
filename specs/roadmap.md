@@ -59,7 +59,7 @@
 
 1. ✅ 導出功能（.txt / .html / .epub，2026-06-30）→ specs/output-formats
 2. ❌ 內容潤色器 → 06-polish
-3. ⚠️ UI 美化與使用體驗優化（持續進行，基礎樣式已完成）
+3. ✅ v2 本機工作區 UI 基礎重整（2026-07-18）：Mantine Gray、固定側欄、獨立大綱／角色／場景／章節／Wiki／漫畫／影片工作區；後續持續局部 polish
 
 ---
 
@@ -129,7 +129,7 @@ StorageAdapter（已實作）/ MediaAdapter（後續大量 binary polish）
 3. ✅ **本地圖片模型**：ComfyUI HTTP API（workflow JSON + node mapping + submit/poll/download）
 4. ✅ **線上圖片模型**：OpenAI-compatible image provider（endpoint/model/API key）
 5. ✅ **漫畫分鏡 pipeline**：章節文本 + 角色卡 + Wiki → 可編輯 storyboard
-6. ✅ **UI 整合**：章節工具列「轉漫畫」→ storyboard editor → batch progress → comic preview
+6. ✅ **UI 整合**：v2 側欄「漫畫」獨立工作區 → storyboard editor → batch progress → comic preview；章節頁不保留重複入口
 7. ✅ **單格重生、手動上傳、圖片歷史與單圖下載**：panel variant history、目前圖片切換、目前圖片保護、上傳圖片與下載回饋已接入
 8. 🟡 **Visual Bible / Prompt Composer**：角色/場景 reference、scene visuals、continuity reference、`extraGroupsJson`、final prompt snapshot 已接入；完整 Visual Bible 管理仍待 polish
 9. ✅ **TTS / MP4 / SRT MVP（桌面）**：Edge-TTS、ffmpeg sidecar、單格 MP4 segment、整章 MP4 concat、旁掛 SRT 字幕、motion effects、輸出驗證與章節內影片庫已接入

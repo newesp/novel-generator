@@ -14,9 +14,12 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mantine/core": "^9.4.1",
+    "@mantine/hooks": "^9.4.1",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-sql": "^2.4.0",
     "dexie": "^4.4.2",
+    "lucide-react": "^1.25.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-markdown": "^10.1.0",
