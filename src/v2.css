@@ -869,8 +869,9 @@
 
 .comic-workspace-scene .comic-scene-assignment-section {
   display: grid;
-  grid-template-columns: auto minmax(260px, 420px) auto;
-  align-items: end;
+  grid-template-columns: max-content minmax(260px, 520px) max-content;
+  align-items: center;
+  justify-content: start;
   min-height: 0;
   padding: 10px 12px;
   gap: 10px;
@@ -880,16 +881,18 @@
 }
 
 .comic-workspace-scene .comic-scene-assignment-section h3 {
-  align-self: center;
-  margin: 0 4px 0 0;
+  margin: 0;
 }
 
 .comic-workspace-scene .comic-scene-assignment-section .mantine-Select-root {
+  width: 100%;
   min-width: 0;
 }
 
 .comic-workspace-scene .comic-scene-create-button {
-  align-self: center;
+  width: fit-content;
+  justify-self: start;
+  white-space: nowrap;
 }
 
 .comic-workspace-scene .comic-scene-list {
@@ -969,13 +972,14 @@
 }
 
 .scene-prompt-field {
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   flex: 1;
 }
 
 .scene-prompt-field textarea {
   min-height: 96px;
-  height: 100%;
+  height: auto;
   resize: none;
 }
 

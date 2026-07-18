@@ -7,11 +7,13 @@
 - Kept character CRUD, AI generation/fill, relationship data, visual prompts, and reference-image storage on their existing handlers and data model.
 - Flattened the selected Scene editor into text and reference-image columns while preserving chapter/panel context, scene assignment, creation, deletion, upload, preview, and storage behavior.
 - Added responsive 1024px constraints so editor columns remain usable without clipping or horizontal overflow.
+- Tightened the Scene assignment row so its label, dropdown, and content-width create button remain grouped, and removed the excess gap between the scene-prompt label and textarea.
 
 **Verification**
 - `tsc -b` passed.
 - Edge visual QA passed at 1440×900 and 1024×768 for Outline, Character Story/Comic Visual, and Scene workspaces.
 - Browser measurements confirmed the body and v2 workspace have matching scroll/client dimensions at both tested viewports; only intended text and gallery regions can scroll locally.
+- Scene spacing QA confirmed a 128px create button, a 520px dropdown cap, a 6px prompt label gap, and no horizontal overflow at both tested widths.
 
 ## 2026-07-17 - Refine v2 resource and scene workspaces
 
