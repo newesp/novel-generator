@@ -1,5 +1,21 @@
 # 開發日誌
 
+## 2026-07-26 - 處理中斷、重試、取消與啟動恢復 (Issue #10)
+
+- 調整 LLM 重試策略 (`src/lib/llm.ts`)：
+  - 只有 HTTP 408、425、429 與 5xx (500, 502, 503, 504) 會依退避策略自動重試最多 3 次。
+  - fetch 網路例外、AbortError 與 TimeoutError 視為結果不確定，立即拋出例外，寫入軌跡並標記中斷，不進行自動重試。
+- 實作流程取消與 AbortSignal 控管 (`src/lib/multi-agent/resilience.ts`)：
+  - `registerRunAbortController` / `cancelRun`：取消時發出 `AbortSignal` 並寫入 `cancelledAt` 時間戳，將 Run 狀態更新為 `cancelled`。
+  - 遲到或中斷後的回應一律忽略，不得改寫已取消或更新狀態之 Run。
+- 實作 App 啟動安全恢復 (`sanitizeStartupRuns`)：
+  - 啟動時僅掃描並正規化未結束之 Run 狀態 (`running`/`pending` 轉為 `awaiting_input`)，絕不自動發起付費 LLM 請求。
+- 新增 `resilience.test.ts` 單元測試，驗證 AbortController 訊號觸發、狀態轉換與啟動安全恢復。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run src/lib/multi-agent/resilience.test.ts` 通過。
+
 ## 2026-07-26 - 由 Critic 評分並自動採用達標草稿 (Issue #9)
 
 - 新增 Multi-Agent Critic 預設 Prompt 模板 (`DEFAULT_MULTI_AGENT_CRITIC_TEMPLATE`) 與格式修復 Prompt 模板 (`DEFAULT_MULTI_AGENT_CRITIC_REPAIR_TEMPLATE`)。

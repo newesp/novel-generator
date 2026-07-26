@@ -112,13 +112,8 @@ async function postToLLMWithRetry(
       );
       lastError = new Error(`LLM API error ${resp.status}: ${sanitizedErrText}`);
     } catch (e) {
-      if ((e as { name?: string }).name === 'AbortError' || (e as { name?: string }).name === 'TimeoutError') {
-        throw e;
-      }
-      if (attempt === RETRY_DELAYS_MS.length) throw e;
-      const errStr = e instanceof Error ? e.message : String(e);
-      console.warn(`[llm] network error on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}:`, sanitizeApiKey(errStr, apiKey));
-      lastError = e;
+      // Network exceptions, TimeoutError, AbortError are uncertain outcomes; throw immediately without auto-retry
+      throw e;
     }
     await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
   }
