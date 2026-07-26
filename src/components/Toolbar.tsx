@@ -23,6 +23,7 @@ import {
   PROMPT_TEMPLATE_SAMPLES,
 } from '../lib/prompt-defaults';
 import { renderTemplate } from '../lib/prompt-template';
+import { isLLMProfileReferencedByActiveRun } from '../lib/multi-agent/run-manager';
 import { buildLivePromptVars } from '../lib/prompt-preview';
 import { storage } from '../lib/storage';
 import { errorMessage } from '../lib/error-message';
@@ -379,8 +380,13 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
             setVerifyResult(null);
           };
 
-          const handleDeleteProfile = () => {
+          const handleDeleteProfile = async () => {
             if (draftProfiles.length <= 1 || !selectedProfile) return;
+            const isLocked = await isLLMProfileReferencedByActiveRun(selectedProfile.id);
+            if (isLocked) {
+              alert(`Profile「${selectedProfile.name}」已被未完成的高品質 Multi-Agent 生成 Run 引用，在 Run 結束前不可刪除。`);
+              return;
+            }
             if (!confirm(`確定要刪除 Profile「${selectedProfile.name}」？`)) return;
             const nextProfiles = draftProfiles.filter((p) => p.id !== selectedProfile.id);
             setDraftProfiles(nextProfiles);

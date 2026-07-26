@@ -2,6 +2,7 @@ import Dexie, { type Table } from 'dexie';
 import type {
   Project, Chapter, ChapterVersion, Character, LLMConfig, WikiPage, WikiLogEntry,
   ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual,
+  GenerationRun, GenerationStep, GenerationCheckpoint,
 } from '../types';
 
 /** appMeta：存放跨 app 共用的小型 key-value（同步資料夾 handle 等） */
@@ -24,6 +25,9 @@ export class NovelDB extends Dexie {
   comicPanelImageVariants!: Table<ComicPanelImageVariant>;
   mediaAssets!: Table<MediaAsset>;
   sceneVisuals!: Table<SceneVisual>;
+  generationRuns!: Table<GenerationRun>;
+  generationSteps!: Table<GenerationStep>;
+  generationCheckpoints!: Table<GenerationCheckpoint>;
 
   constructor() {
     super('NovelGenerator');
@@ -146,6 +150,26 @@ export class NovelDB extends Dexie {
       comicPanelImageVariants: 'id, projectId, chapterId, comicId, panelId, createdAt, status',
       mediaAssets: 'id, projectId, chapterId, kind, createdAt',
       sceneVisuals: 'id, projectId, &[projectId+slug], updatedAt',
+    });
+
+    // v9: Multi-Agent Generation Runs, Steps, Checkpoints.
+    this.version(9).stores({
+      projects: 'id, createdAt, updatedAt',
+      chapters: 'id, projectId, order, wikiSyncStatus',
+      versions: 'id, chapterId, createdAt',
+      characters: 'id, projectId, name',
+      settings: 'id',
+      appMeta: 'key',
+      wikiPages: 'id, bookId, [bookId+type+slug]',
+      wikiLog: 'id, bookId, batchId, appliedAt',
+      comics: 'id, projectId, chapterId, updatedAt',
+      comicPanels: 'id, comicId, order, status',
+      comicPanelImageVariants: 'id, projectId, chapterId, comicId, panelId, createdAt, status',
+      mediaAssets: 'id, projectId, chapterId, kind, createdAt',
+      sceneVisuals: 'id, projectId, &[projectId+slug], updatedAt',
+      generationRuns: 'id, bookId, chapterId, status, createdAt',
+      generationSteps: 'id, runId, bookId, chapterId, role, status, createdAt',
+      generationCheckpoints: 'id, runId, bookId, chapterId, createdAt',
     });
   }
 }

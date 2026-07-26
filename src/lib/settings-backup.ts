@@ -1,4 +1,4 @@
-import type { LLMConfig, LLMProfile } from '../types';
+import type { LLMConfig, LLMProfile, MultiAgentPrefs } from '../types';
 import { useSettingsStore, type AIPromptPrefs, type ImageGenerationPrefs, type InlineEditPrefs, type WikiPrefs } from '../stores/settingsStore';
 import type { LintPrefs } from './lint/types';
 import { createLLMProfile } from './llm-provider-defaults';

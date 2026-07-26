@@ -14,8 +14,41 @@ import type {
   Project, Chapter, ChapterVersion, Character,
   WikiPage, WikiLogEntry, WikiPageType,
   ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual,
+  GenerationRun, GenerationStep, GenerationCheckpoint,
 } from '../../types';
 import type { SearchStore } from '../search/types';
+
+export interface GenerationRunStore {
+  listAll(): Promise<GenerationRun[]>;
+  listByBook(bookId: string): Promise<GenerationRun[]>;
+  listByChapter(chapterId: string): Promise<GenerationRun[]>;
+  get(id: string): Promise<GenerationRun | undefined>;
+  getUnfinishedByChapter(chapterId: string): Promise<GenerationRun | undefined>;
+  add(run: GenerationRun): Promise<void>;
+  update(id: string, data: Partial<GenerationRun>): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByBook(bookId: string): Promise<void>;
+}
+
+export interface GenerationStepStore {
+  listAll(): Promise<GenerationStep[]>;
+  listByRun(runId: string): Promise<GenerationStep[]>;
+  get(id: string): Promise<GenerationStep | undefined>;
+  add(step: GenerationStep): Promise<void>;
+  update(id: string, data: Partial<GenerationStep>): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByRun(runId: string): Promise<void>;
+}
+
+export interface GenerationCheckpointStore {
+  listAll(): Promise<GenerationCheckpoint[]>;
+  listByRun(runId: string): Promise<GenerationCheckpoint[]>;
+  get(id: string): Promise<GenerationCheckpoint | undefined>;
+  getLatestByRun(runId: string): Promise<GenerationCheckpoint | undefined>;
+  add(checkpoint: GenerationCheckpoint): Promise<void>;
+  delete(id: string): Promise<void>;
+  deleteByRun(runId: string): Promise<void>;
+}
 
 export interface ProjectStore {
   /** 依 updatedAt 由新到舊排列（首頁書庫用） */
@@ -163,6 +196,9 @@ export interface StorageBundle {
   comicPanelImageVariants?: ComicPanelImageVariant[];
   mediaAssets?: MediaAsset[];
   sceneVisuals?: SceneVisual[];
+  generationRuns?: GenerationRun[];
+  generationSteps?: GenerationStep[];
+  generationCheckpoints?: GenerationCheckpoint[];
 }
 
 export interface StorageAdapter {
@@ -178,6 +214,9 @@ export interface StorageAdapter {
   comicPanelImageVariants: ComicPanelImageVariantStore;
   mediaAssets: MediaAssetStore;
   sceneVisuals: SceneVisualStore;
+  generationRuns: GenerationRunStore;
+  generationSteps: GenerationStepStore;
+  generationCheckpoints: GenerationCheckpointStore;
   /** Tauri-only FTS5 search store. Browser/Dexie adapter leaves this undefined. */
   search?: SearchStore;
 
@@ -188,3 +227,4 @@ export interface StorageAdapter {
    */
   replaceAll(bundle: StorageBundle): Promise<void>;
 }
+

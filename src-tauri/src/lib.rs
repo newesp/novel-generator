@@ -2049,6 +2049,12 @@ pub fn run() {
       sql: include_str!("../migrations/007_comic_tts_video_metadata.sql"),
       kind: MigrationKind::Up,
     },
+    Migration {
+      version: 8,
+      description: "multi-agent generation runs",
+      sql: include_str!("../migrations/008_multi_agent.sql"),
+      kind: MigrationKind::Up,
+    },
   ];
 
   tauri::Builder::default()

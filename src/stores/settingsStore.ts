@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ImageProviderId, LLMConfig, LLMProfile } from '../types';
+import type { ImageProviderId, LLMConfig, LLMProfile, MultiAgentPrefs } from '../types';
 
 import {
   DEFAULT_CHAPTER_DRAFTS_TEMPLATE,
@@ -147,7 +147,9 @@ const DEFAULT_IMAGE_GENERATION_PREFS: ImageGenerationPrefs = {
   },
 };
 
-import type { ImageProviderId, LLMConfig, LLMProfile, MultiAgentPrefs } from '../types';
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
 
 export const DEFAULT_MULTI_AGENT_PREFS: MultiAgentPrefs = {
   agents: {
@@ -393,7 +395,11 @@ export const useSettingsStore = create<SettingsState>()(
           imageGenerationPrefs: {
             ...state.imageGenerationPrefs,
             ...patch,
-            comfyui: { ...state.imageGenerationPrefs.comfyui, ...(patch.comfyui ?? {}) },
+            comfyui: {
+              ...state.imageGenerationPrefs.comfyui,
+              ...(patch.comfyui ?? {}),
+              referenceImageNodeIds: (patch.comfyui?.referenceImageNodeIds ?? state.imageGenerationPrefs.comfyui.referenceImageNodeIds).filter((id): id is string => typeof id === 'string'),
+            },
             openaiCompatible: { ...state.imageGenerationPrefs.openaiCompatible, ...(patch.openaiCompatible ?? {}) },
             deepinfraFlux: { ...state.imageGenerationPrefs.deepinfraFlux, ...(patch.deepinfraFlux ?? {}) },
             googleGeminiImage: { ...state.imageGenerationPrefs.googleGeminiImage, ...(patch.googleGeminiImage ?? {}) },

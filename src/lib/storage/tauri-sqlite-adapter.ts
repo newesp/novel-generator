@@ -23,6 +23,9 @@ import type {
   ComicPanelImageVariantStore,
   MediaAssetStore,
   SceneVisualStore,
+  GenerationRunStore,
+  GenerationStepStore,
+  GenerationCheckpointStore,
   StorageBundle,
 } from './types';
 import {
@@ -49,6 +52,12 @@ import {
   rowToMediaAsset,
   sceneVisualToRow,
   rowToSceneVisual,
+  generationRunToRow,
+  rowToGenerationRun,
+  generationStepToRow,
+  rowToGenerationStep,
+  generationCheckpointToRow,
+  rowToGenerationCheckpoint,
   type ProjectRow,
   type ChapterRow,
   type VersionRow,
@@ -61,6 +70,9 @@ import {
   type ComicPanelImageVariantRow,
   type MediaAssetRow,
   type SceneVisualRow,
+  type GenerationRunRow,
+  type GenerationStepRow,
+  type GenerationCheckpointRow,
 } from './sqlite-helpers';
 import { createFtsSearchStore } from '../search/fts-tauri';
 
@@ -763,6 +775,153 @@ const sceneVisuals: SceneVisualStore = {
   },
 };
 
+// ============ generationRuns ============
+
+const generationRuns: GenerationRunStore = {
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<GenerationRunRow[]>('SELECT id, book_id, chapter_id, status, updated_at, data FROM generation_runs');
+    return rows.map(rowToGenerationRun);
+  },
+  listByBook: async (bookId) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationRunRow[]>('SELECT id, book_id, chapter_id, status, updated_at, data FROM generation_runs WHERE book_id = $1 ORDER BY updated_at ASC', [bookId]);
+    return rows.map(rowToGenerationRun);
+  },
+  listByChapter: async (chapterId) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationRunRow[]>('SELECT id, book_id, chapter_id, status, updated_at, data FROM generation_runs WHERE chapter_id = $1 ORDER BY updated_at ASC', [chapterId]);
+    return rows.map(rowToGenerationRun);
+  },
+  get: async (id) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationRunRow[]>('SELECT id, book_id, chapter_id, status, updated_at, data FROM generation_runs WHERE id = $1', [id]);
+    return rows[0] ? rowToGenerationRun(rows[0]) : undefined;
+  },
+  getUnfinishedByChapter: async (chapterId) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationRunRow[]>(
+      'SELECT id, book_id, chapter_id, status, updated_at, data FROM generation_runs WHERE chapter_id = $1 AND status IN ("pending", "running", "awaiting_input")',
+      [chapterId],
+    );
+    return rows[0] ? rowToGenerationRun(rows[0]) : undefined;
+  },
+  add: async (run) => {
+    const db = await getDb();
+    const r = generationRunToRow(run);
+    await db.execute('INSERT INTO generation_runs (id, book_id, chapter_id, status, updated_at, data) VALUES ($1, $2, $3, $4, $5, $6)', [
+      r.id, r.book_id, r.chapter_id, r.status, r.updated_at, r.data,
+    ]);
+  },
+  update: async (id, data) => {
+    const db = await getDb();
+    const current = await generationRuns.get(id);
+    if (!current) return;
+    const merged = mergePartial(current, data);
+    const r = generationRunToRow(merged);
+    await db.execute('UPDATE generation_runs SET book_id=$1, chapter_id=$2, status=$3, updated_at=$4, data=$5 WHERE id=$6', [
+      r.book_id, r.chapter_id, r.status, r.updated_at, r.data, id,
+    ]);
+  },
+  delete: async (id) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM generation_checkpoints WHERE run_id = $1', [id]);
+    await db.execute('DELETE FROM generation_steps WHERE run_id = $1', [id]);
+    await db.execute('DELETE FROM generation_runs WHERE id = $1', [id]);
+  },
+  deleteByBook: async (bookId) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM generation_checkpoints WHERE book_id = $1', [bookId]);
+    await db.execute('DELETE FROM generation_steps WHERE book_id = $1', [bookId]);
+    await db.execute('DELETE FROM generation_runs WHERE book_id = $1', [bookId]);
+  },
+};
+
+// ============ generationSteps ============
+
+const generationSteps: GenerationStepStore = {
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<GenerationStepRow[]>('SELECT id, run_id, book_id, chapter_id, role, status, attempt, created_at, data FROM generation_steps');
+    return rows.map(rowToGenerationStep);
+  },
+  listByRun: async (runId) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationStepRow[]>('SELECT id, run_id, book_id, chapter_id, role, status, attempt, created_at, data FROM generation_steps WHERE run_id = $1 ORDER BY created_at ASC', [runId]);
+    return rows.map(rowToGenerationStep);
+  },
+  get: async (id) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationStepRow[]>('SELECT id, run_id, book_id, chapter_id, role, status, attempt, created_at, data FROM generation_steps WHERE id = $1', [id]);
+    return rows[0] ? rowToGenerationStep(rows[0]) : undefined;
+  },
+  add: async (step) => {
+    const db = await getDb();
+    const r = generationStepToRow(step);
+    await db.execute('INSERT INTO generation_steps (id, run_id, book_id, chapter_id, role, status, attempt, created_at, data) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)', [
+      r.id, r.run_id, r.book_id, r.chapter_id, r.role, r.status, r.attempt, r.created_at, r.data,
+    ]);
+  },
+  update: async (id, data) => {
+    const db = await getDb();
+    const current = await generationSteps.get(id);
+    if (!current) return;
+    const merged = mergePartial(current, data);
+    const r = generationStepToRow(merged);
+    await db.execute('UPDATE generation_steps SET run_id=$1, book_id=$2, chapter_id=$3, role=$4, status=$5, attempt=$6, created_at=$7, data=$8 WHERE id=$9', [
+      r.run_id, r.book_id, r.chapter_id, r.role, r.status, r.attempt, r.created_at, r.data, id,
+    ]);
+  },
+  delete: async (id) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM generation_steps WHERE id = $1', [id]);
+  },
+  deleteByRun: async (runId) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM generation_steps WHERE run_id = $1', [runId]);
+  },
+};
+
+// ============ generationCheckpoints ============
+
+const generationCheckpoints: GenerationCheckpointStore = {
+  listAll: async () => {
+    const db = await getDb();
+    const rows = await db.select<GenerationCheckpointRow[]>('SELECT id, run_id, book_id, chapter_id, created_at, data FROM generation_checkpoints');
+    return rows.map(rowToGenerationCheckpoint);
+  },
+  listByRun: async (runId) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationCheckpointRow[]>('SELECT id, run_id, book_id, chapter_id, created_at, data FROM generation_checkpoints WHERE run_id = $1 ORDER BY created_at ASC', [runId]);
+    return rows.map(rowToGenerationCheckpoint);
+  },
+  get: async (id) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationCheckpointRow[]>('SELECT id, run_id, book_id, chapter_id, created_at, data FROM generation_checkpoints WHERE id = $1', [id]);
+    return rows[0] ? rowToGenerationCheckpoint(rows[0]) : undefined;
+  },
+  getLatestByRun: async (runId) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationCheckpointRow[]>('SELECT id, run_id, book_id, chapter_id, created_at, data FROM generation_checkpoints WHERE run_id = $1 ORDER BY created_at DESC LIMIT 1', [runId]);
+    return rows[0] ? rowToGenerationCheckpoint(rows[0]) : undefined;
+  },
+  add: async (checkpoint) => {
+    const db = await getDb();
+    const r = generationCheckpointToRow(checkpoint);
+    await db.execute('INSERT INTO generation_checkpoints (id, run_id, book_id, chapter_id, created_at, data) VALUES ($1, $2, $3, $4, $5, $6)', [
+      r.id, r.run_id, r.book_id, r.chapter_id, r.created_at, r.data,
+    ]);
+  },
+  delete: async (id) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM generation_checkpoints WHERE id = $1', [id]);
+  },
+  deleteByRun: async (runId) => {
+    const db = await getDb();
+    await db.execute('DELETE FROM generation_checkpoints WHERE run_id = $1', [runId]);
+  },
+};
+
 // ============ replaceAll ============
 
 /**
@@ -773,6 +932,9 @@ const sceneVisuals: SceneVisualStore = {
  */
 async function replaceAll(bundle: StorageBundle): Promise<void> {
   const db = await getDb();
+  await db.execute('DELETE FROM generation_checkpoints');
+  await db.execute('DELETE FROM generation_steps');
+  await db.execute('DELETE FROM generation_runs');
   await db.execute('DELETE FROM scene_visuals');
   await db.execute('DELETE FROM media_assets');
   await db.execute('DELETE FROM comic_panel_image_variants');
@@ -795,11 +957,15 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
   for (const v of bundle.comicPanelImageVariants ?? []) await comicPanelImageVariants.add(v);
   for (const a of bundle.mediaAssets ?? []) await mediaAssets.add(a);
   for (const s of bundle.sceneVisuals ?? []) await sceneVisuals.add(s);
+  for (const r of bundle.generationRuns ?? []) await generationRuns.add(r);
+  for (const st of bundle.generationSteps ?? []) await generationSteps.add(st);
+  for (const ch of bundle.generationCheckpoints ?? []) await generationCheckpoints.add(ch);
 }
 
 export const tauriSqliteAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
   wikiPages, wikiLog, comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals,
+  generationRuns, generationSteps, generationCheckpoints,
   search: createFtsSearchStore(getDb),
   replaceAll,
 };

@@ -1,5 +1,22 @@
 # 開發日誌
 
+## 2026-07-26 - 建立可持久化的高品質生成 Run Shell (Issue #6)
+
+- 新增 `GenerationRun`、`GenerationStep`、`GenerationCheckpoint` 資料模型與 SQLite / Dexie 儲存層 schema（IndexedDB schema v9, SQLite migration 008）。
+- `StorageAdapter` 擴充 `generationRuns`、`generationSteps` 與 `generationCheckpoints` 介面，同步支援 IndexedDB（Dexie）與 SQLite。
+- 章節編輯器（`ChapterEditor`）生成按鈕改為 Split Action 模式：主按鈕為 `⚡ 快速生成本章`，下拉選單提供 `🤖 高品質生成 (Multi-Agent)...`。
+- 實作高品質生成預檢 Modal (`MultiAgentPreflightModal`)：啟動前顯示各 Agent 角色 assigned profile、模型名稱、預估步驟上限 (Max Steps)、Editor 修訂上限 (Max Revisions)、Critic 評分門檻與可用時的 Token／成本估算，並由使用者確認。
+- 實作 Run Shell 建立與約束機制：
+  - 唯一性：同章節限制只能有一筆未結束 Run (`status` in `pending`, `running`, `awaiting_input`)。
+  - 正文寫入鎖定：章節有未結束 Run 時鎖定 `Chapter.content` 編輯與寫入入口。
+  - Profile 刪除鎖定：Run 引用的 LLM Profile 在 Run 結束或取消前不可刪除。
+  - 排隊與取消：Run 可主動取消，重新整理或重啟後持續保持，且預檢建立 Run 時不會自動發出付費 LLM 請求。
+- 新增 Multi-Agent 儲存層與 Run Shell 單元測試 (`storage-multi-agent.test.ts`)，驗證唯一性、checkpoint、取消與 Profile 鎖定約束。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run` 通過。
+
 ## 2026-07-26 - 設定 Agent 角色與 Critic 全域策略 (Issue #5)
 
 - 定義 `MultiAgentPrefs` 偏好設定資料結構，支援四個 Agent 角色 (Planner, Writer, Critic, Editor) 指定具名 LLM Profile 與覆寫 model、temperature、maxTokens 及編輯 Role Guidance。

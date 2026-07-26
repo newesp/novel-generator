@@ -19,6 +19,9 @@ import type {
   ComicPanelImageVariantStore,
   MediaAssetStore,
   SceneVisualStore,
+  GenerationRunStore,
+  GenerationStepStore,
+  GenerationCheckpointStore,
   StorageBundle,
 } from './types';
 
@@ -205,11 +208,65 @@ const sceneVisuals: SceneVisualStore = {
   },
 };
 
+const generationRuns: GenerationRunStore = {
+  listAll: () => db.generationRuns.toArray(),
+  listByBook: (bookId) => db.generationRuns.where('bookId').equals(bookId).sortBy('createdAt'),
+  listByChapter: (chapterId) => db.generationRuns.where('chapterId').equals(chapterId).sortBy('createdAt'),
+  get: (id) => db.generationRuns.get(id),
+  getUnfinishedByChapter: async (chapterId) => {
+    const runs = await db.generationRuns.where('chapterId').equals(chapterId).toArray();
+    return runs.find((r) => ['pending', 'running', 'awaiting_input'].includes(r.status));
+  },
+  add: async (run) => { await db.generationRuns.add(run); },
+  update: async (id, data) => { await db.generationRuns.update(id, data); },
+  delete: async (id) => {
+    await db.generationCheckpoints.where('runId').equals(id).delete();
+    await db.generationSteps.where('runId').equals(id).delete();
+    await db.generationRuns.delete(id);
+  },
+  deleteByBook: async (bookId) => {
+    await db.generationCheckpoints.where('bookId').equals(bookId).delete();
+    await db.generationSteps.where('bookId').equals(bookId).delete();
+    await db.generationRuns.where('bookId').equals(bookId).delete();
+  },
+};
+
+const generationSteps: GenerationStepStore = {
+  listAll: () => db.generationSteps.toArray(),
+  listByRun: (runId) => db.generationSteps.where('runId').equals(runId).sortBy('createdAt'),
+  get: (id) => db.generationSteps.get(id),
+  add: async (step) => { await db.generationSteps.add(step); },
+  update: async (id, data) => { await db.generationSteps.update(id, data); },
+  delete: (id) => db.generationSteps.delete(id),
+  deleteByRun: async (runId) => {
+    await db.generationSteps.where('runId').equals(runId).delete();
+  },
+};
+
+const generationCheckpoints: GenerationCheckpointStore = {
+  listAll: () => db.generationCheckpoints.toArray(),
+  listByRun: (runId) => db.generationCheckpoints.where('runId').equals(runId).sortBy('createdAt'),
+  get: (id) => db.generationCheckpoints.get(id),
+  getLatestByRun: async (runId) => {
+    const checkpoints = await db.generationCheckpoints.where('runId').equals(runId).sortBy('createdAt');
+    return checkpoints[checkpoints.length - 1];
+  },
+  add: async (checkpoint) => { await db.generationCheckpoints.add(checkpoint); },
+  delete: (id) => db.generationCheckpoints.delete(id),
+  deleteByRun: async (runId) => {
+    await db.generationCheckpoints.where('runId').equals(runId).delete();
+  },
+};
+
 async function replaceAll(bundle: StorageBundle): Promise<void> {
   await db.transaction('rw',
     [db.projects, db.chapters, db.versions, db.characters, db.wikiPages, db.wikiLog,
-      db.comics, db.comicPanels, db.comicPanelImageVariants, db.mediaAssets, db.sceneVisuals],
+      db.comics, db.comicPanels, db.comicPanelImageVariants, db.mediaAssets, db.sceneVisuals,
+      db.generationRuns, db.generationSteps, db.generationCheckpoints],
     async () => {
+      await db.generationCheckpoints.clear();
+      await db.generationSteps.clear();
+      await db.generationRuns.clear();
       await db.sceneVisuals.clear();
       await db.mediaAssets.clear();
       await db.comicPanelImageVariants.clear();
@@ -233,6 +290,9 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
       await db.comicPanelImageVariants.bulkAdd(bundle.comicPanelImageVariants ?? []);
       await db.mediaAssets.bulkAdd(bundle.mediaAssets ?? []);
       await db.sceneVisuals.bulkAdd(bundle.sceneVisuals ?? []);
+      await db.generationRuns.bulkAdd(bundle.generationRuns ?? []);
+      await db.generationSteps.bulkAdd(bundle.generationSteps ?? []);
+      await db.generationCheckpoints.bulkAdd(bundle.generationCheckpoints ?? []);
     },
   );
 }
@@ -240,5 +300,6 @@ async function replaceAll(bundle: StorageBundle): Promise<void> {
 export const dexieAdapter: StorageAdapter = {
   projects, chapters, versions, characters, appMeta,
   wikiPages, wikiLog, comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals,
+  generationRuns, generationSteps, generationCheckpoints,
   replaceAll,
 };

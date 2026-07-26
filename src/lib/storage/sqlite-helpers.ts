@@ -9,6 +9,7 @@
 import type {
   Project, Chapter, ChapterVersion, Character, WikiPage, WikiLogEntry,
   ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual,
+  GenerationRun, GenerationStep, GenerationCheckpoint,
 } from '../../types';
 
 export interface ProjectRow {
@@ -334,4 +335,84 @@ export function sceneVisualToRow(scene: SceneVisual): SceneVisualRow {
 
 export function rowToSceneVisual(row: SceneVisualRow): SceneVisual {
   return JSON.parse(row.data) as SceneVisual;
+}
+
+// ---------- Multi-Agent Generation Rows ----------
+
+export interface GenerationRunRow {
+  id: string;
+  book_id: string;
+  chapter_id: string;
+  status: string;
+  updated_at: number;
+  data: string;
+}
+
+export interface GenerationStepRow {
+  id: string;
+  run_id: string;
+  book_id: string;
+  chapter_id: string;
+  role: string;
+  status: string;
+  attempt: number;
+  created_at: number;
+  data: string;
+}
+
+export interface GenerationCheckpointRow {
+  id: string;
+  run_id: string;
+  book_id: string;
+  chapter_id: string;
+  created_at: number;
+  data: string;
+}
+
+export function generationRunToRow(run: GenerationRun): GenerationRunRow {
+  return {
+    id: run.id,
+    book_id: run.bookId,
+    chapter_id: run.chapterId,
+    status: run.status,
+    updated_at: run.updatedAt,
+    data: JSON.stringify(run),
+  };
+}
+
+export function rowToGenerationRun(row: GenerationRunRow): GenerationRun {
+  return JSON.parse(row.data) as GenerationRun;
+}
+
+export function generationStepToRow(step: GenerationStep): GenerationStepRow {
+  return {
+    id: step.id,
+    run_id: step.runId,
+    book_id: step.bookId,
+    chapter_id: step.chapterId,
+    role: step.role,
+    status: step.status,
+    attempt: step.attempt,
+    created_at: step.createdAt,
+    data: JSON.stringify(step),
+  };
+}
+
+export function rowToGenerationStep(row: GenerationStepRow): GenerationStep {
+  return JSON.parse(row.data) as GenerationStep;
+}
+
+export function generationCheckpointToRow(checkpoint: GenerationCheckpoint): GenerationCheckpointRow {
+  return {
+    id: checkpoint.id,
+    run_id: checkpoint.runId,
+    book_id: checkpoint.bookId,
+    chapter_id: checkpoint.chapterId,
+    created_at: checkpoint.createdAt,
+    data: JSON.stringify(checkpoint),
+  };
+}
+
+export function rowToGenerationCheckpoint(row: GenerationCheckpointRow): GenerationCheckpoint {
+  return JSON.parse(row.data) as GenerationCheckpoint;
 }

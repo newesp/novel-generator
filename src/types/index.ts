@@ -375,6 +375,86 @@ export interface MultiAgentPrefs {
   costEstimate: CostEstimatePrefs;
 }
 
+export type GenerationRunStatus =
+  | 'pending'
+  | 'running'
+  | 'awaiting_input'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface GenerationContextSnapshot {
+  storyTitle?: string;
+  chapterNumber?: number;
+  chapterTitle?: string;
+  targetWordCount?: number;
+  rolesConfig: MultiAgentPrefs['agents'];
+  criticRubricWeights: MultiAgentPrefs['criticRubricWeights'];
+  criticThresholds: MultiAgentPrefs['criticThresholds'];
+  maxRevisions: number;
+  profilesSnapshot: Record<string, Omit<LLMProfile, 'apiKey'>>;
+  createdAt: number;
+}
+
+export interface GenerationRunSummary {
+  totalSteps: number;
+  totalTokens: LLMCompletionUsage;
+  estimatedCost?: number;
+  currency?: string;
+  finalScore?: number;
+  finalDecision?: 'auto_pass' | 'human_pass' | 'cancelled' | 'failed';
+  revisionsUsed: number;
+  completedAt?: number;
+}
+
+export interface GenerationRun {
+  id: string;
+  bookId: string;
+  chapterId: string;
+  status: GenerationRunStatus;
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  cancelledAt?: number;
+  snapshot: GenerationContextSnapshot;
+  summary?: GenerationRunSummary;
+}
+
+export type GenerationStepRole = 'planner' | 'writer' | 'critic' | 'editor';
+
+export type GenerationStepStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+
+export interface GenerationStep {
+  id: string;
+  runId: string;
+  bookId: string;
+  chapterId: string;
+  role: GenerationStepRole;
+  status: GenerationStepStatus;
+  attempt: number;
+  inputCheckpointId?: string;
+  prompt?: string;
+  response?: string;
+  usage?: LLMCompletionUsage;
+  requestId?: string | null;
+  finishReason?: string | null;
+  errorText?: string;
+  createdAt: number;
+  completedAt?: number;
+}
+
+export interface GenerationCheckpoint {
+  id: string;
+  runId: string;
+  bookId: string;
+  chapterId: string;
+  stepId?: string;
+  stateName: string;
+  data: string;
+  createdAt: number;
+}
+
+
 
 
 export type StoryBeat =

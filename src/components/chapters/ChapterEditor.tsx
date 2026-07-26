@@ -21,6 +21,8 @@ import { undoBatch, findLatestIngestBatch } from '../../lib/wiki-undo';
 import { IngestToast } from '../wiki/IngestToast';
 import { IngestDiffModal } from '../wiki/IngestDiffModal';
 import { WikiPartialModal } from '../wiki/WikiPartialModal';
+import { MultiAgentPreflightModal } from './MultiAgentPreflightModal';
+import { createGenerationRun, isChapterLockedByRun } from '../../lib/multi-agent/run-manager';
 
 const BEATS = [
   '引入 (Inciting Incident)',
@@ -67,6 +69,42 @@ export function ChapterEditor() {
   const [showDiff, setShowDiff] = useState<string | null>(null);
   const [showPartial, setShowPartial] = useState(false);
   const [failedCount, setFailedCount] = useState(0);
+
+  // —— Multi-Agent 高品質生成 相關狀態 ——
+  const [isChapterLocked, setIsChapterLocked] = useState(false);
+  const [showPreflightModal, setShowPreflightModal] = useState(false);
+  const [isStartingRun, setIsStartingRun] = useState(false);
+  const [showSplitMenu, setShowSplitMenu] = useState(false);
+
+  useEffect(() => {
+    if (chapter) {
+      void isChapterLockedByRun(chapter.id).then(setIsChapterLocked);
+    } else {
+      setIsChapterLocked(false);
+    }
+  }, [chapter?.id]);
+
+  const handleConfirmStartMultiAgent = async () => {
+    if (!chapter || !project) return;
+    setIsStartingRun(true);
+    try {
+      await createGenerationRun(
+        project.id,
+        chapter.id,
+        title,
+        chapter.order + 1,
+        targetWords ? Number(targetWords) : 2000,
+        project.title,
+      );
+      setIsChapterLocked(true);
+      setShowPreflightModal(false);
+      alert('已成功建立高品質 Multi-Agent 生成 Run 並持久化，章節已進入鎖定與排隊狀態。');
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setIsStartingRun(false);
+    }
+  };
 
   useEffect(() => {
     if (!chapter) { setFailedCount(0); return; }
@@ -309,6 +347,24 @@ export function ChapterEditor() {
         <div className="toolbar-spacer" />
       </div>
 
+      {isChapterLocked && (
+        <div
+          style={{
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#f87171',
+            padding: '8px 14px',
+            fontSize: 13,
+            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span>🔒 此章節有未結束的高品質 Multi-Agent 生成執行，正文編輯已鎖定。</span>
+        </div>
+      )}
+
       <div className="editor-body">
         <div className="editor-content">
           <EditPreviewTabs
@@ -321,10 +377,15 @@ export function ChapterEditor() {
               ref={textareaRef}
               className="editor-textarea"
               value={content}
+              disabled={isChapterLocked}
               onChange={(e) => setContent(e.target.value)}
-              onBlur={handleSave}
+              onBlur={() => !isChapterLocked && handleSave()}
               onContextMenu={handleTextareaContextMenu}
-              placeholder="在此輸入章節正文，或點擊「生成」讓 AI 為您創作（選取段落 → 右鍵可局部調整）..."
+              placeholder={
+                isChapterLocked
+                  ? '此章節正由 Multi-Agent 進行高品質生成中，正文編輯已鎖定...'
+                  : '在此輸入章節正文，或點擊「生成」讓 AI 為您創作（選取段落 → 右鍵可局部調整）...'
+              }
             />
           ) : (
             <div className="editor-preview" onDoubleClick={() => setContentViewMode('edit')} title="雙擊回到編輯模式">
@@ -333,11 +394,11 @@ export function ChapterEditor() {
           )}
         </div>
 
-        <VersionPanel onApplyVersion={(c) => { setContent(c); updateChapter(chapter.id, { content: c }); }} />
+        <VersionPanel onApplyVersion={(c) => { if (!isChapterLocked) { setContent(c); updateChapter(chapter.id, { content: c }); } }} />
       </div>
 
       <div className="action-bar">
-        <Button variant="secondary" onClick={handleSaveVersion} disabled={!content.trim()}>
+        <Button variant="secondary" onClick={handleSaveVersion} disabled={!content.trim() || isChapterLocked}>
           💾 存入版本
         </Button>
         {(() => {
@@ -349,7 +410,7 @@ export function ChapterEditor() {
             s === 'partial'       ? `⚠️ Wiki 部分失敗 (${failedCount})` :
                                     '⚠️ 部分失敗 + 已過時';
           const onWikiClick = async () => {
-            if (wikiBusy) return;
+            if (wikiBusy || isChapterLocked) return;
             if (s === 'partial' || s === 'partial_stale') { setShowPartial(true); return; }
             setWikiBusy(true);
             try {
@@ -359,7 +420,6 @@ export function ChapterEditor() {
               const msg = `Wiki 已更新：新增 ${createN} 頁、修改 ${updateN} 頁` +
                           (r.failedCount > 0 ? `（${r.failedCount} 個失敗）` : '');
               setToast({ msg, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
-              // 重新拉 chapters，讓徽章與按鈕狀態跟 DB 一致
               if (project) await loadChapters(project.id);
             } catch (e) {
               setToast({ msg: `Ingest 失敗：${(e as Error).message}`, variant: 'danger', batchId: '' });
@@ -368,7 +428,9 @@ export function ChapterEditor() {
             }
           };
           const noContent = !content.trim();
-          const tooltip = noContent
+          const tooltip = isChapterLocked
+            ? '此章節有未結束的高品質生成 Run，已鎖定'
+            : noContent
             ? '請先撰寫章節內容'
             : s === 'synced'
               ? '點擊以重新讓 AI 整理 Wiki（既有頁會被合併更新）'
@@ -377,7 +439,7 @@ export function ChapterEditor() {
             <Button
               variant="secondary"
               onClick={onWikiClick}
-              disabled={wikiBusy || noContent}
+              disabled={wikiBusy || noContent || isChapterLocked}
               title={tooltip}
             >
               {wikiBusy ? '存入中…' : label}
@@ -385,28 +447,96 @@ export function ChapterEditor() {
           );
         })()}
         <div className="toolbar-spacer" />
-        <Button variant="secondary" onClick={handleSave}>{saveLabel}</Button>
+        <Button variant="secondary" onClick={handleSave} disabled={isChapterLocked}>{saveLabel}</Button>
         <Button
           variant="secondary"
           onClick={runGeneration}
-          disabled={isGenerating || !content.trim() || !apiReady}
-          title={!content.trim() ? '尚無內容可重新生成' : ''}
+          disabled={isGenerating || !content.trim() || !apiReady || isChapterLocked}
+          title={isChapterLocked ? '此章節已鎖定' : !content.trim() ? '尚無內容可重新生成' : ''}
         >
           ↩️ 重新生成
         </Button>
-        <Button
-          variant="primary"
-          onClick={runGeneration}
-          disabled={isGenerating || !apiReady || !worldReady}
-          title={
-            !apiReady ? '請先設定 API'
-            : !worldReady ? '請先在大綱頁設定世界觀'
-            : ''
-          }
-        >
-          {isGenerating ? '✨ 生成中...' : '✨ 生成本章'}
-        </Button>
+        
+        {/* Split action button */}
+        <div style={{ display: 'inline-flex', position: 'relative' }}>
+          <Button
+            variant="primary"
+            onClick={runGeneration}
+            disabled={isGenerating || !apiReady || !worldReady || isChapterLocked}
+            style={{ borderRadius: '6px 0 0 6px' }}
+            title={
+              isChapterLocked ? '此章節有未結束的高品質生成執行，正文編輯已鎖定'
+              : !apiReady ? '請先設定 API'
+              : !worldReady ? '請先在大綱頁設定世界觀'
+              : ''
+            }
+          >
+            {isGenerating ? '✨ 快速生成中...' : '⚡ 快速生成本章'}
+          </Button>
+          <Button
+            variant="primary"
+            disabled={isGenerating || !apiReady || !worldReady || isChapterLocked}
+            onClick={() => setShowSplitMenu((v) => !v)}
+            style={{ borderRadius: '0 6px 6px 0', borderLeft: '1px solid rgba(255, 255, 255, 0.2)', padding: '0 8px' }}
+            title="選擇生成模式"
+          >
+            ▾
+          </Button>
+          {showSplitMenu && (
+            <div
+              style={{
+                position: 'absolute',
+                right: 0,
+                bottom: '100%',
+                marginBottom: 6,
+                background: 'var(--bg-tertiary, #1f2937)',
+                border: '1px solid var(--border-color, #374151)',
+                borderRadius: 6,
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                zIndex: 100,
+                minWidth: 240,
+                overflow: 'hidden',
+              }}
+            >
+              <button
+                type="button"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-primary)',
+                  textAlign: 'left',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover, #374151)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                onClick={() => {
+                  setShowSplitMenu(false);
+                  setShowPreflightModal(true);
+                }}
+              >
+                🤖 高品質生成 (Multi-Agent)...
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      <MultiAgentPreflightModal
+        open={showPreflightModal}
+        onClose={() => setShowPreflightModal(false)}
+        onConfirmStart={handleConfirmStartMultiAgent}
+        chapterTitle={title}
+        chapterNumber={chapter.order + 1}
+        targetWordCount={targetWords ? Number(targetWords) : 2000}
+        storyTitle={project?.title}
+        isStarting={isStartingRun}
+      />
 
       {/* 章節設定 Modal */}
       <Modal
