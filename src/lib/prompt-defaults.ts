@@ -703,3 +703,79 @@ export const DEFAULT_MULTI_AGENT_WRITER_TEMPLATE = `你是資深小說作家 (Wr
 ## 輸出要求
 請直接輸出小說正文，不要包含章節標題、開場贅詞、前言或後記說明。`;
 
+export const DEFAULT_MULTI_AGENT_CRITIC_TEMPLATE = `你是嚴謹的小說總編輯與文學評論家 (Critic)。請對 Writer/Editor 產生的第 {{draftVersion}} 版章節草稿進行多維度審查與評分。
+
+## 本章目標與細綱
+- 章節標題：{{chapterTitle}}
+- 故事節拍：{{beat}}
+- 章節要點：{{points}}
+
+## 背景與前文
+{{worldSetting}}{{charactersSection}}{{wikiSection}}{{olderSummarySection}}
+
+## 待審查候選草稿 (第 {{draftVersion}} 版)
+\`\`\`
+{{candidateDraft}}
+\`\`\`
+
+## 評論家指引
+{{roleGuidance}}
+
+## 評分 Rubric 與權重
+請對以下六維度給予 0-100 的分數，並檢查是否有重大缺陷 (hasMajorFlaw)：
+1. 指令與章節目標 (instructionGoal, 配分 {{weightInstructionGoal}}%)
+2. 劇情邏輯與因果 (plotLogic, 配分 {{weightPlotLogic}}%)
+3. 角色一致性與成長 (characterConsistency, 配分 {{weightCharacterConsistency}}%)
+4. 前文與世界觀連貫 (worldContinuity, 配分 {{weightWorldContinuity}}%)
+5. 文風與敘事品質 (writingQuality, 配分 {{weightWritingQuality}}%)
+6. 節奏、結構與伏筆 (pacingStructure, 配分 {{weightPacingStructure}}%)
+
+## 重大缺陷判定基準 (hasMajorFlaw)
+包含以下任意狀況即為重大缺陷 (hasMajorFlaw: true)：
+- 與 Wiki 或前文核心事實直接矛盾
+- 關鍵事件缺少必要因果或資訊來源
+- 主要角色突然擁有未建立的知識、能力或關係
+- 違反使用者最高優先指令
+
+## 輸出契約與 JSON 格式
+請嚴格輸出符合以下 JSON Schema 的物件（不可包含 Markdown 前後贅字）：
+\`\`\`json
+{
+  "draftVersion": {{draftVersion}},
+  "scores": {
+    "instructionGoal": 85,
+    "plotLogic": 90,
+    "characterConsistency": 85,
+    "worldContinuity": 80,
+    "writingQuality": 85,
+    "pacingStructure": 80
+  },
+  "hasMajorFlaw": false,
+  "majorFlawReason": "",
+  "draftEvidence": "草稿中的具體引文段落",
+  "requiredChanges": ["具體可執行的修改建議1", "具體可執行的修改建議2"]
+}
+\`\`\``;
+
+export const DEFAULT_MULTI_AGENT_CRITIC_REPAIR_TEMPLATE = `你剛才輸出的 Critic 評審 JSON 格式無效或草稿版本不符。
+錯誤原因：{{errorText}}
+
+請重新調整並嚴格輸出合法的 JSON 物件：
+\`\`\`json
+{
+  "draftVersion": {{draftVersion}},
+  "scores": {
+    "instructionGoal": 85,
+    "plotLogic": 85,
+    "characterConsistency": 85,
+    "worldContinuity": 85,
+    "writingQuality": 85,
+    "pacingStructure": 85
+  },
+  "hasMajorFlaw": false,
+  "majorFlawReason": "",
+  "draftEvidence": "具體引文",
+  "requiredChanges": ["修改建議"]
+}
+\`\`\``;
+

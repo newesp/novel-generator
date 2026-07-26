@@ -1,5 +1,21 @@
 # 開發日誌
 
+## 2026-07-26 - 由 Critic 評分並自動採用達標草稿 (Issue #9)
+
+- 新增 Multi-Agent Critic 預設 Prompt 模板 (`DEFAULT_MULTI_AGENT_CRITIC_TEMPLATE`) 與格式修復 Prompt 模板 (`DEFAULT_MULTI_AGENT_CRITIC_REPAIR_TEMPLATE`)。
+- 實作 Critic 評分與驗證邏輯 (`src/lib/multi-agent/critic.ts`)：
+  - `recalculateTotalScore`：依據全域六維度 Rubric 配分 (`instructionAndBeat`, `plotLogic`, `characterConsistency`, `contextAndWorld`, `styleAndQuality`, `pacingAndStructure`) 重新計算加權總分，不直接信任模型總分。
+  - `parseCriticResponse`：驗證 `draftVersion` 與目標評審草稿版本嚴格一致；格式無效或版本不符時自動進行一次格式修復 (attempt 2)。
+- 實作 Critic 路由與自動採用機制 (`executeCriticStep`, `adoptCandidateDraft`)：
+  - 重大缺陷 (`hasMajorFlaw: true`) 永遠優先阻擋自動採用。
+  - 無重大缺陷且總分大於等於 `passScore` 時觸發自動採用（HQ Happy Path）。
+  - 自動採用在同一交易中將舊正文備份為 `ChapterVersion`、更新 `Chapter.content` 為新草稿、結束 Run 並解除章節寫入鎖定。
+- 新增 `critic.test.ts` 單元測試，驗證加權總分計算、草稿版本不符拒絕、重大缺陷阻擋與自動採用交易。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run src/lib/multi-agent/critic.test.ts` 通過。
+
 ## 2026-07-26 - 由 Writer 產生可觀測的候選草稿 (Issue #8)
 
 - 新增 Multi-Agent Writer 預設 Prompt 模板 (`DEFAULT_MULTI_AGENT_WRITER_TEMPLATE`)。
