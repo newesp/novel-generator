@@ -779,3 +779,26 @@ export const DEFAULT_MULTI_AGENT_CRITIC_REPAIR_TEMPLATE = `你剛才輸出的 Cr
 }
 \`\`\``;
 
+export const DEFAULT_MULTI_AGENT_EDITOR_TEMPLATE = `你是資深小說責任編輯 (Editor)。請針對同版本的 Critic 評審意見，對第 {{draftVersion}} 版章節草稿進行針對性修訂，產出第 {{nextDraftVersion}} 版更完善的小說正文。
+
+## 本章目標與細綱
+- 章節標題：{{chapterTitle}}
+- 故事節拍：{{beat}}
+- 章節要點：{{points}}
+
+## 目前候選草稿 (第 {{draftVersion}} 版)
+\`\`\`
+{{candidateDraft}}
+\`\`\`
+
+## Critic 審核意見 (針對第 {{draftVersion}} 版)
+{{majorFlawSection}}
+### 必須修改事項 (Required Changes)
+{{requiredChangesList}}
+
+## 編輯指引
+{{roleGuidance}}
+
+## 輸出要求
+請直接輸出修訂後的第 {{nextDraftVersion}} 版小說正文，不要包含前言、標題或修訂說明。`;
+

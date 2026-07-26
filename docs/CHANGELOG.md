@@ -1,5 +1,19 @@
 # 開發日誌
 
+## 2026-07-26 - 執行 Editor／Critic 修訂迴圈 (Issue #11)
+
+- 新增 Multi-Agent Editor 預設 Prompt 模板 (`DEFAULT_MULTI_AGENT_EDITOR_TEMPLATE`)。
+- 實作 Editor 步驟執行函式 `executeEditorStep` (`src/lib/multi-agent/editor.ts`)：
+  - 嚴格驗證版本匹配：Editor 僅處理與當前 Candidate Draft 版本完全一致 (`feedback.draftVersion === candidateDraftVersion`) 的 Critic 反饋。
+  - 修訂上限計數與控管：`maxRevisions`（預設 3 次）僅計算成功的 Editor 步驟；達上限時自動終止自動修訂並將 Run 狀態切換為 `awaiting_input`（進入人工審核）。
+  - 修訂草稿遞增版本 (`draftVersion` v1 -> v2 ...) 並寫入 Trace 及 `editor_done` Checkpoint。
+  - 完成後僅回到 Critic (`executeCriticStep`) 重新評審，絕不重回 Writer。
+- 新增 `editor.test.ts` 單元測試，驗證版本錯配拒絕、maxRevisions 上限控管與修訂再評審採用迴圈。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run src/lib/multi-agent/editor.test.ts` 通過。
+
 ## 2026-07-26 - 處理中斷、重試、取消與啟動恢復 (Issue #10)
 
 - 調整 LLM 重試策略 (`src/lib/llm.ts`)：
