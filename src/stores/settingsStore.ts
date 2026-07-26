@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ImageProviderId, LLMConfig } from '../types';
+import type { ImageProviderId, LLMConfig, LLMProfile } from '../types';
+
 import {
   DEFAULT_CHAPTER_DRAFTS_TEMPLATE,
   DEFAULT_CHAPTER_CONTINUATION_RULES,
@@ -150,13 +151,33 @@ type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends unknown[] ? T[K] : T[K] extends object ? DeepPartial<T[K]> : T[K];
 };
 
+
+
+const DEFAULT_LLM_PROFILE: LLMProfile = {
+  id: 'default',
+  name: 'My API',
+  provider: 'custom',
+  baseUrl: '',
+  apiKey: '',
+  model: 'gpt-4o',
+  temperature: 0.7,
+  maxTokens: 4096,
+  timeoutSec: 120,
+};
+
 interface SettingsState {
+  llmProfiles: LLMProfile[];
+  activeProfileId: string;
   llmConfig: LLMConfig;
   inlineEdit: InlineEditPrefs;
   aiPrompts: AIPromptPrefs;
   wikiPrefs: WikiPrefs;
   imageGenerationPrefs: ImageGenerationPrefs;
   lintPrefs: LintPrefs;
+  setLlmProfiles: (profiles: LLMProfile[], activeId?: string) => void;
+  setActiveProfileId: (id: string) => void;
+  upsertLlmProfile: (profile: LLMProfile) => void;
+  deleteLlmProfile: (id: string) => void;
   setLlmConfig: (config: Partial<LLMConfig>) => void;
   setInlineEdit: (prefs: Partial<InlineEditPrefs>) => void;
   setAiPrompts: (prefs: Partial<AIPromptPrefs>) => void;
@@ -196,14 +217,9 @@ function deepMergeLintPrefs(base: LintPrefs, patch: DeepPartial<LintPrefs>): Lin
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      llmConfig: {
-        id: 'default',
-        provider: 'custom',
-        name: 'My API',
-        baseUrl: '',
-        apiKey: '',
-        model: 'gpt-4o',
-      },
+      llmProfiles: [DEFAULT_LLM_PROFILE],
+      activeProfileId: 'default',
+      llmConfig: DEFAULT_LLM_PROFILE,
       inlineEdit: {
         contextMode: 'window',
         contextChars: 500,
@@ -212,8 +228,66 @@ export const useSettingsStore = create<SettingsState>()(
       wikiPrefs: { ...DEFAULT_WIKI_PREFS },
       imageGenerationPrefs: { ...DEFAULT_IMAGE_GENERATION_PREFS },
       lintPrefs: { ...DEFAULT_LINT_PREFS },
+      setLlmProfiles: (profiles, activeId) =>
+        set((state) => {
+          const validProfiles = profiles.length > 0 ? profiles : [DEFAULT_LLM_PROFILE];
+          const nextActiveId = activeId && validProfiles.some((p) => p.id === activeId)
+            ? activeId
+            : validProfiles.some((p) => p.id === state.activeProfileId)
+            ? state.activeProfileId
+            : validProfiles[0].id;
+          const activeProfile = validProfiles.find((p) => p.id === nextActiveId) || validProfiles[0];
+          return {
+            llmProfiles: validProfiles,
+            activeProfileId: nextActiveId,
+            llmConfig: activeProfile,
+          };
+        }),
+      setActiveProfileId: (id) =>
+        set((state) => {
+          const found = state.llmProfiles.find((p) => p.id === id);
+          if (!found) return state;
+          return {
+            activeProfileId: id,
+            llmConfig: found,
+          };
+        }),
+      upsertLlmProfile: (profile) =>
+        set((state) => {
+          const exists = state.llmProfiles.some((p) => p.id === profile.id);
+          const nextProfiles = exists
+            ? state.llmProfiles.map((p) => (p.id === profile.id ? profile : p))
+            : [...state.llmProfiles, profile];
+          const isActive = profile.id === state.activeProfileId;
+          const activeProfile = nextProfiles.find((p) => p.id === state.activeProfileId) || nextProfiles[0];
+          return {
+            llmProfiles: nextProfiles,
+            llmConfig: isActive ? profile : activeProfile,
+          };
+        }),
+      deleteLlmProfile: (id) =>
+        set((state) => {
+          if (state.llmProfiles.length <= 1) return state;
+          const nextProfiles = state.llmProfiles.filter((p) => p.id !== id);
+          const nextActiveId = state.activeProfileId === id ? nextProfiles[0].id : state.activeProfileId;
+          const activeProfile = nextProfiles.find((p) => p.id === nextActiveId) || nextProfiles[0];
+          return {
+            llmProfiles: nextProfiles,
+            activeProfileId: nextActiveId,
+            llmConfig: activeProfile,
+          };
+        }),
       setLlmConfig: (config) =>
-        set((state) => ({ llmConfig: { ...state.llmConfig, ...config } })),
+        set((state) => {
+          const updatedActive = { ...state.llmConfig, ...config };
+          const nextProfiles = state.llmProfiles.map((p) =>
+            p.id === state.activeProfileId ? updatedActive : p,
+          );
+          return {
+            llmProfiles: nextProfiles,
+            llmConfig: updatedActive,
+          };
+        }),
       setInlineEdit: (prefs) =>
         set((state) => ({ inlineEdit: { ...state.inlineEdit, ...prefs } })),
       setAiPrompts: (prefs) =>
@@ -239,9 +313,43 @@ export const useSettingsStore = create<SettingsState>()(
       // 舊版 persist 可能沒有部分 aiPrompts 欄位，用 merge 補齊預設值
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<SettingsState>;
+
+        // LLM Profiles & Single Config Migration
+        let profiles: LLMProfile[] = Array.isArray(p.llmProfiles) && p.llmProfiles.length > 0
+          ? p.llmProfiles.map((prof) => ({
+              ...DEFAULT_LLM_PROFILE,
+              ...prof,
+              temperature: prof.temperature ?? 0.7,
+              maxTokens: prof.maxTokens ?? 4096,
+              timeoutSec: prof.timeoutSec ?? 120,
+            }))
+          : [];
+
+        if (profiles.length === 0 && p.llmConfig) {
+          profiles = [{
+            ...DEFAULT_LLM_PROFILE,
+            ...p.llmConfig,
+            temperature: (p.llmConfig as LLMProfile).temperature ?? 0.7,
+            maxTokens: (p.llmConfig as LLMProfile).maxTokens ?? 4096,
+            timeoutSec: (p.llmConfig as LLMProfile).timeoutSec ?? 120,
+          }];
+        }
+
+        if (profiles.length === 0) {
+          profiles = [DEFAULT_LLM_PROFILE];
+        }
+
+        const activeId = p.activeProfileId && profiles.some((item) => item.id === p.activeProfileId)
+          ? p.activeProfileId
+          : profiles[0].id;
+        const activeProf = profiles.find((item) => item.id === activeId) || profiles[0];
+
         return {
           ...current,
           ...p,
+          llmProfiles: profiles,
+          activeProfileId: activeId,
+          llmConfig: activeProf,
           wikiPrefs: { ...DEFAULT_WIKI_PREFS, ...(p.wikiPrefs ?? {}) },
           imageGenerationPrefs: {
             ...DEFAULT_IMAGE_GENERATION_PREFS,
@@ -273,3 +381,4 @@ export const useSettingsStore = create<SettingsState>()(
     },
   ),
 );
+

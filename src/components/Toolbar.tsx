@@ -35,9 +35,11 @@ import {
 } from '../lib/settings-backup';
 import {
   applyLlmProviderDefaults,
+  createLLMProfile,
   LLM_PROVIDER_DEFAULTS,
   LLM_PROVIDER_LABELS,
 } from '../lib/llm-provider-defaults';
+import { verifyLLMProfile } from '../lib/llm';
 import { Button } from './common/Button';
 import { Modal } from './common/Modal';
 import { Input } from './common/Input';
@@ -46,7 +48,7 @@ import { MarkdownView } from './common/MarkdownView';
 import { BackupModal } from './BackupModal';
 import { GlobalSearchModal } from './search/GlobalSearchModal';
 import { BookExportModal } from './export/BookExportModal';
-import type { LLMProvider } from '../types';
+import type { LLMProfile, LLMProvider } from '../types';
 
 /** 偏好設定 Modal 的分頁 */
 type PrefsTab = 'llm' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
@@ -66,14 +68,19 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   const { project, chapters } = useProjectStore();
   const { view, setView } = useUIStore();
   const {
-    llmConfig, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs,
-    setLlmConfig, setInlineEdit, setAiPrompts, setWikiPrefs, setImageGenerationPrefs, setLintPrefs,
+    llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs,
+    setLlmProfiles, setInlineEdit, setAiPrompts, setWikiPrefs, setImageGenerationPrefs, setLintPrefs,
   } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [activePrefsTab, setActivePrefsTab] = useState<PrefsTab>('llm');
+  const [draftProfiles, setDraftProfiles] = useState<LLMProfile[]>(llmProfiles);
+  const [draftActiveId, setDraftActiveId] = useState<string>(activeProfileId);
+  const [selectedProfileId, setSelectedProfileId] = useState<string>(activeProfileId);
+  const [verifyingProfile, setVerifyingProfile] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [draftLlm, setDraftLlm] = useState(llmConfig);
   const [draftInline, setDraftInline] = useState(inlineEdit);
   const [draftPrompts, setDraftPrompts] = useState(aiPrompts);
@@ -91,6 +98,11 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   const goHome = () => setView('home');
 
   const openPrefs = () => {
+    const store = useSettingsStore.getState();
+    setDraftProfiles(store.llmProfiles);
+    setDraftActiveId(store.activeProfileId);
+    setSelectedProfileId(store.activeProfileId);
+    setVerifyResult(null);
     setDraftLlm(llmConfig);
     setDraftInline(inlineEdit);
     setDraftPrompts(aiPrompts);
@@ -107,7 +119,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   };
 
   const savePrefs = () => {
-    setLlmConfig(draftLlm);
+    setLlmProfiles(draftProfiles, draftActiveId);
     setInlineEdit(draftInline);
     setAiPrompts(draftPrompts);
     setWikiPrefs(draftWiki);
@@ -118,6 +130,9 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
 
   const refreshPrefsDraftsFromStore = () => {
     const next = useSettingsStore.getState();
+    setDraftProfiles(next.llmProfiles);
+    setDraftActiveId(next.activeProfileId);
+    setSelectedProfileId(next.activeProfileId);
     setDraftLlm(next.llmConfig);
     setDraftInline(next.inlineEdit);
     setDraftPrompts(next.aiPrompts);
@@ -125,6 +140,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
     setDraftImage(next.imageGenerationPrefs);
     setDraftLint(next.lintPrefs);
   };
+
 
   const handleExportSettings = async () => {
     setPrefsBusy(true);
@@ -323,62 +339,232 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
           </div>
         )}
 
-        {activePrefsTab === 'llm' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div>
-              <label className="form-label">提供商</label>
-              <select
-                className="form-input"
-                value={draftLlm.provider}
-                onChange={(e) => {
-                  const next = e.target.value as LLMProvider;
-                  setDraftLlm(applyLlmProviderDefaults(draftLlm, next));
-                }}
-              >
-                {(['custom', 'google', 'grok'] as LLMProvider[]).map((p) => (
-                  <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
-                ))}
-              </select>
+        {activePrefsTab === 'llm' && (() => {
+          const selectedProfile =
+            draftProfiles.find((p) => p.id === selectedProfileId) || draftProfiles[0];
+
+          const updateSelectedProfile = (patch: Partial<LLMProfile>) => {
+            if (!selectedProfile) return;
+            const updated = { ...selectedProfile, ...patch };
+            setDraftProfiles(draftProfiles.map((p) => (p.id === selectedProfile.id ? updated : p)));
+          };
+
+          const handleAddProfile = () => {
+            const newProf = createLLMProfile('custom', { name: `API Profile ${draftProfiles.length + 1}` });
+            setDraftProfiles([...draftProfiles, newProf]);
+            setSelectedProfileId(newProf.id);
+            setVerifyResult(null);
+          };
+
+          const handleDeleteProfile = () => {
+            if (draftProfiles.length <= 1 || !selectedProfile) return;
+            if (!confirm(`確定要刪除 Profile「${selectedProfile.name}」？`)) return;
+            const nextProfiles = draftProfiles.filter((p) => p.id !== selectedProfile.id);
+            setDraftProfiles(nextProfiles);
+            const nextSelId = nextProfiles[0].id;
+            setSelectedProfileId(nextSelId);
+            if (draftActiveId === selectedProfile.id) {
+              setDraftActiveId(nextSelId);
+            }
+            setVerifyResult(null);
+          };
+
+          const handleSetDefault = () => {
+            if (selectedProfile) {
+              setDraftActiveId(selectedProfile.id);
+            }
+          };
+
+          const handleVerify = async () => {
+            if (!selectedProfile) return;
+            setVerifyingProfile(true);
+            setVerifyResult(null);
+            try {
+              const res = await verifyLLMProfile(selectedProfile);
+              setVerifyResult({ ok: res.ok, message: res.message });
+            } catch (err) {
+              setVerifyResult({ ok: false, message: `驗證失敗：${errorMessage(err)}` });
+            } finally {
+              setVerifyingProfile(false);
+            }
+          };
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Profile Selector Row */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <label className="form-label">LLM Connection Profile 選擇與管理</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <select
+                    className="form-input"
+                    style={{ flex: 1 }}
+                    value={selectedProfileId}
+                    onChange={(e) => {
+                      setSelectedProfileId(e.target.value);
+                      setVerifyResult(null);
+                    }}
+                  >
+                    {draftProfiles.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({LLM_PROVIDER_LABELS[p.provider]}){p.id === draftActiveId ? ' [★預設]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <Button size="sm" variant="secondary" onClick={handleAddProfile}>
+                    + 新增 Profile
+                  </Button>
+                </div>
+              </div>
+
+              {/* Profile Action Bar */}
+              {selectedProfile && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-tertiary, #1f2937)', padding: '8px 12px', borderRadius: 6 }}>
+                  <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>目前編輯：<strong>{selectedProfile.name}</strong></span>
+                    {selectedProfile.id === draftActiveId ? (
+                      <span style={{ fontSize: 11, padding: '2px 6px', background: 'var(--accent-primary, #3b82f6)', color: '#fff', borderRadius: 4 }}>
+                        預設 / 使用中
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary, #9ca3af)' }}>
+                        非預設
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {selectedProfile.id !== draftActiveId && (
+                      <Button size="sm" variant="secondary" onClick={handleSetDefault}>
+                        設為預設 Profile
+                      </Button>
+                    )}
+                    {draftProfiles.length > 1 && (
+                      <Button size="sm" variant="secondary" onClick={handleDeleteProfile}>
+                        刪除
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Profile Edit Form */}
+              {selectedProfile && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div>
+                    <label className="form-label">提供商 (Provider)</label>
+                    <select
+                      className="form-input"
+                      value={selectedProfile.provider}
+                      onChange={(e) => {
+                        const nextProvider = e.target.value as LLMProvider;
+                        updateSelectedProfile(applyLlmProviderDefaults(selectedProfile, nextProvider));
+                      }}
+                    >
+                      {(['custom', 'google', 'grok'] as LLMProvider[]).map((p) => (
+                        <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <Input
+                    label="Profile 顯示名稱"
+                    value={selectedProfile.name}
+                    onChange={(e) => updateSelectedProfile({ name: e.target.value })}
+                  />
+
+                  <Input
+                    label={
+                      selectedProfile.provider === 'custom'
+                        ? 'API 端點 (Base URL)'
+                        : 'API 端點 (Base URL，選填)'
+                    }
+                    placeholder={LLM_PROVIDER_DEFAULTS[selectedProfile.provider].baseUrl || 'https://api.openai.com/v1'}
+                    value={selectedProfile.baseUrl}
+                    onChange={(e) => updateSelectedProfile({ baseUrl: e.target.value })}
+                  />
+
+                  <Input
+                    label="API Key"
+                    type="password"
+                    value={selectedProfile.apiKey}
+                    onChange={(e) => updateSelectedProfile({ apiKey: e.target.value })}
+                  />
+
+                  <Input
+                    label="模型名稱"
+                    placeholder={LLM_PROVIDER_DEFAULTS[selectedProfile.provider].model}
+                    value={selectedProfile.model}
+                    onChange={(e) => updateSelectedProfile({ model: e.target.value })}
+                  />
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    <Input
+                      label="Temperature (0.0–2.0)"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      max="2"
+                      value={String(selectedProfile.temperature ?? 0.7)}
+                      onChange={(e) => updateSelectedProfile({ temperature: Math.max(0, Math.min(2, Number(e.target.value) || 0.7)) })}
+                    />
+                    <Input
+                      label="Max Tokens"
+                      type="number"
+                      step="256"
+                      min="1"
+                      max="128000"
+                      value={String(selectedProfile.maxTokens ?? 4096)}
+                      onChange={(e) => updateSelectedProfile({ maxTokens: Math.max(1, Number(e.target.value) || 4096) })}
+                    />
+                    <Input
+                      label="Timeout 秒數 (30–3600)"
+                      type="number"
+                      step="10"
+                      min="30"
+                      max="3600"
+                      value={String(selectedProfile.timeoutSec ?? 120)}
+                      onChange={(e) => updateSelectedProfile({ timeoutSec: Math.max(30, Math.min(3600, Number(e.target.value) || 120)) })}
+                    />
+                  </div>
+
+                  <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.6 }}>
+                    {selectedProfile.provider === 'google'
+                      ? '從 Google AI Studio 取得 API Key。常用模型：gemini-2.0-flash、gemini-1.5-pro、gemini-1.5-flash。'
+                      : selectedProfile.provider === 'grok'
+                      ? '從 console.x.ai 取得 API Key。常用模型：grok-2-latest、grok-2-1212、grok-beta。Grok 走 OpenAI-compatible 介面。'
+                      : '支援 OpenAI-compatible API（OpenAI、NVIDIA、本機 Ollama 等）。'}
+                  </p>
+
+                  <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={verifyingProfile}
+                      onClick={handleVerify}
+                    >
+                      {verifyingProfile ? '連線測試中...' : '🔌 測試與驗證此 Profile 連線'}
+                    </Button>
+                    {verifyResult && (
+                      <div
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: 6,
+                          fontSize: 12,
+                          lineHeight: 1.5,
+                          background: verifyResult.ok ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                          color: verifyResult.ok ? '#4ade80' : '#f87171',
+                          border: `1px solid ${verifyResult.ok ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                        }}
+                      >
+                        {verifyResult.message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+          );
+        })()}
 
-            <Input
-              label="顯示名稱"
-              value={draftLlm.name}
-              onChange={(e) => setDraftLlm({ ...draftLlm, name: e.target.value })}
-            />
-
-            <Input
-              label={
-                draftLlm.provider === 'custom'
-                  ? 'API 端點 (Base URL)'
-                  : 'API 端點 (Base URL，選填)'
-              }
-              placeholder={LLM_PROVIDER_DEFAULTS[draftLlm.provider].baseUrl || 'https://api.openai.com/v1'}
-              value={draftLlm.baseUrl}
-              onChange={(e) => setDraftLlm({ ...draftLlm, baseUrl: e.target.value })}
-            />
-
-            <Input
-              label="API Key"
-              type="password"
-              value={draftLlm.apiKey}
-              onChange={(e) => setDraftLlm({ ...draftLlm, apiKey: e.target.value })}
-            />
-            <Input
-              label="模型名稱"
-              placeholder={LLM_PROVIDER_DEFAULTS[draftLlm.provider].model}
-              value={draftLlm.model}
-              onChange={(e) => setDraftLlm({ ...draftLlm, model: e.target.value })}
-            />
-            <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.6 }}>
-              {draftLlm.provider === 'google'
-                ? '從 Google AI Studio 取得 API Key。常用模型：gemini-2.0-flash、gemini-1.5-pro、gemini-1.5-flash。'
-                : draftLlm.provider === 'grok'
-                ? '從 console.x.ai 取得 API Key。常用模型：grok-2-latest、grok-2-1212、grok-beta。Grok 走 OpenAI-compatible 介面。'
-                : '支援 OpenAI-compatible API（OpenAI、NVIDIA、本機 Ollama 等）。'}
-            </p>
-          </div>
-        )}
 
         {/* —— 圖片生成 —— */}
         {activePrefsTab === 'image' && (

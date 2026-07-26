@@ -1,11 +1,14 @@
-import type { LLMConfig } from '../types';
+import type { LLMConfig, LLMProfile } from '../types';
 import { useSettingsStore, type AIPromptPrefs, type ImageGenerationPrefs, type InlineEditPrefs, type WikiPrefs } from '../stores/settingsStore';
 import type { LintPrefs } from './lint/types';
+import { createLLMProfile } from './llm-provider-defaults';
 
 export const SETTINGS_BACKUP_SCHEMA_VERSION = 1 as const;
 
 export interface SettingsBackupData {
   llmConfig: Omit<LLMConfig, 'apiKey'> & { apiKey?: string };
+  llmProfiles?: (Omit<LLMProfile, 'apiKey'> & { apiKey?: string })[];
+  activeProfileId?: string;
   inlineEdit: InlineEditPrefs;
   aiPrompts: AIPromptPrefs;
   wikiPrefs: WikiPrefs;
@@ -17,6 +20,7 @@ export interface SettingsBackupData {
   lintPrefs: LintPrefs;
 }
 
+
 export interface SettingsBackupSnapshot {
   app: 'novel-generator';
   kind: 'settings';
@@ -27,7 +31,10 @@ export interface SettingsBackupSnapshot {
 }
 
 export function exportSettingsSnapshot(includeApiKeys: boolean): SettingsBackupSnapshot {
-  const { llmConfig, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs } = useSettingsStore.getState();
+  const { llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs } = useSettingsStore.getState();
+  const profilesToExport = (llmProfiles && llmProfiles.length > 0 ? llmProfiles : [llmConfig]).map((p) =>
+    includeApiKeys ? { ...p } : omitApiKey(p),
+  );
   return {
     app: 'novel-generator',
     kind: 'settings',
@@ -36,6 +43,8 @@ export function exportSettingsSnapshot(includeApiKeys: boolean): SettingsBackupS
     includesApiKeys: includeApiKeys,
     settings: {
       llmConfig: includeApiKeys ? { ...llmConfig } : omitApiKey(llmConfig),
+      llmProfiles: profilesToExport,
+      activeProfileId: activeProfileId || llmConfig.id,
       inlineEdit: { ...inlineEdit },
       aiPrompts: { ...aiPrompts },
       wikiPrefs: { ...wikiPrefs },
@@ -70,7 +79,24 @@ export function importSettingsSnapshot(snapshot: SettingsBackupSnapshot): void {
 
   const settings = snapshot.settings;
   const store = useSettingsStore.getState();
-  store.setLlmConfig(mergeApiKeyAware(store.llmConfig, settings.llmConfig));
+
+  let importedProfiles: LLMProfile[] = [];
+  if (settings.llmProfiles && settings.llmProfiles.length > 0) {
+    importedProfiles = settings.llmProfiles.map((inc) => {
+      const existing = (store.llmProfiles || []).find((p) => p.id === inc.id);
+      const base = existing || createLLMProfile(inc.provider || 'custom', { id: inc.id });
+      return mergeApiKeyAware(base, inc);
+    });
+  } else if (settings.llmConfig) {
+    const existing = store.llmConfig;
+    importedProfiles = [mergeApiKeyAware(existing, settings.llmConfig)];
+  }
+
+  const activeId = settings.activeProfileId && importedProfiles.some((p) => p.id === settings.activeProfileId)
+    ? settings.activeProfileId
+    : importedProfiles[0]?.id || 'default';
+
+  store.setLlmProfiles(importedProfiles, activeId);
   store.setInlineEdit(settings.inlineEdit);
   store.setAiPrompts(settings.aiPrompts);
   store.setWikiPrefs(settings.wikiPrefs);
@@ -91,6 +117,7 @@ export function importSettingsSnapshot(snapshot: SettingsBackupSnapshot): void {
   });
   store.setLintPrefs(settings.lintPrefs);
 }
+
 
 export async function readSettingsSnapshotFromFile(file: File): Promise<SettingsBackupSnapshot> {
   const text = await file.text();

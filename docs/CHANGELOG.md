@@ -1,6 +1,20 @@
 # 開發日誌
 
+## 2026-07-26 - 建立具名 LLM Connection Profiles 與共同 Completion Seam (Issue #3)
+
+- 新增 `LLMProfile` 型別與 `llmProfiles` 多 Profile 管理機制，支援建立、編輯、切換預設、刪除與連線驗證。
+- Profile 設定欄位新增 `temperature`、`maxTokens` 與 `timeoutSec` (30–3600 秒 timeout 控制)。
+- 建立共同 LLM completion seam (`completeNormalized`)，統一正規化 OpenAI-compatible、Google Gemini 與 Grok 之回應正文、token usage (`promptTokens` / `completionTokens` / `totalTokens`)、`requestId` 與 `finishReason`。缺少欄位時具有明確且穩定的 `null` 表示。
+- 實作 Profile 連線驗證功能 (`verifyLLMProfile`)，回傳正規化連線結果，並具備 API Key 遮蔽機制 (`sanitizeApiKey`)，避免 API Key 洩漏至 log 或 UI 錯誤顯示。
+- 偏好設定備份與匯入/匯出 (`settings-backup`) 支援多 Profile 與選擇性包含 API Key，並完整相容舊版單一 `llmConfig` 設定之自動遷移。
+- 新增與更新 Provider 正規化、timeout、usage、連線驗證與設定遷移單元測試。
+
+**Verification**
+- `npx tsc --noEmit` 通過。
+- `npx vitest run` 59 個測試檔案 (共 223 個測試) 全數通過。
+
 ## 2026-07-26 - Multi-Agent 規劃與規格
+
 
 - 完成 Phase 4 Multi-Agent 章節生成的規劃訪談，並將持久化工作流、人工審核、Critic 六維度評分、Writer／Editor 草稿可觀測性、LLM 角色設定、成本與 token 顯示、正文鎖定及執行紀錄管理等決策整合至 `modules/09-multi-agent.md`。
 - 建立 Multi-Agent 領域詞彙與架構決策紀錄，並補充 Agent 使用的 issue tracker、標籤與 domain 文件索引。

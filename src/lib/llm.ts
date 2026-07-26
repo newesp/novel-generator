@@ -1,19 +1,66 @@
 import { useSettingsStore } from '../stores/settingsStore';
-import type { LLMConfig } from '../types';
+import type { LLMCompletionResponse, LLMCompletionUsage, LLMProfile } from '../types';
 import { isTauri } from './platform';
+
+/** Google Gemini 預設 API 端點 */
+const GOOGLE_DEFAULT_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+/** Grok (xAI) 預設 API 端點 — OpenAI-compatible */
+const GROK_DEFAULT_BASE = 'https://api.x.ai/v1';
+
+export interface GenerationOptions {
+  maxTokens?: number;
+  temperature?: number;
+  systemPrompt?: string;
+  responseFormat?: 'json_object';
+  timeoutSec?: number;
+  profile?: LLMProfile;
+}
+
+export function sanitizeApiKey(text: string, apiKey?: string): string {
+  if (!apiKey || apiKey.trim().length === 0) return text;
+  return text.replaceAll(apiKey, '***');
+}
+
+export function clampTimeoutSec(timeoutSec?: number): number {
+  if (typeof timeoutSec !== 'number' || Number.isNaN(timeoutSec)) return 120;
+  return Math.max(30, Math.min(3600, timeoutSec));
+}
+
+function createCombinedTimeoutSignal(callerSignal: AbortSignal | undefined, timeoutSec: number) {
+  const controller = new AbortController();
+  let timerId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+    controller.abort(new DOMException(`LLM request timed out after ${timeoutSec} seconds`, 'TimeoutError'));
+  }, timeoutSec * 1000);
+
+  const onCallerAbort = () => {
+    if (timerId) clearTimeout(timerId);
+    controller.abort(callerSignal?.reason ?? new DOMException('Aborted', 'AbortError'));
+  };
+
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      if (timerId) clearTimeout(timerId);
+      controller.abort(callerSignal.reason);
+    } else {
+      callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+  }
+
+  const cleanup = () => {
+    if (timerId) {
+      clearTimeout(timerId);
+      timerId = null;
+    }
+    if (callerSignal) {
+      callerSignal.removeEventListener('abort', onCallerAbort);
+    }
+  };
+
+  return { signal: controller.signal, cleanup };
+}
 
 /**
  * LLM 呼叫的網路層
- *
- * 兩種環境：
- * - 瀏覽器 dev：走 vite middleware `/llm-proxy`（headers `x-proxy-target`），
- *   middleware 在後端轉發以避開 CORS。
- * - Tauri 桌面：webview 不受瀏覽器 CORS 限制（且本 app CSP 設為 null），
- *   直接 fetch 目標 URL；若仍走 `/llm-proxy`，會被 Tauri SPA fallback 回
- *   index.html，導致呼叫端拿到 `<!doctype …` 而非 JSON。
- *
- * sendAuthorization：Google Gemini 用 URL `?key=` 認證，不能帶 Authorization
- * （會被誤判為 OAuth token 而 401）。
  */
 async function postToLLM(
   targetUrl: string,
@@ -33,40 +80,40 @@ async function postToLLM(
   return fetch('/llm-proxy', { method: 'POST', headers, body: JSON.stringify(body), signal });
 }
 
-/**
- * 暫時性錯誤（網路瞬斷、上游 5xx、rate-limit）的自動重試 + 退避。
- *
- * - 串行的 wiki ingest（一次 4–6 個 LLM call）特別容易被 NVIDIA 等供應商的
- *   gateway 偶發 502 / ECONNRESET 命中；單一章節生成也偶有發生。
- * - 只對「真的可重試」的失敗重試：HTTP 408/429/5xx + fetch 本身拋的網路例外
- * - 不重試 401/403/4xx（auth / 參數問題，重試無解）
- * - signal 中止：立即往上拋 AbortError，不再重試
- */
 const TRANSIENT_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
-const RETRY_DELAYS_MS = [800, 2400, 6000]; // total retries = 3
+const RETRY_DELAYS_MS = [800, 2400, 6000];
 
 async function postToLLMWithRetry(
-  targetUrl: string, apiKey: string, body: unknown, sendAuthorization: boolean,
+  targetUrl: string,
+  apiKey: string,
+  body: unknown,
+  sendAuthorization: boolean,
   signal?: AbortSignal,
 ): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (signal?.aborted) {
+      if (signal.reason instanceof Error) throw signal.reason;
+      throw new DOMException(typeof signal.reason === 'string' ? signal.reason : 'Aborted', 'AbortError');
+    }
     try {
       const resp = await postToLLM(targetUrl, apiKey, body, sendAuthorization, signal);
       if (resp.ok || !TRANSIENT_STATUSES.has(resp.status) || attempt === RETRY_DELAYS_MS.length) {
         return resp;
       }
-      // 暫時性 HTTP 錯誤 — 讀出 body 後 retry（response 只能消費一次）
       const errText = await resp.text();
-      console.warn(`[llm] transient ${resp.status} on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}: ${errText.slice(0, 200)}`);
-      lastError = new Error(`LLM API error ${resp.status}: ${errText}`);
+      const sanitizedErrText = sanitizeApiKey(errText, apiKey);
+      console.warn(
+        `[llm] transient ${resp.status} on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}: ${sanitizedErrText.slice(0, 200)}`,
+      );
+      lastError = new Error(`LLM API error ${resp.status}: ${sanitizedErrText}`);
     } catch (e) {
-      // AbortError 不重試，直接往上丟
-      if ((e as { name?: string }).name === 'AbortError') throw e;
-      // 真正的網路例外（Tauri 直連時的 fetch reject、或 dev proxy 自身錯誤）
+      if ((e as { name?: string }).name === 'AbortError' || (e as { name?: string }).name === 'TimeoutError') {
+        throw e;
+      }
       if (attempt === RETRY_DELAYS_MS.length) throw e;
-      console.warn(`[llm] network error on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}:`, e);
+      const errStr = e instanceof Error ? e.message : String(e);
+      console.warn(`[llm] network error on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}:`, sanitizeApiKey(errStr, apiKey));
       lastError = e;
     }
     await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
@@ -74,29 +121,56 @@ async function postToLLMWithRetry(
   throw lastError ?? new Error('unreachable');
 }
 
-export interface GenerationOptions {
-  maxTokens?: number;
-  temperature?: number;
-  systemPrompt?: string;
-  responseFormat?: 'json_object';
-}
-
-/** Google Gemini 預設 API 端點 */
-const GOOGLE_DEFAULT_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-/** Grok (xAI) 預設 API 端點 — OpenAI-compatible */
-const GROK_DEFAULT_BASE = 'https://api.x.ai/v1';
-
-/** 判斷目前的 LLM 設定是否可用（API key + provider 對應的必要欄位齊全） */
-export function isLLMReady(cfg: LLMConfig): boolean {
+/** 判斷 LLM 設定是否可用 */
+export function isLLMReady(cfg: LLMProfile): boolean {
   if (!cfg.apiKey) return false;
   switch (cfg.provider) {
     case 'google':
     case 'grok':
-      // baseUrl 可留空（有預設）
       return true;
     case 'custom':
     default:
       return !!cfg.baseUrl;
+  }
+}
+
+export async function completeNormalized(
+  prompt: string,
+  options?: GenerationOptions,
+  signal?: AbortSignal,
+  profileOverride?: LLMProfile,
+): Promise<LLMCompletionResponse> {
+  const profile = profileOverride || options?.profile || useSettingsStore.getState().llmConfig;
+
+  if (!profile || !profile.apiKey) {
+    throw new Error('請先在「⚙️ 偏好設定」中設定 API Key');
+  }
+
+  const effectiveTimeoutSec = clampTimeoutSec(options?.timeoutSec ?? profile.timeoutSec);
+  const { signal: combinedSignal, cleanup } = createCombinedTimeoutSignal(signal, effectiveTimeoutSec);
+
+  try {
+    switch (profile.provider) {
+      case 'google':
+        return await completeGoogleNormalized(profile, prompt, options, combinedSignal);
+      case 'grok':
+        return await completeOpenAICompatNormalized(
+          { ...profile, baseUrl: profile.baseUrl || GROK_DEFAULT_BASE },
+          prompt,
+          options,
+          combinedSignal,
+        );
+      case 'custom':
+      default:
+        return await completeOpenAICompatNormalized(profile, prompt, options, combinedSignal);
+    }
+  } catch (err) {
+    if (err instanceof Error) {
+      err.message = sanitizeApiKey(err.message, profile.apiKey);
+    }
+    throw err;
+  } finally {
+    cleanup();
   }
 }
 
@@ -105,38 +179,19 @@ export async function complete(
   options?: GenerationOptions,
   signal?: AbortSignal,
 ): Promise<string> {
-  const { llmConfig } = useSettingsStore.getState();
-
-  if (!llmConfig.apiKey) {
-    throw new Error('請先在「⚙️ 偏好設定」中設定 API Key');
-  }
-
-  switch (llmConfig.provider) {
-    case 'google':
-      return completeGoogle(llmConfig, prompt, options, signal);
-    case 'grok':
-      // Grok 走 OpenAI-compatible，差別只在預設 baseUrl
-      return completeOpenAICompat(
-        { ...llmConfig, baseUrl: llmConfig.baseUrl || GROK_DEFAULT_BASE },
-        prompt,
-        options,
-        signal,
-      );
-    case 'custom':
-    default:
-      return completeOpenAICompat(llmConfig, prompt, options, signal);
-  }
+  const res = await completeNormalized(prompt, options, signal);
+  return res.text;
 }
 
 /* ============================================================
-   OpenAI-compatible（自定義 endpoint）
+   OpenAI-compatible Completion Seam
    ============================================================ */
-async function completeOpenAICompat(
-  cfg: LLMConfig,
+async function completeOpenAICompatNormalized(
+  cfg: LLMProfile,
   prompt: string,
   options?: GenerationOptions,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<LLMCompletionResponse> {
   if (!cfg.baseUrl) {
     throw new Error('請先設定 API 端點 (Base URL)');
   }
@@ -148,8 +203,8 @@ async function completeOpenAICompat(
       ...(options?.systemPrompt ? [{ role: 'system' as const, content: options.systemPrompt }] : []),
       { role: 'user' as const, content: prompt },
     ],
-    max_tokens: options?.maxTokens ?? 4096,
-    temperature: options?.temperature ?? 0.7,
+    max_tokens: options?.maxTokens ?? cfg.maxTokens ?? 4096,
+    temperature: options?.temperature ?? cfg.temperature ?? 0.7,
   };
   if (options?.responseFormat === 'json_object') {
     body.response_format = { type: 'json_object' };
@@ -159,34 +214,49 @@ async function completeOpenAICompat(
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`LLM API error ${response.status}: ${err}`);
+    const sanitized = sanitizeApiKey(err, cfg.apiKey);
+    throw new Error(`LLM API error ${response.status}: ${sanitized}`);
   }
 
+  const requestId =
+    response.headers.get('x-request-id') ||
+    response.headers.get('request-id') ||
+    response.headers.get('apigw-request-id') ||
+    null;
+
   const data = await response.json();
-  return data.choices?.[0]?.message?.content ?? '';
+  const choice = data.choices?.[0];
+  const text = choice?.message?.content ?? '';
+  const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : null;
+
+  const promptTokens = typeof data.usage?.prompt_tokens === 'number' ? data.usage.prompt_tokens : null;
+  const completionTokens = typeof data.usage?.completion_tokens === 'number' ? data.usage.completion_tokens : null;
+  const totalTokens = typeof data.usage?.total_tokens === 'number' ? data.usage.total_tokens : null;
+
+  const usage: LLMCompletionUsage = { promptTokens, completionTokens, totalTokens };
+  const finalReqId = requestId || (typeof data.id === 'string' ? data.id : null);
+
+  return { text, usage, requestId: finalReqId, finishReason };
 }
 
 /* ============================================================
-   Google Gemini
-   端點：{baseUrl}/models/{model}:generateContent?key={apiKey}
+   Google Gemini Completion Seam
    ============================================================ */
-async function completeGoogle(
-  cfg: LLMConfig,
+async function completeGoogleNormalized(
+  cfg: LLMProfile,
   prompt: string,
   options?: GenerationOptions,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<LLMCompletionResponse> {
   const base = (cfg.baseUrl || GOOGLE_DEFAULT_BASE).replace(/\/$/, '');
   const model = cfg.model || 'gemini-2.0-flash';
   const targetUrl = `${base}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`;
 
   const body: Record<string, unknown> = {
-    contents: [
-      { role: 'user', parts: [{ text: prompt }] },
-    ],
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: options?.temperature ?? 0.7,
-      maxOutputTokens: options?.maxTokens ?? 4096,
+      temperature: options?.temperature ?? cfg.temperature ?? 0.7,
+      maxOutputTokens: options?.maxTokens ?? cfg.maxTokens ?? 4096,
       ...(options?.responseFormat === 'json_object' ? { responseMimeType: 'application/json' } : {}),
     },
   };
@@ -198,18 +268,79 @@ async function completeGoogle(
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Google Gemini API error ${response.status}: ${err}`);
+    const sanitized = sanitizeApiKey(err, cfg.apiKey);
+    throw new Error(`Google Gemini API error ${response.status}: ${sanitized}`);
   }
 
+  const requestId =
+    response.headers.get('x-request-id') ||
+    response.headers.get('request-id') ||
+    response.headers.get('x-goog-request-params') ||
+    null;
+
   const data = await response.json();
-  // 回應 shape: { candidates: [ { content: { parts: [ { text } ] } } ] }
   const candidate = data.candidates?.[0];
   if (!candidate) {
     throw new Error(`Gemini 沒有回傳內容：${JSON.stringify(data).slice(0, 300)}`);
   }
-  if (candidate.finishReason && candidate.finishReason !== 'STOP') {
-    throw new Error(`Gemini 被中止：${candidate.finishReason}`);
+
+  const finishReason = typeof candidate.finishReason === 'string' ? candidate.finishReason : null;
+  if (finishReason && finishReason !== 'STOP') {
+    throw new Error(`Gemini 被中止：${finishReason}`);
   }
+
   const parts = candidate.content?.parts ?? [];
-  return parts.map((p: { text?: string }) => p.text ?? '').join('');
+  const text = parts.map((p: { text?: string }) => p.text ?? '').join('');
+
+  const usageMeta = data.usageMetadata;
+  const promptTokens = typeof usageMeta?.promptTokenCount === 'number' ? usageMeta.promptTokenCount : null;
+  const completionTokens = typeof usageMeta?.candidatesTokenCount === 'number' ? usageMeta.candidatesTokenCount : null;
+  const totalTokens = typeof usageMeta?.totalTokenCount === 'number' ? usageMeta.totalTokenCount : null;
+
+  const usage: LLMCompletionUsage = { promptTokens, completionTokens, totalTokens };
+  const finalReqId = requestId || (typeof data.responseId === 'string' ? data.responseId : null);
+
+  return { text, usage, requestId: finalReqId, finishReason };
+}
+
+/** 驗證 Connection Profile */
+export async function verifyLLMProfile(profile: LLMProfile): Promise<{
+  ok: boolean;
+  message: string;
+  response?: LLMCompletionResponse;
+}> {
+  if (!isLLMReady(profile)) {
+    return {
+      ok: false,
+      message: '驗證失敗：缺少必要的端點 (Base URL) 或 API Key 設定',
+    };
+  }
+
+  try {
+    const response = await completeNormalized(
+      'Say "OK"',
+      {
+        maxTokens: 10,
+        temperature: 0.7,
+        timeoutSec: Math.min(clampTimeoutSec(profile.timeoutSec), 30),
+      },
+      undefined,
+      profile,
+    );
+    const usageStr = response.usage.totalTokens !== null ? ` (Token 使用: ${response.usage.totalTokens})` : '';
+    const reqStr = response.requestId ? ` [ID: ${response.requestId}]` : '';
+    const finishStr = response.finishReason ? ` [Finish: ${response.finishReason}]` : '';
+    return {
+      ok: true,
+      message: `連線成功！模型：${profile.model}，回應：${response.text.trim().slice(0, 50)}${usageStr}${reqStr}${finishStr}`,
+      response,
+    };
+  } catch (err) {
+    const rawMsg = err instanceof Error ? err.message : String(err);
+    const sanitizedMsg = sanitizeApiKey(rawMsg, profile.apiKey);
+    return {
+      ok: false,
+      message: `驗證失敗：${sanitizedMsg}`,
+    };
+  }
 }

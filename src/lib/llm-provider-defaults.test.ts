@@ -9,6 +9,9 @@ const savedGeminiConfig: LLMConfig = {
   baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
   apiKey: 'secret-key',
   model: 'gemini-2.5-flash-lite',
+  temperature: 0.7,
+  maxTokens: 4096,
+  timeoutSec: 120,
 };
 
 describe('applyLlmProviderDefaults', () => {

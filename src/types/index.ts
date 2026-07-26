@@ -308,16 +308,34 @@ export type ImageProviderConfig =
 
 export type LLMProvider = 'custom' | 'google' | 'grok';
 
-export interface LLMConfig {
+export interface LLMProfile {
   id: string;
-  /** 'custom' = OpenAI-compatible (任意 baseUrl)；'google' = Google Gemini */
-  provider: LLMProvider;
   name: string;
-  /** 對 'google' 而言可留空，會使用 Gemini 預設端點 */
+  /** 'custom' = OpenAI-compatible (任意 baseUrl)；'google' = Google Gemini；'grok' = Grok (xAI) */
+  provider: LLMProvider;
   baseUrl: string;
   apiKey: string;
   model: string;
+  temperature: number;
+  maxTokens: number;
+  timeoutSec: number;
 }
+
+export type LLMConfig = LLMProfile;
+
+export interface LLMCompletionUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+}
+
+export interface LLMCompletionResponse {
+  text: string;
+  usage: LLMCompletionUsage;
+  requestId: string | null;
+  finishReason: string | null;
+}
+
 
 export type StoryBeat =
   | '引入 (Inciting Incident)'
