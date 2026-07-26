@@ -18,8 +18,8 @@ export interface SettingsBackupData {
     googleGeminiImage: Omit<ImageGenerationPrefs['googleGeminiImage'], 'apiKey'> & { apiKey?: string };
   };
   lintPrefs: LintPrefs;
+  multiAgentPrefs?: MultiAgentPrefs;
 }
-
 
 export interface SettingsBackupSnapshot {
   app: 'novel-generator';
@@ -31,7 +31,7 @@ export interface SettingsBackupSnapshot {
 }
 
 export function exportSettingsSnapshot(includeApiKeys: boolean): SettingsBackupSnapshot {
-  const { llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs } = useSettingsStore.getState();
+  const { llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs, multiAgentPrefs } = useSettingsStore.getState();
   const profilesToExport = (llmProfiles && llmProfiles.length > 0 ? llmProfiles : [llmConfig]).map((p) =>
     includeApiKeys ? { ...p } : omitApiKey(p),
   );
@@ -65,6 +65,7 @@ export function exportSettingsSnapshot(includeApiKeys: boolean): SettingsBackupS
         ...lintPrefs,
         checks: { ...lintPrefs.checks },
       },
+      multiAgentPrefs: { ...multiAgentPrefs },
     },
   };
 }
@@ -116,6 +117,9 @@ export function importSettingsSnapshot(snapshot: SettingsBackupSnapshot): void {
     ),
   });
   store.setLintPrefs(settings.lintPrefs);
+  if (settings.multiAgentPrefs) {
+    store.setMultiAgentPrefs(settings.multiAgentPrefs);
+  }
 }
 
 

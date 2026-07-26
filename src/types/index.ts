@@ -336,6 +336,46 @@ export interface LLMCompletionResponse {
   finishReason: string | null;
 }
 
+export type MultiAgentRole = 'planner' | 'writer' | 'critic' | 'editor';
+
+export interface AgentRoleConfig {
+  profileId: string | null;
+  modelOverride?: string;
+  temperatureOverride?: number;
+  maxTokensOverride?: number;
+  roleGuidance: string;
+}
+
+export interface CriticRubricWeights {
+  instructionAndBeat: number;
+  plotLogic: number;
+  characterConsistency: number;
+  contextAndWorld: number;
+  styleAndQuality: number;
+  pacingAndStructure: number;
+}
+
+export interface CriticThresholds {
+  humanReviewFloor: number;
+  passScore: number;
+}
+
+export interface CostEstimatePrefs {
+  inputCostPerMillion: number;
+  outputCostPerMillion: number;
+  currency: string;
+  showTokenAndCost: boolean;
+}
+
+export interface MultiAgentPrefs {
+  agents: Record<MultiAgentRole, AgentRoleConfig>;
+  maxRevisions: number;
+  criticThresholds: CriticThresholds;
+  criticRubricWeights: CriticRubricWeights;
+  costEstimate: CostEstimatePrefs;
+}
+
+
 
 export type StoryBeat =
   | '引入 (Inciting Incident)'

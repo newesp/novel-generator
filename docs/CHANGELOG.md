@@ -1,6 +1,22 @@
 # 開發日誌
 
+## 2026-07-26 - 設定 Agent 角色與 Critic 全域策略 (Issue #5)
+
+- 定義 `MultiAgentPrefs` 偏好設定資料結構，支援四個 Agent 角色 (Planner, Writer, Critic, Editor) 指定具名 LLM Profile 與覆寫 model、temperature、maxTokens 及編輯 Role Guidance。
+- 設定 `maxRevisions` 限制（預設 3，強制介於 1–5）。
+- 實作 Critic 評分門檻與驗證機制 (`validateCriticThresholds`，預設 humanReviewFloor 80、passScore 85，並驗證 `0 <= humanReviewFloor < passScore <= 100`)。
+- 實作 Critic 六維度 Rubric 配分與驗證機制 (`validateCriticWeights`，預設 20/20/20/15/15/10，驗證數值非負且總和必為 100)。
+- 提供 Token 估算與成本顯示選項控制（包含每百萬 input/output token 單價及顯示幣別，關閉顯示仍保留實際 provider usage 保存）。
+- 在偏好設定 Modal 新增「🤖 Multi-Agent 策略」分頁，提供完整 UI 表單及即時驗證警示。
+- 偏好設定備份與匯入/匯出 (`settings-backup`) 整合 Multi-Agent 策略設定備份。
+- 新增與更新 Multi-Agent 偏好設定、門檻、配分驗證、儲存庫 persist 與備份匯入/匯出單元測試。
+
+**Verification**
+- `npx tsc --noEmit` 通過。
+- `npx vitest run` 60 個測試檔案 (共 230 個測試) 全數通過。
+
 ## 2026-07-26 - 支援 Anthropic Claude 直連 Profile (Issue #4)
+
 
 - 新增 Anthropic Claude 直連 Profile 支援（預設 endpoint `https://api.anthropic.com/v1`，模型 `claude-3-5-sonnet-20241022`）。
 - 實作 Anthropic Messages API completion handler (`completeAnthropicNormalized`)，包含 `x-api-key` 與 `anthropic-version` 認證標頭及 `system` prompt 處理。

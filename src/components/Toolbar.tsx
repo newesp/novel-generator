@@ -48,16 +48,18 @@ import { MarkdownView } from './common/MarkdownView';
 import { BackupModal } from './BackupModal';
 import { GlobalSearchModal } from './search/GlobalSearchModal';
 import { BookExportModal } from './export/BookExportModal';
-import type { LLMProfile, LLMProvider } from '../types';
+import type { LLMProfile, LLMProvider, MultiAgentPrefs, MultiAgentRole } from '../types';
+import { validateCriticThresholds, validateCriticWeights, clampMaxRevisions } from '../stores/settingsStore';
 
 /** 偏好設定 Modal 的分頁 */
-type PrefsTab = 'llm' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
+type PrefsTab = 'llm' | 'multi-agent' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
 const PREFS_TABS: { key: PrefsTab; label: string }[] = [
-  { key: 'llm',        label: '🔑 LLM API' },
-  { key: 'image',      label: '🖼 圖片生成' },
-  { key: 'inline',     label: '✨ 選取調整' },
-  { key: 'ai-prompts', label: '📜 AI 提示詞' },
-  { key: 'wiki',       label: '📚 Wiki 設定' },
+  { key: 'llm',         label: '🔑 LLM API' },
+  { key: 'multi-agent', label: '🤖 Multi-Agent 策略' },
+  { key: 'image',       label: '🖼 圖片生成' },
+  { key: 'inline',      label: '✨ 選取調整' },
+  { key: 'ai-prompts',  label: '📜 AI 提示詞' },
+  { key: 'wiki',        label: '📚 Wiki 設定' },
 ];
 
 interface ToolbarProps {
@@ -68,8 +70,8 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   const { project, chapters } = useProjectStore();
   const { view, setView } = useUIStore();
   const {
-    llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs,
-    setLlmProfiles, setInlineEdit, setAiPrompts, setWikiPrefs, setImageGenerationPrefs, setLintPrefs,
+    llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs, multiAgentPrefs,
+    setLlmProfiles, setInlineEdit, setAiPrompts, setWikiPrefs, setImageGenerationPrefs, setLintPrefs, setMultiAgentPrefs,
   } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -87,6 +89,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   const [draftWiki, setDraftWiki] = useState(wikiPrefs);
   const [draftImage, setDraftImage] = useState(imageGenerationPrefs);
   const [draftLint, setDraftLint] = useState(lintPrefs);
+  const [draftMultiAgent, setDraftMultiAgent] = useState<MultiAgentPrefs>(multiAgentPrefs);
   const [includeApiKeysInPrefsExport, setIncludeApiKeysInPrefsExport] = useState(false);
   const [prefsBusy, setPrefsBusy] = useState(false);
   const [prefsMsg, setPrefsMsg] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
@@ -109,6 +112,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
     setDraftWiki(wikiPrefs);
     setDraftImage(imageGenerationPrefs);
     setDraftLint(lintPrefs);
+    setDraftMultiAgent(store.multiAgentPrefs);
     setActivePrefsTab('llm');
     setActivePromptKey('chapterDraftsTemplate');
     setPromptViewMode('edit');
@@ -119,12 +123,30 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   };
 
   const savePrefs = () => {
+    const threshVal = validateCriticThresholds(
+      draftMultiAgent.criticThresholds.humanReviewFloor,
+      draftMultiAgent.criticThresholds.passScore,
+    );
+    if (!threshVal.valid) {
+      setPrefsMsg({ kind: 'err', text: `儲存失敗：${threshVal.message}` });
+      setActivePrefsTab('multi-agent');
+      return;
+    }
+
+    const weightVal = validateCriticWeights(draftMultiAgent.criticRubricWeights);
+    if (!weightVal.valid) {
+      setPrefsMsg({ kind: 'err', text: `儲存失敗：${weightVal.message}` });
+      setActivePrefsTab('multi-agent');
+      return;
+    }
+
     setLlmProfiles(draftProfiles, draftActiveId);
     setInlineEdit(draftInline);
     setAiPrompts(draftPrompts);
     setWikiPrefs(draftWiki);
     setImageGenerationPrefs(draftImage);
     setLintPrefs(draftLint);
+    setMultiAgentPrefs(draftMultiAgent);
     setShowPrefsModal(false);
   };
 
@@ -139,6 +161,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
     setDraftWiki(next.wikiPrefs);
     setDraftImage(next.imageGenerationPrefs);
     setDraftLint(next.lintPrefs);
+    setDraftMultiAgent(next.multiAgentPrefs);
   };
 
 
@@ -563,6 +586,383 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                   </div>
                 </div>
               )}
+            </div>
+          );
+        })()}
+
+        {/* —— Multi-Agent 策略 —— */}
+        {activePrefsTab === 'multi-agent' && (() => {
+          const roles: { key: MultiAgentRole; label: string; desc: string }[] = [
+            { key: 'planner', label: 'Planner (大綱規劃 Agent)', desc: '根據章節節拍、要點、上下文與知識資料產生細綱' },
+            { key: 'writer', label: 'Writer (初稿寫作 Agent)', desc: '依核准的細綱撰寫第一份候選草稿' },
+            { key: 'critic', label: 'Critic (審核評分 Agent)', desc: '依 Rubric 評分、判定重大缺陷並給出修訂要求' },
+            { key: 'editor', label: 'Editor (草稿修訂 Agent)', desc: '依候選草稿與 Critic feedback 進行修訂' },
+          ];
+
+          const totalWeight = Object.values(draftMultiAgent.criticRubricWeights).reduce((sum, v) => sum + (Number(v) || 0), 0);
+          const isWeightValid = totalWeight === 100 && Object.values(draftMultiAgent.criticRubricWeights).every((v) => typeof v === 'number' && v >= 0);
+          const isThreshValid = validateCriticThresholds(draftMultiAgent.criticThresholds.humanReviewFloor, draftMultiAgent.criticThresholds.passScore).valid;
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Section 1: Agent Roles Configuration */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                  🤖 Agent 角色與 Connection Profiles 設定
+                </h4>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--text-tertiary)' }}>
+                  為四個專責 Agent 指定預設 Connection Profile 或特定模型參數。未指定時預設使用系統啟用中 Profile。
+                </p>
+
+                {roles.map(({ key: roleKey, label, desc }) => {
+                  const cfg = draftMultiAgent.agents[roleKey];
+                  const updateRole = (patch: Partial<typeof cfg>) => {
+                    setDraftMultiAgent({
+                      ...draftMultiAgent,
+                      agents: {
+                        ...draftMultiAgent.agents,
+                        [roleKey]: { ...cfg, ...patch },
+                      },
+                    });
+                  };
+
+                  return (
+                    <div
+                      key={roleKey}
+                      style={{
+                        padding: 12,
+                        borderRadius: 6,
+                        border: '1px solid var(--border-color)',
+                        background: 'var(--bg-secondary)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{label}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{desc}</span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+                        <div>
+                          <label className="form-label">指定 Profile</label>
+                          <select
+                            className="form-input"
+                            value={cfg.profileId || ''}
+                            onChange={(e) => updateRole({ profileId: e.target.value || null })}
+                          >
+                            <option value="">(使用預設 Profile)</option>
+                            {draftProfiles.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({LLM_PROVIDER_LABELS[p.provider]})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <Input
+                          label="模型覆寫 (選填)"
+                          placeholder="跟隨 Profile 預設"
+                          value={cfg.modelOverride || ''}
+                          onChange={(e) => updateRole({ modelOverride: e.target.value || undefined })}
+                        />
+                        <Input
+                          label="Temperature (選填)"
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="2"
+                          placeholder="跟隨 Profile"
+                          value={cfg.temperatureOverride !== undefined ? String(cfg.temperatureOverride) : ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateRole({ temperatureOverride: val !== '' ? Number(val) : undefined });
+                          }}
+                        />
+                        <Input
+                          label="Max Tokens (選填)"
+                          type="number"
+                          step="256"
+                          placeholder="跟隨 Profile"
+                          value={cfg.maxTokensOverride !== undefined ? String(cfg.maxTokensOverride) : ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateRole({ maxTokensOverride: val !== '' ? Number(val) : undefined });
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="form-label">角色指令 (Role Guidance)</label>
+                        <textarea
+                          className="form-input"
+                          rows={2}
+                          style={{ width: '100%', resize: 'vertical' }}
+                          value={cfg.roleGuidance}
+                          onChange={(e) => updateRole({ roleGuidance: e.target.value })}
+                        />
+                        <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: '4px 0 0 0' }}>
+                          ℹ️ 固定系統契約 (System Contract) 與結構化 Schema 由 App 自動追加，不可在此處編輯。
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Section 2: Revisions & Thresholds */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                  ⚙️ 修訂上限與 Critic 門檻
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <Input
+                    label="最大 Editor 修訂次數 (1–5)"
+                    type="number"
+                    min="1"
+                    max="5"
+                    value={String(draftMultiAgent.maxRevisions)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        maxRevisions: clampMaxRevisions(Number(e.target.value)),
+                      })
+                    }
+                  />
+                  <Input
+                    label="人工審核門檻 (humanReviewFloor)"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={String(draftMultiAgent.criticThresholds.humanReviewFloor)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        criticThresholds: {
+                          ...draftMultiAgent.criticThresholds,
+                          humanReviewFloor: Number(e.target.value) || 0,
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="自動通過門檻 (passScore)"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={String(draftMultiAgent.criticThresholds.passScore)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        criticThresholds: {
+                          ...draftMultiAgent.criticThresholds,
+                          passScore: Number(e.target.value) || 0,
+                        },
+                      })
+                    }
+                  />
+                </div>
+                {!isThreshValid && (
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--accent-red, #ff4d4f)' }}>
+                    ⚠️ 門檻無效：必須符合 0 ≤ 人工審核門檻 &lt; 自動通過門檻 ≤ 100。
+                  </p>
+                )}
+              </div>
+
+              {/* Section 3: Critic Six-Dimension Rubric Weights */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    📊 Critic 六維度評分配分
+                  </h4>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: isWeightValid ? 'var(--accent-green, #52c41a)' : 'var(--accent-red, #ff4d4f)',
+                    }}
+                  >
+                    配分總和: {totalWeight} / 100
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                  <Input
+                    label="1. 指令與章節目標 (預設 20)"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={String(draftMultiAgent.criticRubricWeights.instructionAndBeat)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        criticRubricWeights: {
+                          ...draftMultiAgent.criticRubricWeights,
+                          instructionAndBeat: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="2. 劇情邏輯與因果 (預設 20)"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={String(draftMultiAgent.criticRubricWeights.plotLogic)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        criticRubricWeights: {
+                          ...draftMultiAgent.criticRubricWeights,
+                          plotLogic: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="3. 角色一致性與成長 (預設 20)"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={String(draftMultiAgent.criticRubricWeights.characterConsistency)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        criticRubricWeights: {
+                          ...draftMultiAgent.criticRubricWeights,
+                          characterConsistency: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="4. 前文與世界觀連貫 (預設 15)"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={String(draftMultiAgent.criticRubricWeights.contextAndWorld)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        criticRubricWeights: {
+                          ...draftMultiAgent.criticRubricWeights,
+                          contextAndWorld: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="5. 文風與敘事品質 (預設 15)"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={String(draftMultiAgent.criticRubricWeights.styleAndQuality)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        criticRubricWeights: {
+                          ...draftMultiAgent.criticRubricWeights,
+                          styleAndQuality: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="6. 節奏結構與伏筆 (預設 10)"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={String(draftMultiAgent.criticRubricWeights.pacingAndStructure)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        criticRubricWeights: {
+                          ...draftMultiAgent.criticRubricWeights,
+                          pacingAndStructure: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                </div>
+                {!isWeightValid && (
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--accent-red, #ff4d4f)' }}>
+                    ⚠️ 配分無效：所有數值必須為非負數且總和必須剛好等於 100。
+                  </p>
+                )}
+              </div>
+
+              {/* Section 4: Cost Estimation & Token Display */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                  💰 Token 與成本顯示
+                </h4>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={draftMultiAgent.costEstimate.showTokenAndCost}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        costEstimate: {
+                          ...draftMultiAgent.costEstimate,
+                          showTokenAndCost: e.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  <span>估算、彙總及顯示 Token 與成本預估</span>
+                </label>
+                <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: 0 }}>
+                  ℹ️ 關閉顯示不影響 Provider 實際回傳之 Token Usage 保存至執行軌跡。
+                </p>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 4 }}>
+                  <Input
+                    label="每百萬 Input Token 單價"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={String(draftMultiAgent.costEstimate.inputCostPerMillion)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        costEstimate: {
+                          ...draftMultiAgent.costEstimate,
+                          inputCostPerMillion: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="每百萬 Output Token 單價"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={String(draftMultiAgent.costEstimate.outputCostPerMillion)}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        costEstimate: {
+                          ...draftMultiAgent.costEstimate,
+                          outputCostPerMillion: Math.max(0, Number(e.target.value) || 0),
+                        },
+                      })
+                    }
+                  />
+                  <Input
+                    label="顯示幣別"
+                    value={draftMultiAgent.costEstimate.currency}
+                    onChange={(e) =>
+                      setDraftMultiAgent({
+                        ...draftMultiAgent,
+                        costEstimate: {
+                          ...draftMultiAgent.costEstimate,
+                          currency: e.target.value.toUpperCase() || 'USD',
+                        },
+                      })
+                    }
+                  />
+                </div>
+              </div>
             </div>
           );
         })()}

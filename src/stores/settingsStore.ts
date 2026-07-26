@@ -147,11 +147,68 @@ const DEFAULT_IMAGE_GENERATION_PREFS: ImageGenerationPrefs = {
   },
 };
 
-type DeepPartial<T> = {
-  [K in keyof T]?: T[K] extends unknown[] ? T[K] : T[K] extends object ? DeepPartial<T[K]> : T[K];
+import type { ImageProviderId, LLMConfig, LLMProfile, MultiAgentPrefs } from '../types';
+
+export const DEFAULT_MULTI_AGENT_PREFS: MultiAgentPrefs = {
+  agents: {
+    planner: {
+      profileId: null,
+      roleGuidance: '根據章節節拍、要點、上下文與知識資料產生章節細綱。',
+    },
+    writer: {
+      profileId: null,
+      roleGuidance: '依核准的生成細綱與上下文寫作章節正文。',
+    },
+    critic: {
+      profileId: null,
+      roleGuidance: '依標準評分維度評估草稿品質，指出重大缺陷並給出修訂建議。',
+    },
+    editor: {
+      profileId: null,
+      roleGuidance: '依 Critic 審核建議修訂章節正文。',
+    },
+  },
+  maxRevisions: 3,
+  criticThresholds: {
+    humanReviewFloor: 80,
+    passScore: 85,
+  },
+  criticRubricWeights: {
+    instructionAndBeat: 20,
+    plotLogic: 20,
+    characterConsistency: 20,
+    contextAndWorld: 15,
+    styleAndQuality: 15,
+    pacingAndStructure: 10,
+  },
+  costEstimate: {
+    inputCostPerMillion: 0,
+    outputCostPerMillion: 0,
+    currency: 'USD',
+    showTokenAndCost: true,
+  },
 };
 
+export function validateCriticThresholds(floor: number, pass: number): { valid: boolean; message?: string } {
+  if (floor < 0 || floor > 100) return { valid: false, message: '人工審核門檻 (humanReviewFloor) 必須介於 0–100' };
+  if (pass < 0 || pass > 100) return { valid: false, message: '自動通過門檻 (passScore) 必須介於 0–100' };
+  if (floor >= pass) return { valid: false, message: '人工審核門檻必須小於自動通過門檻 (humanReviewFloor < passScore)' };
+  return { valid: true };
+}
 
+export function validateCriticWeights(weights: MultiAgentPrefs['criticRubricWeights']): { valid: boolean; total: number; message?: string } {
+  const values = Object.values(weights);
+  const hasNegative = values.some((v) => typeof v !== 'number' || v < 0);
+  const total = values.reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
+  if (hasNegative) return { valid: false, total, message: '所有維度權重必須為非負數' };
+  if (total !== 100) return { valid: false, total, message: `六維度配分總和必須為 100（目前為 ${total}）` };
+  return { valid: true, total };
+}
+
+export function clampMaxRevisions(val: number): number {
+  if (typeof val !== 'number' || Number.isNaN(val)) return 3;
+  return Math.max(1, Math.min(5, Math.floor(val)));
+}
 
 const DEFAULT_LLM_PROFILE: LLMProfile = {
   id: 'default',
@@ -174,6 +231,7 @@ interface SettingsState {
   wikiPrefs: WikiPrefs;
   imageGenerationPrefs: ImageGenerationPrefs;
   lintPrefs: LintPrefs;
+  multiAgentPrefs: MultiAgentPrefs;
   setLlmProfiles: (profiles: LLMProfile[], activeId?: string) => void;
   setActiveProfileId: (id: string) => void;
   upsertLlmProfile: (profile: LLMProfile) => void;
@@ -184,6 +242,7 @@ interface SettingsState {
   setWikiPrefs: (prefs: Partial<WikiPrefs>) => void;
   setImageGenerationPrefs: (prefs: DeepPartial<ImageGenerationPrefs>) => void;
   setLintPrefs: (prefs: DeepPartial<LintPrefs>) => void;
+  setMultiAgentPrefs: (prefs: DeepPartial<MultiAgentPrefs>) => void;
 }
 
 const DEFAULT_AI_PROMPTS: AIPromptPrefs = {
@@ -214,6 +273,40 @@ function deepMergeLintPrefs(base: LintPrefs, patch: DeepPartial<LintPrefs>): Lin
   };
 }
 
+function deepMergeMultiAgentPrefs(base: MultiAgentPrefs, patch?: DeepPartial<MultiAgentPrefs>): MultiAgentPrefs {
+  if (!patch) return { ...base };
+  const rawMaxRev = patch.maxRevisions ?? base.maxRevisions;
+  const maxRevisions = clampMaxRevisions(rawMaxRev);
+
+  return {
+    agents: {
+      planner: { ...base.agents.planner, ...(patch.agents?.planner ?? {}) },
+      writer: { ...base.agents.writer, ...(patch.agents?.writer ?? {}) },
+      critic: { ...base.agents.critic, ...(patch.agents?.critic ?? {}) },
+      editor: { ...base.agents.editor, ...(patch.agents?.editor ?? {}) },
+    },
+    maxRevisions,
+    criticThresholds: {
+      humanReviewFloor: patch.criticThresholds?.humanReviewFloor ?? base.criticThresholds.humanReviewFloor,
+      passScore: patch.criticThresholds?.passScore ?? base.criticThresholds.passScore,
+    },
+    criticRubricWeights: {
+      instructionAndBeat: patch.criticRubricWeights?.instructionAndBeat ?? base.criticRubricWeights.instructionAndBeat,
+      plotLogic: patch.criticRubricWeights?.plotLogic ?? base.criticRubricWeights.plotLogic,
+      characterConsistency: patch.criticRubricWeights?.characterConsistency ?? base.criticRubricWeights.characterConsistency,
+      contextAndWorld: patch.criticRubricWeights?.contextAndWorld ?? base.criticRubricWeights.contextAndWorld,
+      styleAndQuality: patch.criticRubricWeights?.styleAndQuality ?? base.criticRubricWeights.styleAndQuality,
+      pacingAndStructure: patch.criticRubricWeights?.pacingAndStructure ?? base.criticRubricWeights.pacingAndStructure,
+    },
+    costEstimate: {
+      inputCostPerMillion: patch.costEstimate?.inputCostPerMillion ?? base.costEstimate.inputCostPerMillion,
+      outputCostPerMillion: patch.costEstimate?.outputCostPerMillion ?? base.costEstimate.outputCostPerMillion,
+      currency: patch.costEstimate?.currency ?? base.costEstimate.currency,
+      showTokenAndCost: patch.costEstimate?.showTokenAndCost ?? base.costEstimate.showTokenAndCost,
+    },
+  };
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
@@ -228,6 +321,7 @@ export const useSettingsStore = create<SettingsState>()(
       wikiPrefs: { ...DEFAULT_WIKI_PREFS },
       imageGenerationPrefs: { ...DEFAULT_IMAGE_GENERATION_PREFS },
       lintPrefs: { ...DEFAULT_LINT_PREFS },
+      multiAgentPrefs: { ...DEFAULT_MULTI_AGENT_PREFS },
       setLlmProfiles: (profiles, activeId) =>
         set((state) => {
           const validProfiles = profiles.length > 0 ? profiles : [DEFAULT_LLM_PROFILE];
@@ -307,6 +401,8 @@ export const useSettingsStore = create<SettingsState>()(
         })),
       setLintPrefs: (patch) =>
         set((state) => ({ lintPrefs: deepMergeLintPrefs(state.lintPrefs, patch) })),
+      setMultiAgentPrefs: (patch) =>
+        set((state) => ({ multiAgentPrefs: deepMergeMultiAgentPrefs(state.multiAgentPrefs, patch) })),
     }),
     {
       name: 'novel-generator-settings',
@@ -350,6 +446,7 @@ export const useSettingsStore = create<SettingsState>()(
           llmProfiles: profiles,
           activeProfileId: activeId,
           llmConfig: activeProf,
+          multiAgentPrefs: deepMergeMultiAgentPrefs(DEFAULT_MULTI_AGENT_PREFS, p.multiAgentPrefs),
           wikiPrefs: { ...DEFAULT_WIKI_PREFS, ...(p.wikiPrefs ?? {}) },
           imageGenerationPrefs: {
             ...DEFAULT_IMAGE_GENERATION_PREFS,
