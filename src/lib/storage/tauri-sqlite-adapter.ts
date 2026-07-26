@@ -920,6 +920,14 @@ const generationCheckpoints: GenerationCheckpointStore = {
       r.id, r.run_id, r.book_id, r.chapter_id, r.created_at, r.data,
     ]);
   },
+  update: async (id, data) => {
+    const db = await getDb();
+    const rows = await db.select<GenerationCheckpointRow[]>('SELECT id, run_id, book_id, chapter_id, created_at, data FROM generation_checkpoints WHERE id = $1', [id]);
+    if (!rows[0]) return;
+    const merged = mergePartial(rowToGenerationCheckpoint(rows[0]), data);
+    const r = generationCheckpointToRow(merged);
+    await db.execute('UPDATE generation_checkpoints SET data = $1, created_at = $2 WHERE id = $3', [r.data, r.created_at, id]);
+  },
   delete: async (id) => {
     const db = await getDb();
     await db.execute('DELETE FROM generation_checkpoints WHERE id = $1', [id]);

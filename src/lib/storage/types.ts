@@ -46,6 +46,7 @@ export interface GenerationCheckpointStore {
   get(id: string): Promise<GenerationCheckpoint | undefined>;
   getLatestByRun(runId: string): Promise<GenerationCheckpoint | undefined>;
   add(checkpoint: GenerationCheckpoint): Promise<void>;
+  update(id: string, data: Partial<GenerationCheckpoint>): Promise<void>;
   delete(id: string): Promise<void>;
   deleteByRun(runId: string): Promise<void>;
 }

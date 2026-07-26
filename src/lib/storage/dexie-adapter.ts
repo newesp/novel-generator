@@ -253,6 +253,7 @@ const generationCheckpoints: GenerationCheckpointStore = {
     return checkpoints[checkpoints.length - 1];
   },
   add: async (checkpoint) => { await db.generationCheckpoints.add(checkpoint); },
+  update: async (id, data) => { await db.generationCheckpoints.update(id, data); },
   delete: (id) => db.generationCheckpoints.delete(id),
   deleteByRun: async (runId) => {
     await db.generationCheckpoints.where('runId').equals(runId).delete();

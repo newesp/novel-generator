@@ -79,6 +79,10 @@ function createInMemoryMultiAgentStores() {
       return list[list.length - 1];
     },
     add: async (chk) => { checkpointsMap.set(chk.id, chk); },
+    update: async (id, data) => {
+      const current = checkpointsMap.get(id);
+      if (current) checkpointsMap.set(id, { ...current, ...data });
+    },
     delete: async (id) => { checkpointsMap.delete(id); },
     deleteByRun: async (runId) => {
       for (const [id, c] of checkpointsMap) {

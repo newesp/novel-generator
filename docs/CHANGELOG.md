@@ -1,5 +1,21 @@
 # 開發日誌
 
+## 2026-07-26 - 提供人工審核與人工修改分支 (Issue #12)
+
+- 實作人工審核分支與決策處理 (`src/lib/multi-agent/human-review.ts`)：
+  - 人工直接採用 (`humanAdoptDraft`)：寫入 `human_pass` 決策標記，沿用章節版本備份與 `Chapter.content` 更新安全交易。
+  - 人工傳送至 Editor (`humanSendToEditor`)：支援加入補充修改方向，並在上限耗盡時允許授權額外 1 次 Editor 執行 (`maxRevisions + 1`)。
+  - 人工直接修改草稿 (`humanEditDraft`)：產生遞增草稿版本 (`draftVersion` v1 -> v2) 並記錄 `human_edited` Checkpoint，避免繞過 Run 破壞追蹤。
+- 建立 `HumanReviewModal` UI 組件 (`src/components/chapters/HumanReviewModal.tsx`)：
+  - 完整展示當前 Candidate Draft 正文、Critic 六維度評分、重大缺陷警告與細節項。
+  - 提供人工審核通過採用、輸入補充方向傳送 Editor、人工直接修改模式切換與授權額外修訂選項。
+- 為 `GenerationCheckpointStore` 擴充 `update` 方法以支援修訂反饋補充方向。
+- 新增 `human-review.test.ts` 單元測試，驗證人工採用、人工修改草稿版本遞增與授權額外修訂。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run src/lib/multi-agent/human-review.test.ts` 通過。
+
 ## 2026-07-26 - 執行 Editor／Critic 修訂迴圈 (Issue #11)
 
 - 新增 Multi-Agent Editor 預設 Prompt 模板 (`DEFAULT_MULTI_AGENT_EDITOR_TEMPLATE`)。
