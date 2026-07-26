@@ -175,6 +175,61 @@ describe('complete and completeNormalized', () => {
       });
     });
 
+    it('normalizes Anthropic Messages API response with text, usage, requestId, and stop_reason', async () => {
+      const fetchMock = vi.fn(async (...args: Parameters<typeof fetch>) => {
+        void args;
+        return new Response(
+          JSON.stringify({
+            id: 'msg_anthropic_123',
+            type: 'message',
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Anthropic Claude output' }],
+            stop_reason: 'end_turn',
+            usage: { input_tokens: 20, output_tokens: 35 },
+          }),
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'request-id': 'anthropic-req-777',
+            },
+          },
+        );
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const profile: LLMProfile = {
+        id: 'prof-claude',
+        name: 'Claude 3.5 Sonnet',
+        provider: 'anthropic',
+        baseUrl: 'https://api.anthropic.com/v1',
+        apiKey: 'sk-ant-secret-key-123',
+        model: 'claude-3-5-sonnet-20241022',
+        temperature: 0.7,
+        maxTokens: 4096,
+        timeoutSec: 120,
+      };
+
+      const res = await completeNormalized('Hello Claude', { systemPrompt: 'Be concise' }, undefined, profile);
+
+      expect(res.text).toBe('Anthropic Claude output');
+      expect(res.finishReason).toBe('end_turn');
+      expect(res.requestId).toBe('anthropic-req-777');
+      expect(res.usage).toEqual({
+        promptTokens: 20,
+        completionTokens: 35,
+        totalTokens: 55,
+      });
+
+      // Verify request payload shape
+      const reqInit = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+      const body = JSON.parse(String(reqInit?.body));
+      expect(body.model).toBe('claude-3-5-sonnet-20241022');
+      expect(body.system).toBe('Be concise');
+      expect(body.messages).toEqual([{ role: 'user', content: 'Hello Claude' }]);
+    });
+
+
     it('handles missing usage, requestId, and finishReason gracefully with stable null representations', async () => {
       const fetchMock = vi.fn(async () =>
         new Response(

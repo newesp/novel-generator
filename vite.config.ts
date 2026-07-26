@@ -54,6 +54,14 @@ function llmProxyPlugin(): Plugin {
           if (typeof incomingAuth === 'string' && incomingAuth.length > 0) {
             forwardHeaders.Authorization = incomingAuth
           }
+          const incomingAnthropicKey = req.headers['x-api-key']
+          if (typeof incomingAnthropicKey === 'string' && incomingAnthropicKey.length > 0) {
+            forwardHeaders['x-api-key'] = incomingAnthropicKey
+          }
+          const incomingAnthropicVer = req.headers['anthropic-version']
+          if (typeof incomingAnthropicVer === 'string' && incomingAnthropicVer.length > 0) {
+            forwardHeaders['anthropic-version'] = incomingAnthropicVer
+          }
 
           const options = {
             hostname: url.hostname,

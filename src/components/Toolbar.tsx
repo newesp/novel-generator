@@ -459,7 +459,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                         updateSelectedProfile(applyLlmProviderDefaults(selectedProfile, nextProvider));
                       }}
                     >
-                      {(['custom', 'google', 'grok'] as LLMProvider[]).map((p) => (
+                      {(['custom', 'google', 'grok', 'anthropic'] as LLMProvider[]).map((p) => (
                         <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
                       ))}
                     </select>
@@ -531,6 +531,8 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                       ? '從 Google AI Studio 取得 API Key。常用模型：gemini-2.0-flash、gemini-1.5-pro、gemini-1.5-flash。'
                       : selectedProfile.provider === 'grok'
                       ? '從 console.x.ai 取得 API Key。常用模型：grok-2-latest、grok-2-1212、grok-beta。Grok 走 OpenAI-compatible 介面。'
+                      : selectedProfile.provider === 'anthropic'
+                      ? '從 console.anthropic.com 取得 API Key。常用模型：claude-3-5-sonnet-20241022、claude-3-5-haiku-20241022、claude-3-opus-20240229。'
                       : '支援 OpenAI-compatible API（OpenAI、NVIDIA、本機 Ollama 等）。'}
                   </p>
 

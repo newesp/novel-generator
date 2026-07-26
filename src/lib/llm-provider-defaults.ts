@@ -21,12 +21,21 @@ export const LLM_PROVIDER_DEFAULTS: Record<
     maxTokens: 4096,
     timeoutSec: 120,
   },
+  anthropic: {
+    name: 'Anthropic Claude',
+    baseUrl: 'https://api.anthropic.com/v1',
+    model: 'claude-3-5-sonnet-20241022',
+    temperature: 0.7,
+    maxTokens: 4096,
+    timeoutSec: 120,
+  },
 };
 
 export const LLM_PROVIDER_LABELS: Record<LLMProvider, string> = {
   custom: '自定義（OpenAI-compatible）',
   google: 'Google Gemini',
   grok: 'Grok (xAI)',
+  anthropic: 'Anthropic Claude',
 };
 
 export function createLLMProfile(provider: LLMProvider, overrides?: Partial<LLMProfile>): LLMProfile {

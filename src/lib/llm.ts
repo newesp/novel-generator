@@ -59,6 +59,8 @@ function createCombinedTimeoutSignal(callerSignal: AbortSignal | undefined, time
   return { signal: controller.signal, cleanup };
 }
 
+const ANTHROPIC_DEFAULT_BASE = 'https://api.anthropic.com/v1';
+
 /**
  * LLM 呼叫的網路層
  */
@@ -68,8 +70,9 @@ async function postToLLM(
   body: unknown,
   sendAuthorization: boolean,
   signal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
 ): Promise<Response> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(extraHeaders ?? {}) };
   if (sendAuthorization) headers['Authorization'] = `Bearer ${apiKey}`;
 
   if (isTauri()) {
@@ -89,6 +92,7 @@ async function postToLLMWithRetry(
   body: unknown,
   sendAuthorization: boolean,
   signal?: AbortSignal,
+  extraHeaders?: Record<string, string>,
 ): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
@@ -97,7 +101,7 @@ async function postToLLMWithRetry(
       throw new DOMException(typeof signal.reason === 'string' ? signal.reason : 'Aborted', 'AbortError');
     }
     try {
-      const resp = await postToLLM(targetUrl, apiKey, body, sendAuthorization, signal);
+      const resp = await postToLLM(targetUrl, apiKey, body, sendAuthorization, signal, extraHeaders);
       if (resp.ok || !TRANSIENT_STATUSES.has(resp.status) || attempt === RETRY_DELAYS_MS.length) {
         return resp;
       }
@@ -127,6 +131,7 @@ export function isLLMReady(cfg: LLMProfile): boolean {
   switch (cfg.provider) {
     case 'google':
     case 'grok':
+    case 'anthropic':
       return true;
     case 'custom':
     default:
@@ -160,6 +165,8 @@ export async function completeNormalized(
           options,
           combinedSignal,
         );
+      case 'anthropic':
+        return await completeAnthropicNormalized(profile, prompt, options, combinedSignal);
       case 'custom':
       default:
         return await completeOpenAICompatNormalized(profile, prompt, options, combinedSignal);
@@ -299,6 +306,72 @@ async function completeGoogleNormalized(
 
   const usage: LLMCompletionUsage = { promptTokens, completionTokens, totalTokens };
   const finalReqId = requestId || (typeof data.responseId === 'string' ? data.responseId : null);
+
+  return { text, usage, requestId: finalReqId, finishReason };
+}
+
+/* ============================================================
+   Anthropic Messages API
+   端點：{baseUrl}/messages
+   Headers: x-api-key, anthropic-version
+   ============================================================ */
+async function completeAnthropicNormalized(
+  cfg: LLMProfile,
+  prompt: string,
+  options?: GenerationOptions,
+  signal?: AbortSignal,
+): Promise<LLMCompletionResponse> {
+  const base = (cfg.baseUrl || ANTHROPIC_DEFAULT_BASE).replace(/\/$/, '');
+  const targetUrl = `${base}/messages`;
+
+  const body: Record<string, unknown> = {
+    model: cfg.model || 'claude-3-5-sonnet-20241022',
+    max_tokens: options?.maxTokens ?? cfg.maxTokens ?? 4096,
+    temperature: options?.temperature ?? cfg.temperature ?? 0.7,
+    messages: [{ role: 'user', content: prompt }],
+  };
+  if (options?.systemPrompt) {
+    body.system = options.systemPrompt;
+  }
+
+  const extraHeaders = {
+    'x-api-key': cfg.apiKey,
+    'anthropic-version': '2023-06-01',
+  };
+
+  const response = await postToLLMWithRetry(targetUrl, cfg.apiKey, body, false, signal, extraHeaders);
+
+  if (!response.ok) {
+    const err = await response.text();
+    const sanitized = sanitizeApiKey(err, cfg.apiKey);
+    throw new Error(`Anthropic API error ${response.status}: ${sanitized}`);
+  }
+
+  const requestId =
+    response.headers.get('request-id') ||
+    response.headers.get('x-request-id') ||
+    null;
+
+  const data = await response.json();
+  const contentBlocks = Array.isArray(data.content) ? data.content : [];
+  const text = contentBlocks
+    .filter((b: { type?: string; text?: string }) => b.type === 'text' && typeof b.text === 'string')
+    .map((b: { text: string }) => b.text)
+    .join('');
+
+  const finishReason = typeof data.stop_reason === 'string' ? data.stop_reason : null;
+
+  const inputTokens = typeof data.usage?.input_tokens === 'number' ? data.usage.input_tokens : null;
+  const outputTokens = typeof data.usage?.output_tokens === 'number' ? data.usage.output_tokens : null;
+  const totalTokens = inputTokens !== null || outputTokens !== null ? (inputTokens ?? 0) + (outputTokens ?? 0) : null;
+
+  const usage: LLMCompletionUsage = {
+    promptTokens: inputTokens,
+    completionTokens: outputTokens,
+    totalTokens,
+  };
+
+  const finalReqId = requestId || (typeof data.id === 'string' ? data.id : null);
 
   return { text, usage, requestId: finalReqId, finishReason };
 }

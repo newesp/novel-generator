@@ -306,12 +306,12 @@ export type ImageProviderConfig =
   | DeepInfraFluxProviderConfig
   | GoogleGeminiImageProviderConfig;
 
-export type LLMProvider = 'custom' | 'google' | 'grok';
+export type LLMProvider = 'custom' | 'google' | 'grok' | 'anthropic';
 
 export interface LLMProfile {
   id: string;
   name: string;
-  /** 'custom' = OpenAI-compatible (任意 baseUrl)；'google' = Google Gemini；'grok' = Grok (xAI) */
+  /** 'custom' = OpenAI-compatible；'google' = Google Gemini；'grok' = Grok (xAI)；'anthropic' = Anthropic Claude */
   provider: LLMProvider;
   baseUrl: string;
   apiKey: string;

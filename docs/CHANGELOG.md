@@ -1,6 +1,19 @@
 # 開發日誌
 
+## 2026-07-26 - 支援 Anthropic Claude 直連 Profile (Issue #4)
+
+- 新增 Anthropic Claude 直連 Profile 支援（預設 endpoint `https://api.anthropic.com/v1`，模型 `claude-3-5-sonnet-20241022`）。
+- 實作 Anthropic Messages API completion handler (`completeAnthropicNormalized`)，包含 `x-api-key` 與 `anthropic-version` 認證標頭及 `system` prompt 處理。
+- 正規化 Anthropic 回應之正文 (`content` text blocks)、`input_tokens`／`output_tokens` usage、`request-id` 與 `stop_reason`。
+- Vite dev proxy (`llmProxyPlugin`) 支援轉發 `x-api-key` 與 `anthropic-version` 請求標頭。
+- 新增 Anthropic 請求格式、回應正規化、usage、`stop_reason`、錯誤處理與憑證遮蔽單元測試。
+
+**Verification**
+- `npx tsc --noEmit` 通過。
+- `npx vitest run` 59 個測試檔案 (共 224 個測試) 全數通過。
+
 ## 2026-07-26 - 建立具名 LLM Connection Profiles 與共同 Completion Seam (Issue #3)
+
 
 - 新增 `LLMProfile` 型別與 `llmProfiles` 多 Profile 管理機制，支援建立、編輯、切換預設、刪除與連線驗證。
 - Profile 設定欄位新增 `temperature`、`maxTokens` 與 `timeoutSec` (30–3600 秒 timeout 控制)。
