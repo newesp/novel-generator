@@ -36,3 +36,17 @@
 - 僅讀 main 分支。
 - 技術棧現況（權威來源是 `package.json`）：React 19 / TypeScript strict / Vite 8 / Mantine（v2 Gray 主題） / Zustand 5 / Dexie 4 / Tauri 2.x（桌面殼層） / tauri-plugin-sql（SQLite） / 既有自製 UI 元件相容層（無 shadcn、無 Tailwind）。
 - **驗證範圍**：程式碼變更只跑 `tsc -b`。完整 `vitest run`、browser 驗證留到階段完成，或使用者要求時。純 Markdown 文件整理不需要跑 `tsc -b`，但需以 `package.json`、`src/types/`、`src/lib/storage/` 與相關實作檔交叉檢查。驗證通過就 commit，並更新 `docs/CHANGELOG.md`。
+
+## Agent skills
+
+### Issue tracker
+
+Issues 與 PRD 使用 GitHub Issues。詳見 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+使用五個標準 triage labels。詳見 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+本專案採 single-context：`CONTEXT.md` 與 `docs/adr/`。詳見 `docs/agents/domain.md`。

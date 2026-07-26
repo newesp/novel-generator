@@ -16,7 +16,11 @@ temp/probe-*.ts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-docs/
+docs/*
+!docs/adr/
+!docs/adr/*.md
+!docs/agents/
+!docs/agents/*.md
 
 # Editor / OS
 .DS_Store

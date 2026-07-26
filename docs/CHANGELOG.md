@@ -1,5 +1,12 @@
 # 開發日誌
 
+## 2026-07-26 - Multi-Agent 規劃與規格
+
+- 完成 Phase 4 Multi-Agent 章節生成的規劃訪談，並將持久化工作流、人工審核、Critic 六維度評分、Writer／Editor 草稿可觀測性、LLM 角色設定、成本與 token 顯示、正文鎖定及執行紀錄管理等決策整合至 `modules/09-multi-agent.md`。
+- 建立 Multi-Agent 領域詞彙與架構決策紀錄，並補充 Agent 使用的 issue tracker、標籤與 domain 文件索引。
+- 建立 GitHub Issue [#2](https://github.com/newesp/novel-generator/issues/2) 作為 Phase 4 實作規格，並標記 `ready-for-agent`。
+- 本次僅異動 Markdown 規格與文件追蹤設定，未變更程式碼；依專案驗證規範不執行 `tsc -b`。
+
 ## 2026-07-18 - Synchronize v2 UI documentation
 
 - Replaced the obsolete Apple/red and draggable-tab layout specs with the implemented Mantine Gray v2 design system and fixed workspace shell.

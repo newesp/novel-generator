@@ -76,7 +76,7 @@ GitHub Actions 使用 `.github/workflows/ci-cd.yml`：
 | [06-polish.md](modules/06-polish.md) | 內容潤色器（未實作） | 3 | 00, 08 |
 | [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager（Wiki 摘要 + pick-pages + 摘要品質 ✅） | 1 / 2.5 | 04 |
 | [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM 適配層 | 1 / 2 | tech-stack |
-| [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎（未實作） | 4（選做） | 04, 07 |
+| [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎（未實作） | 4（選做） | 03, 04, 05, 07, 08 |
 | [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（漫畫圖片、TTS、MP4、SRT、motion effects 與章節內影片庫） | 6 / 4（選做） | 00, tech-stack |
 
 ---
