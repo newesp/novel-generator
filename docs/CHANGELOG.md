@@ -1,5 +1,21 @@
 # 開發日誌
 
+## 2026-07-26 - 完成 Agent 可觀測性與紀錄生命週期 (Issue #13)
+
+- 實作過期軌跡大內容清理與紀錄生命週期 (`src/lib/multi-agent/observability.ts`)：
+  - `pruneOldRunTraces`：已完成/已取消之 Run 僅保留最近 3 筆完整 Prompt/Response 軌跡；較舊紀錄自動清理大內容，但永久保留 `RunSummary` 統計。
+  - 未結束 (`pending`, `running`, `awaiting_input`) 與釘選 Run 嚴格受保護不進行清理。
+  - `deleteGenerationRunRecord`：僅允許刪除已採用或已取消的 Run 紀錄；級聯移除步驟與 Checkpoint，不影響正式 `Chapter.content` 或 `ChapterVersion`。
+- 實作 Agent 執行軌跡時間軸面板 (`src/components/chapters/AgentRunPanel.tsx`)：
+  - 展示章節 Run 列表與即時狀態標籤。
+  - 時間軸展開可預覽單步角色、attempt、usage (tokens)、Prompt/Response 內容與錯誤說明。
+  - 提供審核點直接進入 `HumanReviewModal` 決策面板。
+- 新增 `observability.test.ts` 單元測試，驗證最近 3 筆大內容保留、過期清理與未結束 Run 阻斷刪除。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run src/lib/multi-agent/observability.test.ts` 通過。
+
 ## 2026-07-26 - 提供人工審核與人工修改分支 (Issue #12)
 
 - 實作人工審核分支與決策處理 (`src/lib/multi-agent/human-review.ts`)：
