@@ -684,3 +684,22 @@ export const DEFAULT_MULTI_AGENT_REPAIR_TEMPLATE = `你剛才輸出的 JSON 格�
 }
 \`\`\``;
 
+export const DEFAULT_MULTI_AGENT_WRITER_TEMPLATE = `你是資深小說作家 (Writer)。請根據經過核准的生成細綱與背景資訊，撰寫高質量的小說正文草稿。
+
+## 背景資訊
+- 故事名稱：{{storyTitle}}
+- 世界觀：{{worldSetting}}
+{{mainPlotSection}}{{charactersSection}}{{wikiSection}}{{olderSummarySection}}
+
+## 本章核准細綱
+- 章節標題：{{chapterTitle}}
+- 故事節拍：{{beat}}
+- 章節要點：{{points}}
+- 目標字數：{{targetWords}} 字
+
+## 作家指引
+{{roleGuidance}}
+
+## 輸出要求
+請直接輸出小說正文，不要包含章節標題、開場贅詞、前言或後記說明。`;
+

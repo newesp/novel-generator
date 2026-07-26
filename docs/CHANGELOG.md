@@ -1,5 +1,19 @@
 # 開發日誌
 
+## 2026-07-26 - 由 Writer 產生可觀測的候選草稿 (Issue #8)
+
+- 新增 Multi-Agent Writer 預設 Prompt 模板 (`DEFAULT_MULTI_AGENT_WRITER_TEMPLATE`)。
+- 實作 Writer 步驟執行函式 `executeWriterStep` (`src/lib/multi-agent/writer.ts`)：
+  - 讀取核准的 `planner_reviewed` 或 `planner_done` Checkpoint 以取得章節節拍與要點。
+  - 使用 Writer assigned profile 及角色提示指引，呼叫 `completeNormalized` 寫作章節正文。
+  - 每筆 Run 產生初始 Candidate Draft (`draftVersion`: 1)，寫入完整執行 Trace 與 `writer_done` Checkpoint。
+  - 正式正文 (`Chapter.content`) 完全保持唯讀不被修改，亦不建立正式 `ChapterVersion`。
+- 新增 `writer.test.ts` 單元測試，驗證 Writer 步驟執行、草稿版本 `draftVersion: 1` 產生、Checkpoint 寫入與 `Chapter.content` 唯讀保護。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run src/lib/multi-agent/writer.test.ts` 通過。
+
 ## 2026-07-26 - 執行 Planner 並完成人工規劃審核 (Issue #7)
 
 - 新增 Multi-Agent Planner 預設 Prompt 模板 (`DEFAULT_MULTI_AGENT_PLANNER_TEMPLATE`) 與格式修復 Prompt 模板 (`DEFAULT_MULTI_AGENT_REPAIR_TEMPLATE`)。
