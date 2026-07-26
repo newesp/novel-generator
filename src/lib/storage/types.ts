@@ -64,6 +64,7 @@ export interface ProjectStore {
 
 export interface ChapterStore {
   list(): Promise<Chapter[]>;
+  get(id: string): Promise<Chapter | undefined>;
   /** 預設依 order 由小到大排序；opts.sorted=false 則回未排序原始順序 */
   listByProject(projectId: string, opts?: { sorted?: boolean }): Promise<Chapter[]>;
   add(c: Chapter): Promise<void>;

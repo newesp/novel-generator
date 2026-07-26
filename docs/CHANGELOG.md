@@ -1,5 +1,23 @@
 # 開發日誌
 
+## 2026-07-26 - 執行 Planner 並完成人工規劃審核 (Issue #7)
+
+- 新增 Multi-Agent Planner 預設 Prompt 模板 (`DEFAULT_MULTI_AGENT_PLANNER_TEMPLATE`) 與格式修復 Prompt 模板 (`DEFAULT_MULTI_AGENT_REPAIR_TEMPLATE`)。
+- 實作 `executePlannerStep` 與 `parsePlannerResponse` (`src/lib/multi-agent/planner.ts`)：
+  - 依據快照與專案/章節資訊動態渲染 Planner 提示詞。
+  - 回傳 JSON 結構驗證 (`beat`, `points`, `explanation`)，格式無效時自動執行一次格式修復 (attempt 2)；若仍失敗則寫入軌跡並停留在可手動重試狀態。
+  - 成功完成後建立 `planner_done` Checkpoint 並將 Run 狀態轉換為 `awaiting_input`。
+- 實作 Planner 人工審核選擇與持久化處理 (`applyPlannerReviewChoice`)：
+  - 支援「正式採用並寫回章節」：同步更新 `Chapter.beat` 與 `Chapter.points`，後續取消生成不復原改動。
+  - 支援「僅供本次生成使用」：不改動現有章節設定，僅帶入本次生成執行。
+- 建立 `PlannerReviewModal` UI 組件，視覺化呈現現有章節規劃與 Planner 新規劃比較面板，供使用者預覽、微調並決策。
+- 擴充 `StorageAdapter` 介面，為 `ChapterStore` 新增 `get(id)` 支援。
+- 新增 `planner.test.ts` 單元測試，驗證 JSON 清理、陣列點轉換與欄位缺失例外處理。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run src/lib/multi-agent/planner.test.ts` 通過。
+
 ## 2026-07-26 - 建立可持久化的高品質生成 Run Shell (Issue #6)
 
 - 新增 `GenerationRun`、`GenerationStep`、`GenerationCheckpoint` 資料模型與 SQLite / Dexie 儲存層 schema（IndexedDB schema v9, SQLite migration 008）。

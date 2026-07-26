@@ -643,3 +643,44 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'userDirection', desc: '使用者填的修改方向（可空）' },
   ],
 };
+
+// ─── #Multi-Agent Planner & Format Repair Templates ──────────────────
+export const DEFAULT_MULTI_AGENT_PLANNER_TEMPLATE = `你是資深小說大綱架構師 (Planner)。請根據故事資訊與本章目標，為本章規劃詳細生成細綱。
+
+## 故事資訊
+- 故事名稱：{{storyTitle}}
+- 世界觀：{{worldSetting}}
+{{mainPlotSection}}{{charactersSection}}{{wikiSection}}{{olderSummarySection}}
+
+## 本章規劃目標
+- 章節編號：{{chapterNumber}}
+- 章節標題：{{chapterTitle}}
+- 現有語氣/節拍：{{beat}}
+- 現有要點：{{points}}
+- 目標字數：{{targetWords}} 字
+
+## 角色指引
+{{roleGuidance}}
+
+## 輸出契約與 JSON 格式
+請嚴格輸出符合以下 JSON Schema 的 JSON 物件（不可包含 JSON 之外的贅字或說明）：
+\`\`\`json
+{
+  "beat": "引入 (Inciting Incident) | 衝突升級 (Rising Action) | 中點轉折 (Midpoint Twist) | 高潮 (Climax) | 結局 (Resolution) | 鋪墊/過渡 | 自定義",
+  "points": "詳細章節要點（含登場角色、核心衝突、轉折與章末懸念）",
+  "explanation": "對本章佈局與節拍選擇的詳細規劃說明"
+}
+\`\`\``;
+
+export const DEFAULT_MULTI_AGENT_REPAIR_TEMPLATE = `你剛才輸出的 JSON 格式無效或不符合要求。
+錯誤原因：{{errorText}}
+
+請重新調整並嚴格輸出合法的 JSON 物件，不要輸出任何 Markdown 前後贅字：
+\`\`\`json
+{
+  "beat": "章節語氣/節拍",
+  "points": "章節要點",
+  "explanation": "規劃說明"
+}
+\`\`\``;
+

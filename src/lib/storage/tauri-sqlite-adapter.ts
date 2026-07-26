@@ -165,6 +165,14 @@ const chapters: ChapterStore = {
     );
     return rows.map(rowToChapter);
   },
+  get: async (id) => {
+    const db = await getDb();
+    const rows = await db.select<ChapterRow[]>(
+      'SELECT id, project_id, ord, updated_at, data FROM chapters WHERE id = $1',
+      [id]
+    );
+    return rows[0] ? rowToChapter(rows[0]) : undefined;
+  },
   listByProject: async (projectId, opts) => {
     const db = await getDb();
     const order = opts?.sorted === false ? '' : 'ORDER BY ord ASC';

@@ -37,6 +37,7 @@ const projects: ProjectStore = {
 
 const chapters: ChapterStore = {
   list: () => db.chapters.toArray(),
+  get: (id) => db.chapters.get(id),
   listByProject: async (projectId, opts) => {
     if (opts?.sorted === false) {
       return db.chapters.where('projectId').equals(projectId).toArray();
