@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-07-27 - 完成 AI 執行狀態回饋與正文解鎖設計評估
+
+- 新增 `docs/superpowers/specs/2026-07-27-ai-execution-feedback-design.md`，盤點全專案 AI 長任務的現有回饋與改善優先級。
+- 確認高品質 Multi-Agent 目前只建立 `pending` Generation Run 並鎖定章節，尚未由章節工作區啟動 Planner；既有 Agent 軌跡與審核元件也尚未接入畫面。
+- 設計角色化 AI 工作卡、版本／Agent Inspector、章節狀態徽章、全域 LLM 執行槽與真實階段文案。
+- 設計依 Run 狀態顯示取消、審核、重試與修復設定的正文解鎖閉環，並要求鎖定時正文保持可查看與複製。
+- 本次為純 Markdown 設計評估；已與 `package.json`、`src/types/`、`src/lib/storage/`、Multi-Agent 實作與相關 UI 元件交叉檢查。
+
 ## 2026-07-27 - 調整偏好設定 UI 佈局與移除重複按鈕
 
 - 移除重複按鈕：經過評估，章節底部工具列的「↩️ 重新生成」按鈕與 Split Action 主按鈕「⚡ 快速生成本章」綁定相同的單次 LLM 生成邏輯 (`runGeneration`)，功能 100% 重複。已將「↩️ 重新生成」按鈕移除，保留整合下拉選單（支援快速生成與高品質 Multi-Agent 生成）之主要 Split Action 按鈕。
