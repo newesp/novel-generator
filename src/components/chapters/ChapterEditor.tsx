@@ -448,14 +448,6 @@ export function ChapterEditor() {
         })()}
         <div className="toolbar-spacer" />
         <Button variant="secondary" onClick={handleSave} disabled={isChapterLocked}>{saveLabel}</Button>
-        <Button
-          variant="secondary"
-          onClick={runGeneration}
-          disabled={isGenerating || !content.trim() || !apiReady || isChapterLocked}
-          title={isChapterLocked ? '此章節已鎖定' : !content.trim() ? '尚無內容可重新生成' : ''}
-        >
-          ↩️ 重新生成
-        </Button>
         
         {/* Split action button */}
         <div style={{ display: 'inline-flex', position: 'relative' }}>
