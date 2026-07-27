@@ -1423,7 +1423,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                 style={{ width: 120 }}
               />
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '4px 0 0', lineHeight: 1.6 }}>
-                當連續多次生成都超出 Wiki 預算時，建議改用 pick-pages 模式（Phase 2.5）。
+                當連續多次生成都超出 Wiki 預算時，建議改用 pick-pages 模式。
               </p>
             </div>
 
@@ -1434,15 +1434,15 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                   checked={draftWiki.enablePickPages}
                   onChange={(e) => setDraftWiki({ ...draftWiki, enablePickPages: e.target.checked })}
                 />
-                <span>啟用 pick-pages 模式（Phase 2.5 後可用）</span>
+                <span>啟用 pick-pages 模式</span>
               </label>
               <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '4px 0 0 22px', lineHeight: 1.6 }}>
-                兩段式 wiki 查詢：先讓 LLM 挑選相關頁，再注入完整內容。目前以 cheap relevance filter 替代。
+                超出 Wiki 預算時，優先載入相關頁的完整內容；目前由低成本相關性篩選判定，尚未使用 LLM 選頁。
               </p>
             </div>
 
             <hr style={{ margin: '8px 0', border: 'none', borderTop: '1px solid var(--border)' }} />
-            <h4 style={{ margin: '0 0 8px' }}>Lint（Phase 2.5）</h4>
+            <h4 style={{ margin: '0 0 8px' }}>Lint</h4>
 
             <div>
               <label className="form-label">啟用的檢查</label>
@@ -1628,8 +1628,8 @@ const PROMPT_ENTRIES: PromptEntry[] = [
   },
   {
     key: 'wikiQueryAnswerTemplate',
-    label: '#8 Wiki Query（Phase 2.5）',
-    desc: 'Phase 2.5 pick-pages 查詢用，目前未啟用。',
+    label: '#8 Wiki Query',
+    desc: '回答使用者的 Wiki 問題。',
     defaultValue: DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
   },
   {

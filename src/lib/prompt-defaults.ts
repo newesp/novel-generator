@@ -340,7 +340,7 @@ export const DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE = `根據新章節資訊，把�
 - 只輸出 markdown 本身，不要任何前言或結尾說明
 `;
 
-// ─── #8. Wiki Query — Answer（Phase 2.5 預留；UI 入口此版未開）─────
+// ─── #8. Wiki Query — Answer ───────────────────────────────────────
 export const DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE = `你是這本小說的 Wiki 助理。請根據以下 Wiki 頁面回答使用者的問題；引用時標註頁面 type/slug。若 Wiki 沒有相關內容，誠實說「Wiki 中無此資訊」。
 
 ## 使用者問題
@@ -350,7 +350,7 @@ export const DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE = `你是這本小說的 Wiki �
 {{pagesMarkdown}}
 `;
 
-// ─── #9. Lint — Unrecorded verify（Phase 2.5）─────────────────────
+// ─── #9. Lint — Unrecorded verify ─────────────────────────────────
 export const DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE = `你是小說的角色清點助手。下面是程式預先掃出的「可能未登錄角色」候選名單，連同章節節錄。
 
 請判斷每個候選是否為「應該記錄」的角色（曾經有名有姓、有戲份或敘事相關）。普通虛詞、形容詞、地名、概念名請排除。
@@ -370,7 +370,7 @@ export const DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE = `你是小說的角色清
 }
 `;
 
-// ─── #10. Lint — Wiki 內部矛盾（Phase 2.5）──────────────────────────
+// ─── #10. Lint — Wiki 內部矛盾 ─────────────────────────────────────
 export const DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE = `你是小說資料一致性檢查員。下面是同一類 wiki 頁的精簡 digest，請找出彼此衝突的事實（例如角色年齡 / 武器 / 能力、概念規則 / 限制、時間線等）。
 
 Page type：{{pageType}}
@@ -392,7 +392,7 @@ Page type：{{pageType}}
 若沒有任何衝突，輸出 {"conflicts": []}。
 `;
 
-// ─── #11. Lint — Wiki vs 章節（Phase 2.5）───────────────────────────
+// ─── #11. Lint — Wiki vs 章節 ──────────────────────────────────────
 export const DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE = `你是小說資料一致性檢查員。檢查 wiki 上的角色設定與小說章節敘述是否「在敘事事實上」衝突。
 
 角色：{{characterName}}
@@ -449,7 +449,7 @@ Wiki 全文：
 若沒有任何衝突，輸出 {"conflicts": []}。寧可漏報、不要誤報。
 `;
 
-// ─── #12. Lint — 修改建議（Phase 2.5）───────────────────────────────
+// ─── #12. Lint — 修改建議 ──────────────────────────────────────────
 export const DEFAULT_LINT_FIX_SUGGEST_TEMPLATE = `你是 wiki 維護助手。下面有一個一致性 issue，請修改原 wiki 頁 markdown 來解決。
 
 Issue 標題：{{issueTitle}}
@@ -619,8 +619,8 @@ export const PROMPT_TEMPLATE_VARS: Record<string, { var: string; desc: string }[
     { var: 'chapterExcerpt', desc: '相關章節片段' },
   ],
   wikiQueryAnswerTemplate: [
-    { var: 'question', desc: '使用者問題（Phase 2.5）' },
-    { var: 'pagesMarkdown', desc: '相關 wiki 頁全文（Phase 2.5）' },
+    { var: 'question', desc: '使用者問題' },
+    { var: 'pagesMarkdown', desc: '相關 wiki 頁全文' },
   ],
   lintUnrecordedVerifyTemplate: [
     { var: 'knownNamesList', desc: '已登錄角色名單（用「、」分隔）' },

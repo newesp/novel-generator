@@ -1,5 +1,13 @@
 # 開發日誌
 
+## 2026-07-27 - 更新偏好設定的 Wiki 與 Lint 文案
+
+- 移除偏好設定中已過時的「Phase 2.5」與「尚未啟用」字樣；Wiki 問答、LLM Lint 模板與 deterministic pick-pages 均已有實際呼叫路徑。
+- 保持產品功能狀態說明：LLM 驅動的 pick-pages 與 Graph 進階推理仍列為 roadmap 的 advanced polish，不將其誤稱為已完成。
+
+**Verification**
+- `node node_modules/typescript/bin/tsc -b` 通過。
+
 ## 2026-07-27 - 防範按鈕文字換行與修復「批次處理」按鈕版型
 
 - 修復「批次處理」按鈕斷行破版：

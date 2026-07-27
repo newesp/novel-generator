@@ -52,24 +52,24 @@ export interface AIPromptPrefs {
   wikiIngestCreateTemplate: string;
   /** #7 Wiki ingest — Apply update */
   wikiIngestUpdateTemplate: string;
-  /** #8 Wiki query — Answer（Phase 2.5 預留） */
+  /** #8 Wiki query — Answer */
   wikiQueryAnswerTemplate: string;
-  /** #9 Lint — 未登錄角色 verify（Phase 2.5） */
+  /** #9 Lint — 未登錄角色 verify */
   lintUnrecordedVerifyTemplate: string;
-  /** #10 Lint — Wiki 內部矛盾（Phase 2.5） */
+  /** #10 Lint — Wiki 內部矛盾 */
   lintWikiContradictTemplate: string;
-  /** #11 Lint — Wiki vs 章節（Phase 2.5） */
+  /** #11 Lint — Wiki vs 章節 */
   lintWikiVsChapterTemplate: string;
-  /** #12 Lint — 修改建議（Phase 2.5） */
+  /** #12 Lint — 修改建議 */
   lintFixSuggestTemplate: string;
 }
 
 export interface WikiPrefs {
   /** Wiki 區塊佔 context window 的比例（spec §5.3） */
   budgetRatio: number;
-  /** 連續超預算警告閾值，到達後 UI 強烈建議 pick-pages（Phase 2.5） */
+  /** 連續超預算警告閾值，到達後 UI 強烈建議 pick-pages */
   overflowWarnThreshold: number;
-  /** Phase 2.5 後可用；目前永遠 false */
+  /** 優先使用 pick-pages 選頁策略 */
   enablePickPages: boolean;
 }
 
