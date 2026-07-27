@@ -12,11 +12,16 @@ import { storage } from './storage';
 import type {
   Project, Chapter, ChapterVersion, Character,
   WikiPage, WikiLogEntry, ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual,
+  GenerationRun, GenerationStep, GenerationCheckpoint,
 } from '../types';
 
-// v1: 無 wiki；v2: 含 wikiPages / wikiLog
+// v1: 無 wiki；v2: 含 wikiPages / wikiLog / multi-agent
 export const BACKUP_SCHEMA_VERSION = 2 as const;
 export const BACKUP_FILENAME = 'novel-generator-backup.json';
+
+export interface BackupExportOptions {
+  includeFullAgentTrace?: boolean;
+}
 
 export interface BackupSnapshot {
   schema: 1 | 2;                   // 接受讀入 v1 與 v2，輸出固定 v2
@@ -33,10 +38,18 @@ export interface BackupSnapshot {
   comicPanelImageVariants?: ComicPanelImageVariant[];
   mediaAssets?: MediaAsset[];
   sceneVisuals?: SceneVisual[];
+  generationRuns?: GenerationRun[];
+  generationSteps?: GenerationStep[];
+  generationCheckpoints?: GenerationCheckpoint[];
 }
 
-export async function exportSnapshot(): Promise<BackupSnapshot> {
-  const [projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals] = await Promise.all([
+export async function exportSnapshot(options?: BackupExportOptions): Promise<BackupSnapshot> {
+  const includeTrace = options?.includeFullAgentTrace ?? true;
+  const [
+    projects, chapters, versions, characters, wikiPages, wikiLog,
+    comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals,
+    runs, rawSteps, checkpoints,
+  ] = await Promise.all([
     storage.projects.list(),
     storage.chapters.list(),
     storage.versions.list(),
@@ -48,12 +61,54 @@ export async function exportSnapshot(): Promise<BackupSnapshot> {
     storage.comicPanelImageVariants.listAll(),
     storage.mediaAssets.listAll(),
     storage.sceneVisuals.listAll(),
+    storage.generationRuns.listAll(),
+    storage.generationSteps.listAll(),
+    storage.generationCheckpoints.listAll(),
   ]);
+
+  const sanitizedRuns = runs.map((r) => {
+    const profilesSnapshot: Record<string, any> = {};
+    if (r.snapshot?.profilesSnapshot) {
+      for (const [k, p] of Object.entries(r.snapshot.profilesSnapshot)) {
+        const { apiKey, ...rest } = p as any;
+        profilesSnapshot[k] = rest;
+      }
+    }
+    return {
+      ...r,
+      snapshot: {
+        ...r.snapshot,
+        profilesSnapshot,
+      },
+    };
+  });
+
+  const steps = includeTrace
+    ? rawSteps
+    : rawSteps.map((s) => ({
+        ...s,
+        prompt: '[備份匯出已排除軌跡內容]',
+        response: s.response ? '[備份匯出已排除軌跡內容]' : undefined,
+      }));
+
   return {
     schema: 2,
     exportedAt: Date.now(),
     app: 'novel-generator',
-    projects, chapters, versions, characters, wikiPages, wikiLog, comics, comicPanels, comicPanelImageVariants, mediaAssets, sceneVisuals,
+    projects,
+    chapters,
+    versions,
+    characters,
+    wikiPages,
+    wikiLog,
+    comics,
+    comicPanels,
+    comicPanelImageVariants,
+    mediaAssets,
+    sceneVisuals,
+    generationRuns: sanitizedRuns,
+    generationSteps: steps,
+    generationCheckpoints: checkpoints,
   };
 }
 
@@ -71,6 +126,14 @@ export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' =
   }
 
   if (mode === 'replace') {
+    // Restored incomplete runs must NOT automatically trigger paid requests -> normalize to awaiting_input
+    const restoredRuns = (snapshot.generationRuns ?? []).map((r) => {
+      if (r.status === 'running' || r.status === 'pending') {
+        return { ...r, status: 'awaiting_input' as const };
+      }
+      return r;
+    });
+
     await storage.replaceAll({
       projects: snapshot.projects ?? [],
       chapters: (snapshot.chapters ?? []).map(upgradeChapterV1ToV2),
@@ -83,6 +146,9 @@ export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' =
       comicPanelImageVariants: snapshot.comicPanelImageVariants ?? [],
       mediaAssets: snapshot.mediaAssets ?? [],
       sceneVisuals: snapshot.sceneVisuals ?? [],
+      generationRuns: restoredRuns,
+      generationSteps: snapshot.generationSteps ?? [],
+      generationCheckpoints: snapshot.generationCheckpoints ?? [],
     });
   }
 }

@@ -1,5 +1,18 @@
 # 開發日誌
 
+## 2026-07-27 - 納入 Multi-Agent JSON 備份與還原 (Issue #14)
+
+- 擴充 JSON 備份與還原機制 (`src/lib/backup.ts`)：
+  - `BackupSnapshot` 納入 `generationRuns`、`generationSteps` 與 `generationCheckpoints` 欄位。
+  - 匯出選項 `includeFullAgentTrace`（預設啟用）：啟用時包含完整 Prompt / Response 軌跡；關閉時自動排除大型文字內容，但保留 `GenerationRunSummary`。
+  - 敏感憑證防線：匯出快照時嚴格自動塗銷/過濾 Profile 中的 `apiKey`。
+  - 還原安全性 (`importSnapshot`)：自動相容 v1 / v2 備份格式；還原之未結束 Run 重設狀態為 `awaiting_input`，絕不自動發起付費 LLM 請求。
+- 新增 `backup-multi-agent.test.ts` 單元測試，驗證憑證遮蔽、軌跡選擇性匯出與靜態安全還原。
+
+**Verification**
+- `npx tsc -b` 通過。
+- `npx vitest run` 67 個測試檔案全數通過。
+
 ## 2026-07-26 - 完成 Agent 可觀測性與紀錄生命週期 (Issue #13)
 
 - 實作過期軌跡大內容清理與紀錄生命週期 (`src/lib/multi-agent/observability.ts`)：
