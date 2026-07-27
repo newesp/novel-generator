@@ -1,5 +1,18 @@
 # 開發日誌
 
+## 2026-07-27 - 實作 AI 執行狀態回饋與 Multi-Agent 正文解鎖
+
+- 完成 Multi-Agent 真實執行閉環：預檢後建立 Run 並進入全 App 單一執行槽，依序驅動 Planner 審核、Writer、Critic 路由、Editor 修訂與人工採用／修改，終止狀態會即時解除章節鎖定。
+- 統一 `startRun`、`continueRun`、`cancelRun` command seam；所有 Agent LLM 呼叫支援 `AbortSignal`，取消會保留軌跡、阻擋遲到回應，App 重啟則將未結束 Run 安全轉為手動重試，避免自動重送與重複計費。
+- 新增持久化 Run Activity 與 Zustand 同步層，串接章節工作卡、章節狀態徽章、全域 LLM 執行槽，以及可收合的版本／Agent Inspector。
+- 執行期間正文改為 `readOnly`，仍可查看、選取與複製；依排隊、執行、審核、中斷、設定阻塞、失敗、完成與取消狀態提供對應動作。
+- 建立共用 AI Activity Card，套用到快速正文、章節要點、世界觀／主線、角色、章節批次、局部調整、Wiki 問答與 Lint 修正；一般任務使用中性 AI 助理，Multi-Agent 使用隨 App 打包的 Planner／Writer／Critic／Editor 固定插畫與專業工作台版型。
+- 視覺驗證通過 1440×900 與 1024×768：正文與 Inspector 無水平溢出或控制項裁切；重新載入後無 React 執行期錯誤。
+
+**Verification**
+- `node node_modules/typescript/bin/tsc -b` 通過（直接執行 TypeScript CLI，等同專案 `tsc -b`；PowerShell 執行原則會阻擋 `npx.ps1`）。
+- 依專案 `AGENTS.md`，本階段未執行完整 Vitest。
+
 ## 2026-07-27 - 完成 AI 執行狀態回饋與正文解鎖設計評估
 
 - 新增 `docs/superpowers/specs/2026-07-27-ai-execution-feedback-design.md`，盤點全專案 AI 長任務的現有回饋與改善優先級。

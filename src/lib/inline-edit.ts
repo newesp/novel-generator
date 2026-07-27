@@ -33,7 +33,8 @@ export interface RewriteSelectionResult {
  * - 原選取的前後空白（換行）會被保留，避免破壞文章排版
  */
 export async function rewriteSelection(
-  opts: RewriteSelectionInput
+  opts: RewriteSelectionInput,
+  signal?: AbortSignal,
 ): Promise<RewriteSelectionResult> {
   const {
     chapter, fullContent, selectionStart, selectionEnd,
@@ -58,7 +59,7 @@ export async function rewriteSelection(
     adjustInstruction,
   });
 
-  const raw = (await complete(prompt)).trim();
+  const raw = (await complete(prompt, undefined, signal)).trim();
 
   // 保留原選取的前後空白（換行），避免段落結構被破壞
   const leadingWS  = selectedText.match(/^\s*/)?.[0] ?? '';

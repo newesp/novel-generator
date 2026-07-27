@@ -5,6 +5,8 @@ import { useSettingsStore, type InlineEditContextMode } from '../../stores/setti
 import { rewriteSelection } from '../../lib/inline-edit';
 import { isLLMReady } from '../../lib/llm';
 import type { Chapter } from '../../types';
+import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
+import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
 
 interface Props {
   open: boolean;
@@ -27,6 +29,7 @@ export function AdjustContentModal({
   const [generatedContent, setGeneratedContent] = useState<string | null>(null);
   const [generatedPart, setGeneratedPart] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const rewriteActivity = useLocalAIActivity();
 
   // 開啟時重置狀態
   useEffect(() => {
@@ -36,6 +39,7 @@ export function AdjustContentModal({
       setGeneratedContent(null);
       setGeneratedPart('');
       setIsGenerating(false);
+      rewriteActivity.reset();
     }
   }, [open, inlineEdit.contextMode]);
 
@@ -51,6 +55,9 @@ export function AdjustContentModal({
     }
     if (!adjustText.trim()) return;
 
+    const signal = rewriteActivity.start(
+      `改寫選取的 ${selectedText.trim().length} 字，使用${contextMode === 'full' ? '全章' : `前後各 ${inlineEdit.contextChars} 字`}作為上下文…`,
+    );
     setIsGenerating(true);
     try {
       const { newContent, rewrittenPart } = await rewriteSelection({
@@ -61,11 +68,12 @@ export function AdjustContentModal({
         adjustInstruction: adjustText.trim(),
         contextMode,
         contextChars: inlineEdit.contextChars,
-      });
+      }, signal);
       setGeneratedContent(newContent);
       setGeneratedPart(rewrittenPart);
+      rewriteActivity.succeed('已產生替換預覽；接受前不會寫入正文');
     } catch (err) {
-      alert((err as Error).message);
+      rewriteActivity.fail(err);
     } finally {
       setIsGenerating(false);
     }
@@ -104,6 +112,16 @@ export function AdjustContentModal({
         </>
       }
     >
+      {rewriteActivity.activity.phase !== 'idle' && (
+        <LocalAIActivityCard
+          activity={rewriteActivity.activity}
+          title="AI 助理調整選取內容"
+          message={`改寫選取的 ${selectedText.trim().length} 字，使用${contextMode === 'full' ? '全章' : `前後各 ${inlineEdit.contextChars} 字`}作為上下文…`}
+          onCancel={rewriteActivity.cancel}
+          onDismiss={rewriteActivity.reset}
+          compact
+        />
+      )}
       {/* 原段落 */}
       <div className="inline-edit-label">原段落（{selectedText.length} 字）</div>
       <div className="inline-edit-block muted">{selectedText || '(空)'}</div>

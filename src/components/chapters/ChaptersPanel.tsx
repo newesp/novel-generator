@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { useGenerationRunStore } from '../../stores/generationRunStore';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { generateChapterDrafts, type ExistingChapterSummary } from '../../lib/ai-tasks';
@@ -10,6 +11,13 @@ import { formatCharacters } from '../../lib/context-budget';
 import type { Chapter } from '../../types';
 import { ingestChapter, retryRemaining } from '../../lib/wiki-ingest';
 import { undoBatch, findLatestIngestBatch } from '../../lib/wiki-undo';
+import {
+  generationRunBadge,
+  generationRunTone,
+  isOpenGenerationRun,
+} from '../../lib/multi-agent/presentation';
+import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
+import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
 
 function WikiBadge({ status }: { status: Chapter['wikiSyncStatus'] }) {
   if (status === 'synced') return null;
@@ -25,12 +33,14 @@ function WikiBadge({ status }: { status: Chapter['wikiSyncStatus'] }) {
 
 export function ChaptersPanel() {
   const { project, chapters, characters, loadChapters, createChapter, updateChapter, deleteChapter, reorderChapters } = useProjectStore();
-  const { selectedChapterId, setSelectedChapterId } = useUIStore();
+  const { selectedChapterId, setSelectedChapterId, openAgentRun } = useUIStore();
   const { llmConfig } = useSettingsStore();
+  const generationRuns = useGenerationRunStore((state) => state.runs);
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiCount, setAiCount] = useState<number | ''>(5);
   const [aiProgress, setAiProgress] = useState<number>(50);
   const [isGenerating, setIsGenerating] = useState(false);
+  const chapterDraftActivity = useLocalAIActivity();
 
   // —— 多選刪除 ——
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
@@ -81,6 +91,9 @@ export function ChaptersPanel() {
   };
 
   const handleAIGenerate = async () => {
+    const signal = chapterDraftActivity.start(
+      `依世界觀與主線規劃章節骨架，目標故事進度 ${aiProgress}%…`,
+    );
     setIsGenerating(true);
     try {
       const existingChapters: ExistingChapterSummary[] = chapters.map((c, i) => ({
@@ -96,11 +109,10 @@ export function ChaptersPanel() {
         existingChapters,
         charactersList: formatCharacters(characters),
         targetProgress: aiProgress,
-      });
+      }, signal);
 
       if (drafts.length === 0) {
-        alert('AI 未產出任何章節，請檢查 LLM 是否回傳預期格式');
-        return;
+        throw new Error('AI 未產出任何章節，請檢查 LLM 是否回傳預期格式');
       }
 
       let firstId: string | undefined;
@@ -110,9 +122,10 @@ export function ChaptersPanel() {
         if (!firstId) firstId = id;
       }
       if (firstId) setSelectedChapterId(firstId);
+      chapterDraftActivity.succeed(`已建立 ${drafts.length} 個章節骨架`);
       setShowAIModal(false);
     } catch (err) {
-      alert((err as Error).message);
+      chapterDraftActivity.fail(err);
     } finally {
       setIsGenerating(false);
     }
@@ -317,6 +330,11 @@ export function ChaptersPanel() {
         )}
 
         {chapters.map((ch, i) => {
+          const chapterRuns = generationRuns
+            .filter((run) => run.chapterId === ch.id)
+            .sort((a, b) => b.createdAt - a.createdAt);
+          const agentRun = chapterRuns.find(isOpenGenerationRun)
+            ?? (chapterRuns[0]?.status === 'failed' ? chapterRuns[0] : undefined);
           const isDragged = draggedId === ch.id;
           const isDragOver = dragOverId === ch.id && draggedId !== ch.id;
           const cls = [
@@ -359,6 +377,19 @@ export function ChaptersPanel() {
                   <span>{ch.content ? `約 ${ch.content.length} 字` : '待生成'}</span>
                   {ch.beat && <span className="badge badge-gray">{ch.beat.split(' ')[0]}</span>}
                   <WikiBadge status={ch.wikiSyncStatus} />
+                  {agentRun && (
+                    <button
+                      type="button"
+                      className={`badge badge-agent ${generationRunTone(agentRun)}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openAgentRun(ch.id, agentRun.id);
+                      }}
+                      title="開啟此章的 Agent 執行狀態"
+                    >
+                      {generationRunBadge(agentRun)}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -373,11 +404,19 @@ export function ChaptersPanel() {
 
       <Modal
         open={showAIModal}
-        onClose={() => !isGenerating && setShowAIModal(false)}
+        onClose={() => {
+          if (!isGenerating) {
+            setShowAIModal(false);
+            chapterDraftActivity.reset();
+          }
+        }}
         title="✨ AI 生成章節"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowAIModal(false)} disabled={isGenerating}>
+            <Button variant="secondary" onClick={() => {
+              setShowAIModal(false);
+              chapterDraftActivity.reset();
+            }} disabled={isGenerating}>
               取消
             </Button>
             <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || typeof aiCount !== 'number' || aiCount < 1}>
@@ -386,6 +425,16 @@ export function ChaptersPanel() {
           </>
         }
       >
+        {chapterDraftActivity.activity.phase !== 'idle' && (
+          <LocalAIActivityCard
+            activity={chapterDraftActivity.activity}
+            title={`AI 助理規劃 ${typeof aiCount === 'number' ? aiCount : 1} 個章節`}
+            message={`依世界觀與主線整理章節骨架，目標故事進度 ${aiProgress}%…`}
+            onCancel={chapterDraftActivity.cancel}
+            onDismiss={chapterDraftActivity.reset}
+            compact
+          />
+        )}
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
           AI 將根據目前的世界觀與主線劇情，自動規劃章節並填入：標題、故事節拍、章節要點。
           {chapters.length > 0 && (

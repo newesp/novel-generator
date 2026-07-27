@@ -1,207 +1,166 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { storage } from '../../lib/storage';
 import { Button } from '../common/Button';
 import { deleteGenerationRunRecord } from '../../lib/multi-agent/observability';
-import type { GenerationRun, GenerationStep } from '../../types';
+import {
+  generationRoleLabel,
+  generationRunTitle,
+  generationRunTone,
+  normalizedActivity,
+} from '../../lib/multi-agent/presentation';
+import { useGenerationRunStore } from '../../stores/generationRunStore';
+import type { GenerationStep } from '../../types';
 
 interface AgentRunPanelProps {
   chapterId: string;
+  focusedRunId?: string | null;
   onOpenReviewModal?: (runId: string) => void;
 }
 
-export function AgentRunPanel({ chapterId, onOpenReviewModal }: AgentRunPanelProps) {
-  const [runs, setRuns] = useState<GenerationRun[]>([]);
+function formatRunTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleString([], {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: AgentRunPanelProps) {
+  const allRuns = useGenerationRunStore((state) => state.runs);
+  const refreshAll = useGenerationRunStore((state) => state.refreshAll);
+  const removeRun = useGenerationRunStore((state) => state.remove);
+  const runs = useMemo(
+    () => allRuns.filter((run) => run.chapterId === chapterId).sort((a, b) => b.createdAt - a.createdAt),
+    [allRuns, chapterId],
+  );
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [steps, setSteps] = useState<GenerationStep[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
 
-  const loadRuns = async () => {
-    const list = await storage.generationRuns.listByChapter(chapterId);
-    list.sort((a, b) => b.createdAt - a.createdAt);
-    setRuns(list);
-    if (list.length > 0 && !selectedRunId) {
-      setSelectedRunId(list[0].id);
-    }
-  };
-
   useEffect(() => {
-    void loadRuns();
-  }, [chapterId]);
+    if (focusedRunId && runs.some((run) => run.id === focusedRunId)) {
+      setSelectedRunId(focusedRunId);
+    } else if (!selectedRunId || !runs.some((run) => run.id === selectedRunId)) {
+      setSelectedRunId(runs[0]?.id ?? null);
+    }
+  }, [focusedRunId, runs, selectedRunId]);
+
+  const activeRun = runs.find((run) => run.id === selectedRunId);
 
   useEffect(() => {
     if (!selectedRunId) {
       setSteps([]);
       return;
     }
-    void storage.generationSteps.listByRun(selectedRunId).then((st) => {
-      st.sort((a, b) => a.createdAt - b.createdAt);
-      setSteps(st);
+    void storage.generationSteps.listByRun(selectedRunId).then((nextSteps) => {
+      setSteps(nextSteps.sort((a, b) => a.createdAt - b.createdAt));
     });
-  }, [selectedRunId]);
+  }, [selectedRunId, activeRun?.updatedAt]);
 
-  const handleDeleteRun = async (runId: string) => {
-    if (!confirm('確定要刪除此筆 Run 紀錄？（不會影響正式正文與版本）')) return;
+  const handleDeleteRun = async () => {
+    if (!activeRun || !confirm('確定刪除此筆 Run 紀錄？正式正文與版本不受影響。')) return;
     try {
-      await deleteGenerationRunRecord(runId);
-      if (selectedRunId === runId) setSelectedRunId(null);
-      await loadRuns();
-    } catch (err) {
-      alert((err as Error).message);
+      await deleteGenerationRunRecord(activeRun.id);
+      removeRun(activeRun.id);
+    } catch (error) {
+      alert((error as Error).message);
     }
   };
 
-  const activeRun = runs.find((r) => r.id === selectedRunId);
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontSize: 12, overflow: 'hidden' }}>
-      <div
-        style={{
-          padding: '8px 12px',
-          borderBottom: '1px solid var(--border-color, #374151)',
-          background: 'var(--bg-secondary, #111827)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>🤖 Agent 生成執行軌跡</span>
-        <Button variant="text" style={{ fontSize: 11 }} onClick={loadRuns}>
-          🔄 重新整理
+    <div className="agent-run-panel">
+      <div className="agent-run-selector">
+        <label htmlFor="agent-run-select">生成執行</label>
+        <select
+          id="agent-run-select"
+          className="form-select"
+          value={selectedRunId ?? ''}
+          onChange={(event) => setSelectedRunId(event.target.value || null)}
+        >
+          {runs.length === 0 && <option value="">尚無生成紀錄</option>}
+          {runs.map((run) => (
+            <option key={run.id} value={run.id}>
+              {formatRunTime(run.createdAt)} · {generationRunTitle(run)}
+            </option>
+          ))}
+        </select>
+        <Button variant="text" size="sm" onClick={() => void refreshAll()} title="重新載入執行軌跡">
+          重新整理
         </Button>
       </div>
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        {/* Run 清單側欄 */}
-        <div
-          style={{
-            width: 180,
-            borderRight: '1px solid var(--border-color, #374151)',
-            overflowY: 'auto',
-            background: 'var(--bg-tertiary, #1f2937)',
-          }}
-        >
-          {runs.length === 0 ? (
-            <div style={{ padding: 12, color: 'var(--text-tertiary)' }}>無生成紀錄</div>
-          ) : (
-            runs.map((r) => {
-              const isSelected = r.id === selectedRunId;
-              const statusColor =
-                r.status === 'completed' ? '#4ade80' :
-                r.status === 'awaiting_input' ? '#facc15' :
-                r.status === 'running' ? '#60a5fa' :
-                r.status === 'cancelled' ? '#9ca3af' : '#f87171';
-
-              return (
-                <div
-                  key={r.id}
-                  onClick={() => setSelectedRunId(r.id)}
-                  style={{
-                    padding: '8px 10px',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid var(--border-color, #374151)',
-                    background: isSelected ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: isSelected ? 600 : 400, color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                      {new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <span style={{ fontSize: 10, color: statusColor, padding: '1px 4px', borderRadius: 3, border: `1px solid ${statusColor}` }}>
-                      {r.status}
-                    </span>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* 步驟時間軸與軌跡細節 */}
-        <div style={{ flex: 1, padding: 12, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {activeRun ? (
-            <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <div>
-                  <strong>{activeRun.snapshot.storyTitle}</strong> · 章節 {activeRun.snapshot.chapterNumber}
-                </div>
-                {activeRun.status === 'awaiting_input' && onOpenReviewModal && (
-                  <Button variant="primary" style={{ fontSize: 11 }} onClick={() => onOpenReviewModal(activeRun.id)}>
-                    🔍 進入審核/決策
-                  </Button>
-                )}
-                {(activeRun.status === 'completed' || activeRun.status === 'cancelled') && (
-                  <Button variant="text" style={{ color: '#ef4444', fontSize: 11 }} onClick={() => handleDeleteRun(activeRun.id)}>
-                    🗑 刪除紀錄
-                  </Button>
-                )}
-              </div>
-
-              {/* 步驟列表 */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {steps.map((s) => {
-                  const isExpanded = expandedStepId === s.id;
-                  return (
-                    <div
-                      key={s.id}
-                      style={{
-                        border: '1px solid var(--border-color, #374151)',
-                        borderRadius: 6,
-                        background: 'var(--bg-secondary, #111827)',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        onClick={() => setExpandedStepId(isExpanded ? null : s.id)}
-                        style={{
-                          padding: '6px 10px',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          cursor: 'pointer',
-                          background: 'rgba(255, 255, 255, 0.03)',
-                        }}
-                      >
-                        <span style={{ fontWeight: 600 }}>
-                          [{s.role.toUpperCase()}] Attempt #{s.attempt} ({s.status})
-                        </span>
-                        <span style={{ color: 'var(--text-tertiary)', fontSize: 11 }}>
-                          {s.usage?.totalTokens ? `${s.usage.totalTokens} tokens` : ''} ▾
-                        </span>
-                      </div>
-
-                      {isExpanded && (
-                        <div style={{ padding: 10, borderTop: '1px solid var(--border-color, #374151)', fontSize: 11 }}>
-                          {s.prompt && (
-                            <div style={{ marginBottom: 6 }}>
-                              <strong style={{ color: 'var(--text-tertiary)' }}>Prompt:</strong>
-                              <pre style={{ margin: '2px 0 0 0', whiteSpace: 'pre-wrap', maxHeight: 120, overflowY: 'auto', background: 'rgba(0,0,0,0.3)', padding: 6, borderRadius: 4 }}>
-                                {s.prompt}
-                              </pre>
-                            </div>
-                          )}
-                          {s.response && (
-                            <div>
-                              <strong style={{ color: 'var(--text-tertiary)' }}>Response:</strong>
-                              <pre style={{ margin: '2px 0 0 0', whiteSpace: 'pre-wrap', maxHeight: 150, overflowY: 'auto', background: 'rgba(0,0,0,0.3)', padding: 6, borderRadius: 4 }}>
-                                {s.response}
-                              </pre>
-                            </div>
-                          )}
-                          {s.errorText && <div style={{ color: '#ef4444', marginTop: 4 }}>錯誤: {s.errorText}</div>}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-tertiary)' }}>
-              請點擊左側 Run 項目檢視詳細軌跡
+      {!activeRun ? (
+        <div className="agent-run-empty">尚無高品質生成紀錄</div>
+      ) : (
+        <div className="agent-run-scroll">
+          <div className={`agent-run-summary tone-${generationRunTone(activeRun)}`}>
+            <div>
+              <strong>{generationRunTitle(activeRun)}</strong>
+              <span>{normalizedActivity(activeRun).message}</span>
             </div>
-          )}
+            {activeRun.status === 'awaiting_input' && onOpenReviewModal && (
+              <Button variant="primary" size="sm" onClick={() => onOpenReviewModal(activeRun.id)}>
+                處理下一步
+              </Button>
+            )}
+            {(activeRun.status === 'completed' || activeRun.status === 'cancelled' || activeRun.status === 'failed') && (
+              <Button
+                variant="text"
+                size="sm"
+                onClick={handleDeleteRun}
+                title="刪除執行紀錄"
+                aria-label="刪除執行紀錄"
+              >
+                <Trash2 size={14} />
+              </Button>
+            )}
+          </div>
+
+          <div className="agent-step-timeline">
+            {steps.length === 0 && <div className="agent-run-empty">尚未建立 Agent 步驟</div>}
+            {steps.map((step) => {
+              const expanded = expandedStepId === step.id;
+              return (
+                <article key={step.id} className={`agent-step-card status-${step.status}`}>
+                  <button
+                    type="button"
+                    className="agent-step-heading"
+                    onClick={() => setExpandedStepId(expanded ? null : step.id)}
+                    aria-expanded={expanded}
+                  >
+                    {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    <img src={`/assets/agents/${step.role}-64.png`} alt="" />
+                    <span>
+                      <strong>{generationRoleLabel(step.role)}</strong>
+                      <small>Attempt #{step.attempt} · {step.status}</small>
+                    </span>
+                    {step.usage?.totalTokens != null && <em>{step.usage.totalTokens} tokens</em>}
+                  </button>
+                  {expanded && (
+                    <div className="agent-step-detail">
+                      {step.prompt && (
+                        <details>
+                          <summary>Prompt</summary>
+                          <pre>{step.prompt}</pre>
+                        </details>
+                      )}
+                      {step.response && (
+                        <details>
+                          <summary>Response</summary>
+                          <pre>{step.response}</pre>
+                        </details>
+                      )}
+                      {step.errorText && <p className="agent-step-error">{step.errorText}</p>}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

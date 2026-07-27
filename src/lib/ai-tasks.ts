@@ -75,7 +75,7 @@ export async function regenerateChapterPoints(args: {
   referenceChapter?: { title: string; content: string };
   /** 目前的要點（若有，AI 可參考方向但不必沿用） */
   currentPoints?: string;
-}): Promise<string> {
+}, signal?: AbortSignal): Promise<string> {
   const {
     worldSetting, mainPlot, charactersList,
     chapterTitle, beat, referenceChapter, currentPoints,
@@ -116,7 +116,7 @@ export async function regenerateChapterPoints(args: {
     hasCurrentPoints: !!(currentPoints && currentPoints.trim()),
   });
 
-  const result = await complete(prompt, { maxTokens: 1024 });
+  const result = await complete(prompt, { maxTokens: 1024 }, signal);
   return result.trim();
 }
 
@@ -140,7 +140,7 @@ export async function generateChapterDrafts(args: {
   charactersList?: string;
   /** 本批章節寫完時，整個故事的劇情進度（0-100）。0=故事剛開始，100=結局 */
   targetProgress?: number;
-}): Promise<AIChapterDraft[]> {
+}, signal?: AbortSignal): Promise<AIChapterDraft[]> {
   const { count, worldSetting, mainPlot, existingChapters, charactersList, targetProgress } = args;
   const { aiPrompts } = useSettingsStore.getState();
 
@@ -199,7 +199,7 @@ export async function generateChapterDrafts(args: {
     hasCharacters: !!(charactersList && charactersList.trim()),
   });
 
-  const result = await complete(prompt, { maxTokens: 4096 });
+  const result = await complete(prompt, { maxTokens: 4096 }, signal);
 
   const drafts: AIChapterDraft[] = [];
   const blocks = [...result.matchAll(/##CH_START##([\s\S]*?)##CH_END##/g)];
@@ -226,10 +226,10 @@ export async function generateCharacterDrafts(args: {
   worldSetting: string;
   mainPlot: string;
   existingNames: string[];
-}): Promise<AICharacterDraft[]> {
+}, signal?: AbortSignal): Promise<AICharacterDraft[]> {
   const prompt = buildCharacterDraftsPrompt(args);
 
-  const result = await complete(prompt, { maxTokens: 6144 });
+  const result = await complete(prompt, { maxTokens: 6144 }, signal);
 
   const drafts: AICharacterDraft[] = [];
   const blocks = [...result.matchAll(/##CHAR_START##([\s\S]*?)##CHAR_END##/g)];
@@ -303,7 +303,7 @@ export async function completeCharacterFields(args: {
   worldSetting: string;
   mainPlot: string;
   otherCharacters?: { name: string; personality?: string; background?: string }[];
-}): Promise<Partial<AICharacterDraft>> {
+}, signal?: AbortSignal): Promise<Partial<AICharacterDraft>> {
   const { current, worldSetting, mainPlot, otherCharacters } = args;
 
   const FIELD_LABELS: Record<keyof AICharacterDraft, string> = {
@@ -360,7 +360,7 @@ ${VISUAL_NEGATIVE_PROMPT_GUIDANCE}
 ${outputLines}
 ##FIELDS_END##`;
 
-  const result = await complete(prompt, { maxTokens: 2048 });
+  const result = await complete(prompt, { maxTokens: 2048 }, signal);
   const block = result.match(/##FIELDS_START##([\s\S]*?)##FIELDS_END##/)?.[1] ?? result;
 
   const out: Partial<AICharacterDraft> = {};

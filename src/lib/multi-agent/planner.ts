@@ -11,6 +11,7 @@ import type {
   LLMProfile,
 } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { assertRunWritable, isCancellationError } from './resilience';
 
 export interface PlannedOutline {
   beat: string;
@@ -61,7 +62,7 @@ export function parsePlannerResponse(rawText: string): PlannedOutline {
   return { beat, points, explanation };
 }
 
-export async function executePlannerStep(runId: string): Promise<{
+export async function executePlannerStep(runId: string, signal?: AbortSignal): Promise<{
   plan: PlannedOutline;
   checkpoint: GenerationCheckpoint;
 }> {
@@ -99,7 +100,7 @@ export async function executePlannerStep(runId: string): Promise<{
     charactersSection: '',
     wikiSection: '',
     olderSummarySection: '',
-    chapterNumber: String(run.snapshot.chapterNumber || chapter?.order ? (chapter?.order ?? 0) + 1 : 1),
+    chapterNumber: String(run.snapshot.chapterNumber ?? ((chapter?.order ?? 0) + 1)),
     chapterTitle: run.snapshot.chapterTitle || chapter?.title || '未命名章節',
     beat: chapter?.beat || '引入 (Inciting Incident)',
     points: chapter?.points || '無要點',
@@ -135,17 +136,21 @@ export async function executePlannerStep(runId: string): Promise<{
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
       },
-      undefined,
+      signal,
       targetProfile,
     );
+    await assertRunWritable(runId);
   } catch (err) {
     const errorText = (err as Error).message;
+    const cancelled = isCancellationError(err, signal);
     await storage.generationSteps.update(stepId1, {
-      status: 'failed',
+      status: cancelled ? 'cancelled' : 'failed',
       errorText,
       completedAt: Date.now(),
     });
-    await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
+    if (!cancelled) {
+      await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
+    }
     throw new Error(`Planner 呼叫 LLM 失敗：${errorText}`);
   }
 
@@ -196,9 +201,10 @@ export async function executePlannerStep(runId: string): Promise<{
           maxTokens: targetProfile.maxTokens,
           temperature: targetProfile.temperature,
         },
-        undefined,
+        signal,
         targetProfile,
       );
+      await assertRunWritable(runId);
       plan = parsePlannerResponse(response2.text);
       await storage.generationSteps.update(stepId2, {
         status: 'completed',
@@ -210,16 +216,20 @@ export async function executePlannerStep(runId: string): Promise<{
       });
     } catch (repairErr) {
       const errorText2 = (repairErr as Error).message;
+      const cancelled = isCancellationError(repairErr, signal);
       await storage.generationSteps.update(stepId2, {
-        status: 'failed',
+        status: cancelled ? 'cancelled' : 'failed',
         errorText: errorText2,
         completedAt: Date.now(),
       });
-      await storage.generationRuns.update(runId, { status: 'awaiting_input', updatedAt: Date.now() });
+      if (!cancelled) {
+        await storage.generationRuns.update(runId, { status: 'awaiting_input', updatedAt: Date.now() });
+      }
       throw new Error(`Planner 格式自動修復失敗：${errorText2}。流程已暫停，可手動重試。`);
     }
   }
 
+  await assertRunWritable(runId);
   // Save planner_done checkpoint & pause for user review
   const checkpoint: GenerationCheckpoint = {
     id: `chk_${Date.now()}_planner`,

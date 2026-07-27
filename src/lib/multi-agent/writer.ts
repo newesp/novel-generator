@@ -8,6 +8,7 @@ import type {
   LLMProfile,
 } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { assertRunWritable, isCancellationError } from './resilience';
 
 export interface WriterResult {
   candidateDraft: string;
@@ -15,7 +16,7 @@ export interface WriterResult {
   checkpoint: GenerationCheckpoint;
 }
 
-export async function executeWriterStep(runId: string): Promise<WriterResult> {
+export async function executeWriterStep(runId: string, signal?: AbortSignal): Promise<WriterResult> {
   const run = await storage.generationRuns.get(runId);
   if (!run) {
     throw new Error(`找不到 Run: ${runId}`);
@@ -109,10 +110,11 @@ export async function executeWriterStep(runId: string): Promise<WriterResult> {
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
       },
-      undefined,
+      signal,
       targetProfile,
     );
 
+    await assertRunWritable(runId);
     await storage.generationSteps.update(stepId, {
       status: 'completed',
       response: response.text,
@@ -123,15 +125,19 @@ export async function executeWriterStep(runId: string): Promise<WriterResult> {
     });
   } catch (err) {
     const errorText = (err as Error).message;
+    const cancelled = isCancellationError(err, signal);
     await storage.generationSteps.update(stepId, {
-      status: 'failed',
+      status: cancelled ? 'cancelled' : 'failed',
       errorText,
       completedAt: Date.now(),
     });
-    await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
+    if (!cancelled) {
+      await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
+    }
     throw new Error(`Writer 呼叫 LLM 失敗：${errorText}`);
   }
 
+  await assertRunWritable(runId);
   const draftVersion = 1;
   const candidateDraft = response.text.trim();
 

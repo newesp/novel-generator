@@ -32,7 +32,7 @@ interface LintState {
   setFixTargetPageId: (issueId: string, pageId: string) => void;
 
   applyAutoFix: (issue: LintIssue) => Promise<void>;
-  generateFix: (issue: LintIssue) => Promise<void>;
+  generateFix: (issue: LintIssue, signal?: AbortSignal) => Promise<void>;
   applyLlmFix: (issue: LintIssue, editedMarkdown?: string) => Promise<void>;
   undoAppliedBatch: () => Promise<void>;
   dismiss: (issueId: string) => void;
@@ -150,7 +150,7 @@ export const useLintStore = create<LintState>((set, get) => ({
     });
   },
 
-  generateFix: async (issue) => {
+  generateFix: async (issue, signal) => {
     const report = get().report;
     if (!report) return;
     if (issue.fix?.kind !== 'llm') return;
@@ -168,10 +168,11 @@ export const useLintStore = create<LintState>((set, get) => ({
         aiPrompts,
         direction,
         get().fixTargetPageIds[issue.id],
+        signal,
       );
       set((s) => ({ fixSuggestions: { ...s.fixSuggestions, [issue.id]: suggestion } }));
     } catch (e) {
-      alert(`生成建議失敗：${(e as Error).message}`);
+      throw e;
     } finally {
       const busy2 = new Set(get().busyIssueIds); busy2.delete(issue.id);
       set({ busyIssueIds: busy2 });

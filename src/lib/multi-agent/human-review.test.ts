@@ -1,7 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { humanAdoptDraft, humanSendToEditor, humanEditDraft } from './human-review';
+import { humanAdoptDraft, prepareHumanEditorRevision, humanEditDraft } from './human-review';
 import { useSettingsStore } from '../../stores/settingsStore';
-import * as editorModule from './editor';
 
 const runsMap = new Map<string, any>();
 const stepsMap = new Map<string, any>();
@@ -38,10 +37,6 @@ vi.mock('../storage', () => ({
       add: vi.fn(async (v: any) => { versionsMap.set(v.id, v); }),
     },
   },
-}));
-
-vi.mock('./editor', () => ({
-  executeEditorStep: vi.fn(),
 }));
 
 describe('Human Review & Branching', () => {
@@ -109,9 +104,8 @@ describe('Human Review & Branching', () => {
     };
     runsMap.set('run_h3', run);
 
-    await humanSendToEditor('run_h3', '請重點描寫對話張力', true);
+    await prepareHumanEditorRevision('run_h3', '請重點描寫對話張力', true);
 
-    expect(editorModule.executeEditorStep).toHaveBeenCalledWith('run_h3');
     expect(runsMap.get('run_h3').snapshot.maxRevisions).toBe(4); // 3 + 1
   });
 });

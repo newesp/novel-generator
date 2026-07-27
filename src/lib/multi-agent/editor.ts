@@ -8,8 +8,8 @@ import type {
   LLMProfile,
 } from '../../types';
 import type { CriticFeedback } from './critic';
-import { executeCriticStep } from './critic';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { assertRunWritable, isCancellationError } from './resilience';
 
 export interface EditorResult {
   revisedDraft: string;
@@ -17,7 +17,7 @@ export interface EditorResult {
   checkpoint: GenerationCheckpoint;
 }
 
-export async function executeEditorStep(runId: string): Promise<EditorResult> {
+export async function executeEditorStep(runId: string, signal?: AbortSignal): Promise<EditorResult> {
   const run = await storage.generationRuns.get(runId);
   if (!run) throw new Error(`找不到 Run: ${runId}`);
 
@@ -154,10 +154,11 @@ export async function executeEditorStep(runId: string): Promise<EditorResult> {
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
       },
-      undefined,
+      signal,
       targetProfile,
     );
 
+    await assertRunWritable(runId);
     await storage.generationSteps.update(stepId, {
       status: 'completed',
       response: response.text,
@@ -168,11 +169,19 @@ export async function executeEditorStep(runId: string): Promise<EditorResult> {
     });
   } catch (err) {
     const errorText = (err as Error).message;
-    await storage.generationSteps.update(stepId, { status: 'failed', errorText, completedAt: Date.now() });
-    await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
+    const cancelled = isCancellationError(err, signal);
+    await storage.generationSteps.update(stepId, {
+      status: cancelled ? 'cancelled' : 'failed',
+      errorText,
+      completedAt: Date.now(),
+    });
+    if (!cancelled) {
+      await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
+    }
     throw new Error(`Editor 呼叫 LLM 失敗：${errorText}`);
   }
 
+  await assertRunWritable(runId);
   const revisedDraft = response.text.trim();
   const checkpoint: GenerationCheckpoint = {
     id: `chk_${Date.now()}_editor_${nextDraftVersion}`,
@@ -185,9 +194,6 @@ export async function executeEditorStep(runId: string): Promise<EditorResult> {
     createdAt: Date.now(),
   };
   await storage.generationCheckpoints.add(checkpoint);
-
-  // Automatically route back to Critic (never back to Writer!)
-  await executeCriticStep(runId);
 
   return { revisedDraft, nextDraftVersion, checkpoint };
 }

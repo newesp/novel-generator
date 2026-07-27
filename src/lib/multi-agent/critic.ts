@@ -13,6 +13,7 @@ import type {
   ChapterVersion,
 } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { assertRunWritable, isCancellationError } from './resilience';
 
 export interface CriticScores {
   instructionAndBeat: number;
@@ -130,6 +131,7 @@ export async function adoptCandidateDraft(
 ): Promise<void> {
   const run = await storage.generationRuns.get(runId);
   if (!run) throw new Error(`找不到 Run: ${runId}`);
+  await assertRunWritable(runId);
 
   const chapter = await storage.chapters.get(run.chapterId);
   if (!chapter) throw new Error(`找不到章節: ${run.chapterId}`);
@@ -148,18 +150,22 @@ export async function adoptCandidateDraft(
       kind: 'full',
       createdAt: Date.now(),
     };
+    await assertRunWritable(runId);
     await storage.versions.add(newVersion);
   }
 
   // Update Chapter.content with adopted candidate draft
+  await assertRunWritable(runId);
   await storage.chapters.update(chapter.id, {
     content: candidateDraft,
     updatedAt: Date.now(),
   });
 
   // End generation run (releases chapter lock!)
+  await assertRunWritable(runId);
   await storage.generationRuns.update(runId, {
     status: 'completed',
+    completedAt: Date.now(),
     updatedAt: Date.now(),
   });
 
@@ -172,10 +178,11 @@ export async function adoptCandidateDraft(
     data: JSON.stringify({ draftVersion, candidateDraft, adoptedAt: Date.now() }),
     createdAt: Date.now(),
   };
+  await assertRunWritable(runId);
   await storage.generationCheckpoints.add(adoptChk);
 }
 
-export async function executeCriticStep(runId: string): Promise<{
+export async function executeCriticStep(runId: string, signal?: AbortSignal): Promise<{
   feedback: CriticFeedback;
   checkpoint: GenerationCheckpoint;
   adopted: boolean;
@@ -281,13 +288,21 @@ export async function executeCriticStep(runId: string): Promise<{
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
       },
-      undefined,
+      signal,
       targetProfile,
     );
+    await assertRunWritable(runId);
   } catch (err) {
     const errorText = (err as Error).message;
-    await storage.generationSteps.update(stepId1, { status: 'failed', errorText, completedAt: Date.now() });
-    await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
+    const cancelled = isCancellationError(err, signal);
+    await storage.generationSteps.update(stepId1, {
+      status: cancelled ? 'cancelled' : 'failed',
+      errorText,
+      completedAt: Date.now(),
+    });
+    if (!cancelled) {
+      await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
+    }
     throw new Error(`Critic 呼叫 LLM 失敗：${errorText}`);
   }
 
@@ -326,9 +341,10 @@ export async function executeCriticStep(runId: string): Promise<{
       const response2 = await completeNormalized(
         repairPrompt,
         { systemPrompt: '請修正並嚴格輸出符合 JSON Schema 的評審結果。', maxTokens: targetProfile.maxTokens, temperature: targetProfile.temperature },
-        undefined,
+        signal,
         targetProfile,
       );
+      await assertRunWritable(runId);
       feedback = parseCriticResponse(response2.text, draftVersion, weights);
       await storage.generationSteps.update(stepId2, {
         status: 'completed',
@@ -340,12 +356,20 @@ export async function executeCriticStep(runId: string): Promise<{
       });
     } catch (repairErr) {
       const errorText2 = (repairErr as Error).message;
-      await storage.generationSteps.update(stepId2, { status: 'failed', errorText: errorText2, completedAt: Date.now() });
-      await storage.generationRuns.update(runId, { status: 'awaiting_input', updatedAt: Date.now() });
+      const cancelled = isCancellationError(repairErr, signal);
+      await storage.generationSteps.update(stepId2, {
+        status: cancelled ? 'cancelled' : 'failed',
+        errorText: errorText2,
+        completedAt: Date.now(),
+      });
+      if (!cancelled) {
+        await storage.generationRuns.update(runId, { status: 'awaiting_input', updatedAt: Date.now() });
+      }
       throw new Error(`Critic 格式自動修復失敗：${errorText2}`);
     }
   }
 
+  await assertRunWritable(runId);
   const checkpoint: GenerationCheckpoint = {
     id: `chk_${Date.now()}_critic`,
     runId: run.id,
@@ -366,6 +390,7 @@ export async function executeCriticStep(runId: string): Promise<{
 
   if (!feedback.hasMajorFlaw && feedback.totalScore >= passScore) {
     // Automatic adoption! (HQ Happy Path)
+    await assertRunWritable(runId);
     await adoptCandidateDraft(runId, candidateDraft, draftVersion);
     adopted = true;
   } else if (!feedback.hasMajorFlaw && feedback.totalScore >= humanReviewFloor) {

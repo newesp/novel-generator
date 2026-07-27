@@ -5,6 +5,8 @@ import { buildWikiQueryPrompt, selectWikiPagesForQuery } from '../../lib/wiki-qu
 import type { WikiPage } from '../../types';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
+import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
+import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
 
 interface Props {
   open: boolean;
@@ -16,8 +18,8 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
   const { llmConfig, aiPrompts } = useSettingsStore();
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
-  const [error, setError] = useState('');
   const [isRunning, setIsRunning] = useState(false);
+  const queryActivity = useLocalAIActivity();
   const selectedPages = useMemo(
     () => question.trim() ? selectWikiPagesForQuery({ question, pages, maxPages: 8 }) : [],
     [question, pages],
@@ -26,25 +28,35 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
 
   const ask = async () => {
     if (!ready || !question.trim()) return;
+    const signal = queryActivity.start(`正在閱讀 ${selectedPages.length} 頁 Wiki 並整理可追溯的回答…`);
     setIsRunning(true);
     setAnswer('');
-    setError('');
     try {
       const prompt = buildWikiQueryPrompt({
         question,
         pages: selectedPages,
         template: aiPrompts.wikiQueryAnswerTemplate,
       });
-      setAnswer(await complete(prompt, { maxTokens: 1600, temperature: 0.2 }));
+      setAnswer(await complete(prompt, { maxTokens: 1600, temperature: 0.2 }, signal));
+      queryActivity.succeed(`已完成 ${selectedPages.length} 頁 Wiki 的查詢`);
     } catch (e) {
-      setError((e as Error).message);
+      queryActivity.fail(e);
     } finally {
       setIsRunning(false);
     }
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="問 Wiki" width={720}>
+    <Modal
+      open={open}
+      onClose={() => {
+        if (isRunning) queryActivity.cancel();
+        else queryActivity.reset();
+        onClose();
+      }}
+      title="問 Wiki"
+      width={720}
+    >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <textarea
           className="form-input"
@@ -53,6 +65,16 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
+        {queryActivity.activity.phase !== 'idle' && (
+          <LocalAIActivityCard
+            activity={queryActivity.activity}
+            title="AI 助理查詢 Wiki"
+            message={`正在閱讀 ${selectedPages.length} 頁 Wiki 並整理可追溯的回答…`}
+            onCancel={queryActivity.cancel}
+            onDismiss={queryActivity.reset}
+            compact
+          />
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
           <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
             已選 {selectedPages.length} 頁作為回答依據
@@ -71,7 +93,6 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
             {selectedPages.map((page) => `${page.type}/${page.slug}`).join('、')}
           </div>
         )}
-        {error && <div style={{ color: 'var(--accent-danger)', fontSize: 13 }}>{error}</div>}
         {answer && (
           <div style={{
             whiteSpace: 'pre-wrap',

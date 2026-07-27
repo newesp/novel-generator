@@ -21,6 +21,7 @@ import { ComicModal, type ComicWorkspaceMode } from './components/comic/ComicMod
 import { HomePage } from './components/home/HomePage';
 import { useUIStore } from './stores/uiStore';
 import { useProjectStore } from './stores/projectStore';
+import { initializeGenerationOrchestrator } from './lib/multi-agent/orchestrator';
 
 type WorkspaceName = 'outline' | 'characters' | 'chapters' | 'wiki' | 'scene' | 'comic' | 'video';
 
@@ -41,7 +42,7 @@ const NAVIGATION: NavigationItem[] = [
 ];
 
 export default function App() {
-  const { view, activeTab, setActiveTab, selectedChapterId, setSelectedChapterId } = useUIStore();
+  const { view, activeTab, setActiveTab, selectedChapterId, setSelectedChapterId, agentFocusVersion } = useUIStore();
   const { project, chapters, characters } = useProjectStore();
   const [workspace, setWorkspace] = useState<WorkspaceName>(activeTab);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -51,6 +52,16 @@ export default function App() {
   useEffect(() => {
     if (!selectedChapterId && chapters[0]) setSelectedChapterId(chapters[0].id);
   }, [chapters, selectedChapterId, setSelectedChapterId]);
+
+  useEffect(() => {
+    void initializeGenerationOrchestrator().catch((error) => {
+      console.error('[multi-agent] startup recovery failed', error);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (agentFocusVersion > 0) setWorkspace('chapters');
+  }, [agentFocusVersion]);
 
   if (view === 'home') {
     return (

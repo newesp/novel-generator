@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Archive, Search, Settings, Upload } from 'lucide-react';
 import { useProjectStore } from '../stores/projectStore';
 import { useUIStore } from '../stores/uiStore';
@@ -48,6 +48,7 @@ import { EditPreviewTabs, type EditPreviewMode } from './common/EditPreviewTabs'
 import { MarkdownView } from './common/MarkdownView';
 import { BackupModal } from './BackupModal';
 import { GlobalSearchModal } from './search/GlobalSearchModal';
+import { GlobalAgentStatus } from './GlobalAgentStatus';
 import { BookExportModal } from './export/BookExportModal';
 import type { LLMProfile, LLMProvider, MultiAgentPrefs, MultiAgentRole } from '../types';
 import { validateCriticThresholds, validateCriticWeights, clampMaxRevisions } from '../stores/settingsStore';
@@ -93,7 +94,7 @@ interface ToolbarProps {
 
 export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   const { project, chapters } = useProjectStore();
-  const { view, setView } = useUIStore();
+  const { view, setView, settingsFocusTab, settingsFocusVersion } = useUIStore();
   const {
     llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs, multiAgentPrefs,
     setLlmProfiles, setInlineEdit, setAiPrompts, setWikiPrefs, setImageGenerationPrefs, setLintPrefs, setMultiAgentPrefs,
@@ -125,7 +126,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
 
   const goHome = () => setView('home');
 
-  const openPrefs = () => {
+  const openPrefs = (initialTab: PrefsTab = 'llm') => {
     const store = useSettingsStore.getState();
     setDraftProfiles(store.llmProfiles);
     setDraftActiveId(store.activeProfileId);
@@ -138,7 +139,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
     setDraftImage(imageGenerationPrefs);
     setDraftLint(lintPrefs);
     setDraftMultiAgent(store.multiAgentPrefs);
-    setActivePrefsTab('llm');
+    setActivePrefsTab(initialTab);
     setActivePromptKey('chapterDraftsTemplate');
     setPromptViewMode('edit');
     setPreviewDataSource('project');
@@ -146,6 +147,10 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
     setPrefsMsg(null);
     setShowPrefsModal(true);
   };
+
+  useEffect(() => {
+    if (settingsFocusVersion > 0) openPrefs(settingsFocusTab);
+  }, [settingsFocusTab, settingsFocusVersion]);
 
   const savePrefs = () => {
     const threshVal = validateCriticThresholds(
@@ -313,6 +318,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
         )}
 
         <div className="toolbar-spacer" />
+        {view === 'editor' && project && <GlobalAgentStatus />}
         {view === 'editor' && project && storage.search && (
           <Button variant="secondary" onClick={() => setShowSearchModal(true)}>
             {variant === 'workspace' && <Search size={15} />}
@@ -329,7 +335,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
           {variant === 'workspace' && <Archive size={15} />}
           {variant === 'workspace' ? '備份' : '💾 備份'}
         </Button>
-        <Button variant="secondary" onClick={openPrefs}>
+        <Button variant="secondary" onClick={() => openPrefs()}>
           {variant === 'workspace' && <Settings size={15} />}
           {variant === 'workspace' ? '偏好設定' : '⚙️ 偏好設定'}
         </Button>

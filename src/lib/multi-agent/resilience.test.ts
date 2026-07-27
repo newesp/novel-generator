@@ -7,6 +7,7 @@ import {
 } from './resilience';
 
 const runsMap = new Map<string, any>();
+const stepsMap = new Map<string, any>();
 
 vi.mock('../storage', () => ({
   storage: {
@@ -18,12 +19,26 @@ vi.mock('../storage', () => ({
         if (cur) runsMap.set(id, { ...cur, ...data });
       }),
     },
+    generationSteps: {
+      listByRun: vi.fn(async (runId: string) => (
+        Array.from(stepsMap.values()).filter((step) => step.runId === runId)
+      )),
+      update: vi.fn(async (id: string, data: any) => {
+        const cur = stepsMap.get(id);
+        if (cur) stepsMap.set(id, { ...cur, ...data });
+      }),
+    },
   },
+}));
+
+vi.mock('../../stores/generationRunStore', () => ({
+  syncGenerationRun: vi.fn(async () => undefined),
 }));
 
 describe('Multi-Agent Resilience & Recovery', () => {
   beforeEach(() => {
     runsMap.clear();
+    stepsMap.clear();
   });
 
   describe('AbortSignal & Cancellation', () => {

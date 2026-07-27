@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { VersionPanel } from './VersionPanel';
+import { useGenerationRunStore } from '../../stores/generationRunStore';
+import { ChapterInspector } from './ChapterInspector';
 import { AdjustContentModal } from './AdjustContentModal';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
@@ -22,7 +23,23 @@ import { IngestToast } from '../wiki/IngestToast';
 import { IngestDiffModal } from '../wiki/IngestDiffModal';
 import { WikiPartialModal } from '../wiki/WikiPartialModal';
 import { MultiAgentPreflightModal } from './MultiAgentPreflightModal';
-import { createGenerationRun, isChapterLockedByRun } from '../../lib/multi-agent/run-manager';
+import { cancelRun, continueRun, startRun } from '../../lib/multi-agent/orchestrator';
+import {
+  generationRunTitle,
+  generationRunTone,
+  isOpenGenerationRun,
+  isReviewPause,
+  normalizedActivity,
+} from '../../lib/multi-agent/presentation';
+import {
+  loadGenerationReviewContext,
+  type GenerationReviewContext,
+} from '../../lib/multi-agent/review-context';
+import { AIActivityCard } from '../common/AIActivityCard';
+import { PlannerReviewModal } from './PlannerReviewModal';
+import { HumanReviewModal } from './HumanReviewModal';
+import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
+import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
 
 const BEATS = [
   '引入 (Inciting Incident)',
@@ -41,10 +58,21 @@ interface InlineEditTarget {
 export function ChapterEditor() {
   const { project, chapters, characters, updateChapter, deleteChapter, saveVersion, loadVersions, loadChapters } = useProjectStore();
   const { selectedChapterId, setSelectedChapterId } = useUIStore();
+  const openAgentRun = useUIStore((state) => state.openAgentRun);
+  const openSettings = useUIStore((state) => state.openSettings);
   const { llmConfig, wikiPrefs } = useSettingsStore();
+  const generationRuns = useGenerationRunStore((state) => state.runs);
 
   const chapter = chapters.find((c) => c.id === selectedChapterId);
+  const chapterRuns = chapter
+    ? generationRuns.filter((run) => run.chapterId === chapter.id).sort((a, b) => b.createdAt - a.createdAt)
+    : [];
+  const activeRun = chapterRuns.find(isOpenGenerationRun);
+  const latestRun = chapterRuns[0];
+  const visibleRun = activeRun ?? latestRun;
+  const isChapterLocked = Boolean(activeRun);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const observedRunRef = useRef<{ id: string; status: string } | null>(null);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -55,6 +83,8 @@ export function ChapterEditor() {
   const [showPointsModal, setShowPointsModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegeneratingPoints, setIsRegeneratingPoints] = useState(false);
+  const quickGenerationActivity = useLocalAIActivity();
+  const pointsActivity = useLocalAIActivity();
   const [contentViewMode, setContentViewMode] = useState<EditPreviewMode>('edit');
   const [saveLabel, setSaveLabel] = useState('💾 儲存');
 
@@ -71,34 +101,27 @@ export function ChapterEditor() {
   const [failedCount, setFailedCount] = useState(0);
 
   // —— Multi-Agent 高品質生成 相關狀態 ——
-  const [isChapterLocked, setIsChapterLocked] = useState(false);
   const [showPreflightModal, setShowPreflightModal] = useState(false);
   const [isStartingRun, setIsStartingRun] = useState(false);
   const [showSplitMenu, setShowSplitMenu] = useState(false);
-
-  useEffect(() => {
-    if (chapter) {
-      void isChapterLockedByRun(chapter.id).then(setIsChapterLocked);
-    } else {
-      setIsChapterLocked(false);
-    }
-  }, [chapter?.id]);
+  const [reviewRunId, setReviewRunId] = useState<string | null>(null);
+  const [reviewContext, setReviewContext] = useState<GenerationReviewContext | null>(null);
+  const [isReviewSubmitting, setIsReviewSubmitting] = useState(false);
+  const [isCancellingRun, setIsCancellingRun] = useState(false);
 
   const handleConfirmStartMultiAgent = async () => {
     if (!chapter || !project) return;
     setIsStartingRun(true);
     try {
-      await createGenerationRun(
-        project.id,
-        chapter.id,
-        title,
-        chapter.order + 1,
-        targetWords ? Number(targetWords) : 2000,
-        project.title,
-      );
-      setIsChapterLocked(true);
+      await startRun({
+        bookId: project.id,
+        chapterId: chapter.id,
+        chapterTitle: title,
+        chapterNumber: chapter.order + 1,
+        targetWordCount: targetWords ? Number(targetWords) : 2000,
+        storyTitle: project.title,
+      });
       setShowPreflightModal(false);
-      alert('已成功建立高品質 Multi-Agent 生成 Run 並持久化，章節已進入鎖定與排隊狀態。');
     } catch (err) {
       alert((err as Error).message);
     } finally {
@@ -126,7 +149,24 @@ export function ChapterEditor() {
       setReferenceChapterId(chapter.referenceChapterId ?? '');
       loadVersions(chapter.id);
     }
-  }, [chapter?.id]);
+  }, [chapter?.id, chapter?.updatedAt]);
+
+  useEffect(() => {
+    const current = latestRun ? { id: latestRun.id, status: latestRun.status } : null;
+    const previous = observedRunRef.current;
+    observedRunRef.current = current;
+    if (
+      project
+      && chapter
+      && current
+      && previous?.id === current.id
+      && ['pending', 'running', 'awaiting_input'].includes(previous.status)
+      && ['completed', 'failed', 'cancelled'].includes(current.status)
+    ) {
+      void loadChapters(project.id);
+      void loadVersions(chapter.id);
+    }
+  }, [latestRun?.id, latestRun?.status, project?.id, chapter?.id, loadChapters, loadVersions]);
 
   if (!chapter) {
     return (
@@ -228,6 +268,9 @@ export function ChapterEditor() {
       alert('請先在「大綱」分頁設定世界觀，AI 才能依據設定生成內容');
       return;
     }
+    const signal = quickGenerationActivity.start(
+      '依章節設定、參考內容與 Wiki 組裝正文；完成前不會覆寫目前正文…',
+    );
     setIsGenerating(true);
     try {
       // 重新生成前，先把當前內容存成 full 版本
@@ -245,11 +288,12 @@ export function ChapterEditor() {
         provider: llmConfig.provider,
         model: llmConfig.model,
       });
-      const result = await complete(prompt);
+      const result = await complete(prompt, undefined, signal);
       setContent(result);
       await updateChapter(chapter.id, { content: result });
+      quickGenerationActivity.succeed('快速生成正文已完成並儲存');
     } catch (err) {
-      alert((err as Error).message);
+      quickGenerationActivity.fail(err);
     } finally {
       setIsGenerating(false);
     }
@@ -263,6 +307,7 @@ export function ChapterEditor() {
     const refChapter = referenceChapterId
       ? chapters.find((c) => c.id === referenceChapterId)
       : undefined;
+    const signal = pointsActivity.start('保留目前要點，依章節語氣與參考章節產生新版本…');
     setIsRegeneratingPoints(true);
     try {
       const newPoints = await regenerateChapterPoints({
@@ -275,10 +320,15 @@ export function ChapterEditor() {
           ? { title: refChapter.title, content: refChapter.content }
           : undefined,
         currentPoints: points,
-      });
-      if (newPoints) setPoints(newPoints);
+      }, signal);
+      if (newPoints) {
+        setPoints(newPoints);
+        pointsActivity.succeed('已產生新要點；按儲存後才會寫入章節');
+      } else {
+        throw new Error('AI 未產出章節要點');
+      }
     } catch (err) {
-      alert((err as Error).message);
+      pointsActivity.fail(err);
     } finally {
       setIsRegeneratingPoints(false);
     }
@@ -286,6 +336,7 @@ export function ChapterEditor() {
 
   // —— 右鍵選單：調整內容 ——
   const handleTextareaContextMenu = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    if (isChapterLocked) return;
     const ta = e.currentTarget;
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
@@ -306,6 +357,7 @@ export function ChapterEditor() {
   };
 
   const handleInlineEditAccept = async (newContent: string) => {
+    if (isChapterLocked) return;
     // 先把調整前的內容存為 inline 版本快照
     await saveVersion(chapter.id, content, '', 'inline');
     setContent(newContent);
@@ -313,7 +365,97 @@ export function ChapterEditor() {
     setInlineEditTarget(null);
   };
 
+  const openRunReview = async (runId: string) => {
+    const run = generationRuns.find((item) => item.id === runId);
+    if (!run) return;
+    if (!isReviewPause(run.activity?.pauseReason)) {
+      openAgentRun(run.chapterId, run.id);
+      return;
+    }
+    try {
+      const context = await loadGenerationReviewContext(run);
+      setReviewRunId(run.id);
+      setReviewContext(context);
+    } catch (error) {
+      alert((error as Error).message);
+    }
+  };
+
+  const handleCancelGenerationRun = async (runId: string) => {
+    const confirmed = confirm(
+      '停止高品質生成並解鎖正文？\n\n'
+      + '• 正在進行的請求會嘗試立即停止，但 provider 可能已經計費。\n'
+      + '• 候選草稿不會寫入正式正文。\n'
+      + '• 執行軌跡會保留。\n'
+      + '• 已明確採用的 Planner 節拍與要點不會回滾。',
+    );
+    if (!confirmed) return;
+    setIsCancellingRun(true);
+    try {
+      await cancelRun(runId);
+      setReviewContext(null);
+      setReviewRunId(null);
+    } catch (error) {
+      alert((error as Error).message);
+    } finally {
+      setIsCancellingRun(false);
+    }
+  };
+
+  const submitReview = async (action: () => Promise<void>, reloadChapter = false) => {
+    setIsReviewSubmitting(true);
+    try {
+      await action();
+      setReviewContext(null);
+      setReviewRunId(null);
+      if (reloadChapter && project) await loadChapters(project.id);
+    } catch (error) {
+      alert((error as Error).message);
+    } finally {
+      setIsReviewSubmitting(false);
+    }
+  };
+
+  const handleRunPrimaryAction = async () => {
+    if (!visibleRun) return;
+    const pauseReason = visibleRun.activity?.pauseReason;
+    if (isReviewPause(pauseReason)) {
+      await openRunReview(visibleRun.id);
+      return;
+    }
+    if (
+      pauseReason === 'interrupted'
+      || pauseReason === 'format_repair_failed'
+    ) {
+      try {
+        await continueRun(visibleRun.id, { type: 'retry' });
+      } catch (error) {
+        alert((error as Error).message);
+      }
+      return;
+    }
+    if (pauseReason === 'configuration_blocked') {
+      openSettings('llm');
+      return;
+    }
+    openAgentRun(visibleRun.chapterId, visibleRun.id);
+  };
+
   const otherChapters = chapters.filter((c) => c.id !== chapter.id);
+  const visibleActivity = visibleRun ? normalizedActivity(visibleRun) : null;
+  const runPrimaryLabel =
+    visibleRun?.status === 'completed' || visibleRun?.status === 'cancelled'
+      ? '查看紀錄'
+      : visibleRun?.status === 'failed'
+        ? '查看錯誤'
+        : visibleActivity && isReviewPause(visibleActivity.pauseReason)
+          ? '立即審核'
+          : visibleActivity?.pauseReason === 'configuration_blocked'
+            ? '修復設定'
+            : visibleActivity?.pauseReason === 'interrupted'
+              || visibleActivity?.pauseReason === 'format_repair_failed'
+              ? '重試此步驟'
+              : '查看執行';
 
   return (
     <>
@@ -323,11 +465,18 @@ export function ChapterEditor() {
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            onBlur={handleSave}
+            onBlur={() => !isChapterLocked && handleSave()}
             placeholder="輸入章節標題..."
+            readOnly={isChapterLocked}
+            aria-readonly={isChapterLocked}
           />
         </div>
-        <Button variant="text" onClick={handleDelete} style={{ color: 'var(--text-tertiary)' }}>
+        <Button
+          variant="text"
+          onClick={handleDelete}
+          disabled={isChapterLocked}
+          style={{ color: 'var(--text-tertiary)' }}
+        >
           🗑 刪除
         </Button>
       </div>
@@ -337,6 +486,7 @@ export function ChapterEditor() {
           variant="secondary"
           style={{ height: 32, fontSize: 13 }}
           onClick={() => setShowPointsModal(true)}
+          disabled={isChapterLocked}
         >
           章節設定
         </Button>
@@ -347,21 +497,50 @@ export function ChapterEditor() {
         <div className="toolbar-spacer" />
       </div>
 
-      {isChapterLocked && (
-        <div
-          style={{
-            background: 'rgba(239, 68, 68, 0.15)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#f87171',
-            padding: '8px 14px',
-            fontSize: 13,
-            fontWeight: 500,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>🔒 此章節有未結束的高品質 Multi-Agent 生成執行，正文編輯已鎖定。</span>
+      {visibleRun && visibleActivity && (
+        <div className="chapter-ai-activity">
+          <AIActivityCard
+            role={visibleActivity.currentRole}
+            title={generationRunTitle(visibleRun)}
+            message={visibleActivity.message}
+            errorMessage={visibleActivity.errorMessage}
+            startedAt={visibleActivity.startedAt ?? visibleRun.createdAt}
+            tone={generationRunTone(visibleRun)}
+            running={visibleRun.status === 'running' || visibleRun.status === 'pending'}
+            steps={
+              <div className="agent-phase-steps" aria-label="Agent 流程">
+                {(['planner', 'writer', 'critic', 'editor'] as const).map((role) => (
+                  <span key={role} className={visibleActivity.currentRole === role ? 'active' : ''}>
+                    {role[0].toUpperCase() + role.slice(1)}
+                  </span>
+                ))}
+              </div>
+            }
+            primaryAction={{
+              label: runPrimaryLabel,
+              onClick: () => void handleRunPrimaryAction(),
+              disabled: isCancellingRun,
+            }}
+            secondaryAction={isOpenGenerationRun(visibleRun) ? {
+              label: isCancellingRun ? '停止中…' : '停止並解鎖',
+              onClick: () => void handleCancelGenerationRun(visibleRun.id),
+              disabled: isCancellingRun,
+              danger: true,
+            } : undefined}
+          />
+        </div>
+      )}
+
+      {quickGenerationActivity.activity.phase !== 'idle' && (
+        <div className="chapter-ai-activity">
+          <LocalAIActivityCard
+            activity={quickGenerationActivity.activity}
+            title="AI 助理快速生成正文"
+            message="依章節設定、參考內容與 Wiki 組裝正文…"
+            onCancel={quickGenerationActivity.cancel}
+            onDismiss={quickGenerationActivity.reset}
+            compact
+          />
         </div>
       )}
 
@@ -377,7 +556,8 @@ export function ChapterEditor() {
               ref={textareaRef}
               className="editor-textarea"
               value={content}
-              disabled={isChapterLocked}
+              readOnly={isChapterLocked}
+              aria-readonly={isChapterLocked}
               onChange={(e) => setContent(e.target.value)}
               onBlur={() => !isChapterLocked && handleSave()}
               onContextMenu={handleTextareaContextMenu}
@@ -394,7 +574,16 @@ export function ChapterEditor() {
           )}
         </div>
 
-        <VersionPanel onApplyVersion={(c) => { if (!isChapterLocked) { setContent(c); updateChapter(chapter.id, { content: c }); } }} />
+        <ChapterInspector
+          chapterId={chapter.id}
+          onOpenReviewModal={(runId) => void openRunReview(runId)}
+          onApplyVersion={(c) => {
+            if (!isChapterLocked) {
+              setContent(c);
+              void updateChapter(chapter.id, { content: c });
+            }
+          }}
+        />
       </div>
 
       <div className="action-bar">
@@ -530,6 +719,64 @@ export function ChapterEditor() {
         isStarting={isStartingRun}
       />
 
+      {reviewRunId && reviewContext?.kind === 'planner' && (
+        <PlannerReviewModal
+          key={reviewRunId}
+          open
+          onClose={() => {
+            if (!isReviewSubmitting) {
+              setReviewRunId(null);
+              setReviewContext(null);
+            }
+          }}
+          plan={reviewContext.plan}
+          originalBeat={beat}
+          originalPoints={points}
+          isSubmitting={isReviewSubmitting}
+          onConfirmChoice={(choice, finalBeat, finalPoints) => submitReview(
+            () => continueRun(reviewRunId, {
+              type: 'planner_review',
+              choice,
+              beat: finalBeat,
+              points: finalPoints,
+            }),
+            choice === 'apply_to_chapter',
+          )}
+        />
+      )}
+
+      {reviewRunId && reviewContext?.kind === 'human' && (
+        <HumanReviewModal
+          key={`${reviewRunId}-${reviewContext.draftVersion}`}
+          open
+          onClose={() => {
+            if (!isReviewSubmitting) {
+              setReviewRunId(null);
+              setReviewContext(null);
+            }
+          }}
+          candidateDraft={reviewContext.candidateDraft}
+          draftVersion={reviewContext.draftVersion}
+          criticFeedback={reviewContext.feedback}
+          isMaxRevisionsReached={reviewContext.isMaxRevisionsReached}
+          isSubmitting={isReviewSubmitting}
+          onDirectAdopt={() => submitReview(
+            () => continueRun(reviewRunId, { type: 'human_adopt' }),
+            true,
+          )}
+          onSendToEditor={(customDirection, allowExtraRevision) => submitReview(
+            () => continueRun(reviewRunId, {
+              type: 'send_to_editor',
+              customDirection,
+              allowExtraRevision,
+            }),
+          )}
+          onSaveHumanEdit={(editedText) => submitReview(
+            () => continueRun(reviewRunId, { type: 'save_human_edit', editedText }),
+          )}
+        />
+      )}
+
       {/* 章節設定 Modal */}
       <Modal
         open={showPointsModal}
@@ -552,6 +799,16 @@ export function ChapterEditor() {
         }
       >
         <div className="chapter-settings-form">
+          {pointsActivity.activity.phase !== 'idle' && (
+            <LocalAIActivityCard
+              activity={pointsActivity.activity}
+              title="AI 助理整理章節要點"
+              message="保留目前內容，依章節語氣與參考章節產生新版本…"
+              onCancel={pointsActivity.cancel}
+              onDismiss={pointsActivity.reset}
+              compact
+            />
+          )}
           <label className="form-group">
             <span className="form-label">參考章節</span>
             <select
@@ -638,7 +895,7 @@ export function ChapterEditor() {
               label: '調整內容',
               icon: '✨',
               onClick: openInlineEditModal,
-              disabled: !apiReady,
+              disabled: !apiReady || isChapterLocked,
             },
           ]}
           onClose={() => setContextMenuPos(null)}

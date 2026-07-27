@@ -110,6 +110,12 @@ export async function createGenerationRun(
     bookId,
     chapterId,
     status: 'pending',
+    activity: {
+      phase: 'preparing',
+      currentRole: 'planner',
+      startedAt: Date.now(),
+      message: '載入章節、Wiki 與角色背景…',
+    },
     createdAt: Date.now(),
     updatedAt: Date.now(),
     snapshot,

@@ -5,6 +5,8 @@ import { useWikiStore } from '../../stores/wikiStore';
 import { useUIStore } from '../../stores/uiStore';
 import { LintFixPreviewModal } from './LintFixPreviewModal';
 import type { LintIssue, IssueTarget } from '../../lib/lint/types';
+import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
+import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
 
 const SEVERITY_ICON: Record<LintIssue['severity'], string> = {
   error: '❌', warn: '⚠️', info: 'ℹ️',
@@ -23,6 +25,7 @@ export function LintIssueRow({ issue }: Props) {
   } = useLintStore();
 
   const [expanded, setExpanded] = useState(false);
+  const fixActivity = useLocalAIActivity();
 
   const busy = busyIssueIds.has(issue.id);
   const direction = userDirections[issue.id] ?? '';
@@ -33,6 +36,17 @@ export function LintIssueRow({ issue }: Props) {
   const isApplied = issue.status === 'applied';
   const isDismissed = issue.status === 'dismissed';
   const isStruck = isApplied || isDismissed;
+
+  const handleGenerateFix = async () => {
+    const target = wikiTargets.find((item) => item.id === selectedFixTargetId) ?? wikiTargets[0];
+    const signal = fixActivity.start(`正在分析 ${target?.label ?? '目標 Wiki 頁'} 並產生完整修改預覽…`);
+    try {
+      await generateFix(issue, signal);
+      fixActivity.succeed('修改建議已完成；套用前可先比較差異');
+    } catch (error) {
+      fixActivity.fail(error);
+    }
+  };
 
   return (
     <div style={{
@@ -82,6 +96,18 @@ export function LintIssueRow({ issue }: Props) {
 
       {expanded && !isStruck && issue.fix?.kind === 'llm' && (
         <div style={{ marginTop: 8, padding: 8, background: 'var(--bg-secondary)' }}>
+          {fixActivity.activity.phase !== 'idle' && (
+            <div style={{ marginBottom: 8 }}>
+              <LocalAIActivityCard
+                activity={fixActivity.activity}
+                title="AI 助理產生 Lint 修改建議"
+                message={`正在分析 ${wikiTargets.find((item) => item.id === selectedFixTargetId)?.label ?? '目標 Wiki 頁'}…`}
+                onCancel={fixActivity.cancel}
+                onDismiss={fixActivity.reset}
+                compact
+              />
+            </div>
+          )}
           <div style={{ fontSize: 12, marginBottom: 4 }}>
             修改方向（可留白，留白則由 AI 自行判斷）：
           </div>
@@ -121,7 +147,7 @@ export function LintIssueRow({ issue }: Props) {
           />
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 6 }}>
             <Button variant="secondary" size="sm" onClick={() => setExpanded(false)} disabled={busy}>取消</Button>
-            <Button variant="primary" size="sm" onClick={() => generateFix(issue)} disabled={busy}>
+            <Button variant="primary" size="sm" onClick={() => void handleGenerateFix()} disabled={busy}>
               {busy ? '生成中…' : '✨ 生成建議修改'}
             </Button>
           </div>

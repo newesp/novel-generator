@@ -383,6 +383,38 @@ export type GenerationRunStatus =
   | 'failed'
   | 'cancelled';
 
+export type GenerationRunPhase =
+  | 'preparing'
+  | 'queued'
+  | 'planning'
+  | 'writing'
+  | 'criticizing'
+  | 'editing'
+  | 'saving'
+  | 'awaiting_input'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export type GenerationRunPauseReason =
+  | 'planner_review'
+  | 'human_review'
+  | 'interrupted'
+  | 'configuration_blocked'
+  | 'format_repair_failed'
+  | 'revision_limit';
+
+export interface GenerationRunActivity {
+  phase: GenerationRunPhase;
+  currentRole?: GenerationStepRole;
+  currentStepId?: string;
+  queuePosition?: number;
+  pauseReason?: GenerationRunPauseReason;
+  startedAt?: number;
+  message?: string;
+  errorMessage?: string;
+}
+
 export interface GenerationContextSnapshot {
   storyTitle?: string;
   chapterNumber?: number;
@@ -412,6 +444,7 @@ export interface GenerationRun {
   bookId: string;
   chapterId: string;
   status: GenerationRunStatus;
+  activity: GenerationRunActivity;
   createdAt: number;
   updatedAt: number;
   completedAt?: number;

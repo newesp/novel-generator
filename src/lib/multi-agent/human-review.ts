@@ -1,6 +1,5 @@
 import { storage } from '../storage';
 import { adoptCandidateDraft } from './critic';
-import { executeEditorStep } from './editor';
 import type { GenerationCheckpoint, GenerationStep } from '../../types';
 
 export async function humanAdoptDraft(runId: string): Promise<void> {
@@ -32,7 +31,7 @@ export async function humanAdoptDraft(runId: string): Promise<void> {
   });
 }
 
-export async function humanSendToEditor(
+export async function prepareHumanEditorRevision(
   runId: string,
   customDirection?: string,
   allowExtraRevision = false,
@@ -70,7 +69,10 @@ export async function humanSendToEditor(
     });
   }
 
-  await executeEditorStep(runId);
+  await storage.generationRuns.update(runId, {
+    status: 'pending',
+    updatedAt: Date.now(),
+  });
 }
 
 export async function humanEditDraft(

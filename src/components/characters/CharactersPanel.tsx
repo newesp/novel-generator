@@ -11,6 +11,8 @@ import { CharacterGraphView } from './CharacterGraphView';
 import { generateCharacterDrafts, completeCharacterFields, filterNewCharacterDrafts } from '../../lib/ai-tasks';
 import { isLLMReady } from '../../lib/llm';
 import type { Character, MediaAsset } from '../../types';
+import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
+import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
 
 const EMPTY_CHARACTER = (projectId: string): Character => ({
   id: '',
@@ -37,6 +39,7 @@ export function CharactersPanel() {
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiCount, setAiCount] = useState<number | ''>(3);
   const [isGenerating, setIsGenerating] = useState(false);
+  const characterDraftActivity = useLocalAIActivity();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
   const [search, setSearch] = useState('');
@@ -112,32 +115,35 @@ export function CharactersPanel() {
   const outlineReady = !!(project.worldSetting || project.mainPlot);
 
   const handleAIGenerate = async () => {
+    const requestedCount = typeof aiCount === 'number' ? aiCount : 1;
+    const signal = characterDraftActivity.start(
+      `依世界觀與主線設計至少 ${requestedCount} 位角色，既有角色會用來避免重複…`,
+    );
     setIsGenerating(true);
     try {
       const drafts = await generateCharacterDrafts({
-        count: typeof aiCount === 'number' ? aiCount : 1,
+        count: requestedCount,
         worldSetting: project.worldSetting,
         mainPlot: project.mainPlot,
         existingNames: characters.map((c) => c.name).filter(Boolean),
-      });
+      }, signal);
 
       if (drafts.length === 0) {
-        alert('AI 未產出任何角色，請檢查 LLM 是否回傳預期格式');
-        return;
+        throw new Error('AI 未產出任何角色，請檢查 LLM 是否回傳預期格式');
       }
 
       const newDrafts = filterNewCharacterDrafts(drafts, characters.map((c) => c.name));
       if (newDrafts.length === 0) {
-        alert('AI 產出的角色都已存在，沒有新增角色。');
-        return;
+        throw new Error('AI 產出的角色都已存在，沒有新增角色');
       }
 
       for (const draft of newDrafts) {
         await createCharacter(project.id, draft);
       }
+      characterDraftActivity.succeed(`已新增 ${newDrafts.length} 位角色`);
       setShowAIModal(false);
     } catch (err) {
-      alert((err as Error).message);
+      characterDraftActivity.fail(err);
     } finally {
       setIsGenerating(false);
     }
@@ -289,11 +295,19 @@ export function CharactersPanel() {
 
       <Modal
         open={showAIModal}
-        onClose={() => !isGenerating && setShowAIModal(false)}
+        onClose={() => {
+          if (!isGenerating) {
+            setShowAIModal(false);
+            characterDraftActivity.reset();
+          }
+        }}
         title="✨ AI 生成角色"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowAIModal(false)} disabled={isGenerating}>
+            <Button variant="secondary" onClick={() => {
+              setShowAIModal(false);
+              characterDraftActivity.reset();
+            }} disabled={isGenerating}>
               取消
             </Button>
             <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || typeof aiCount !== 'number' || aiCount < 1}>
@@ -302,6 +316,16 @@ export function CharactersPanel() {
           </>
         }
       >
+        {characterDraftActivity.activity.phase !== 'idle' && (
+          <LocalAIActivityCard
+            activity={characterDraftActivity.activity}
+            title={`AI 助理設計 ${typeof aiCount === 'number' ? aiCount : 1} 位角色`}
+            message="依世界觀與主線補齊性格、背景、能力、關係與成長弧線…"
+            onCancel={characterDraftActivity.cancel}
+            onDismiss={characterDraftActivity.reset}
+            compact
+          />
+        )}
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
           AI 將根據世界觀與主線劇情，自動產生角色設定（含姓名、性格、背景、能力、關係、<strong>成長弧線</strong>等）。
           <br />
@@ -354,7 +378,7 @@ interface ModalProps {
 
 function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, mainPlot, otherCharacters, llmReady }: ModalProps) {
   const [aiFilling, setAiFilling] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
+  const fillActivity = useLocalAIActivity();
   const [activeTab, setActiveTab] = useState<'basic' | 'story' | 'visual'>('basic');
   const [form, setForm] = useState({
     name: character.name,
@@ -430,7 +454,7 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
   };
 
   const handleAIFill = async () => {
-    setAiError(null);
+    const signal = fillActivity.start('只補目前仍為空白的欄位，既有內容不會覆寫…');
     setAiFilling(true);
     try {
       const filled = await completeCharacterFields({
@@ -438,10 +462,9 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
         worldSetting,
         mainPlot,
         otherCharacters,
-      });
+      }, signal);
       if (Object.keys(filled).length === 0) {
-        setAiError('AI 沒有回傳任何欄位內容，請檢查 LLM 設定或回應格式');
-        return;
+        throw new Error('AI 沒有回傳任何欄位內容，請檢查 LLM 設定或回應格式');
       }
       setForm((f) => {
         const next = { ...f };
@@ -454,8 +477,9 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
         }
         return next;
       });
+      fillActivity.succeed('空白角色欄位已補齊，請檢查後儲存');
     } catch (e) {
-      setAiError(e instanceof Error ? e.message : String(e));
+      fillActivity.fail(e);
     } finally {
       setAiFilling(false);
     }
@@ -505,10 +529,15 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
       </nav>
 
       <div className="character-editor-content">
-        {aiError && (
-          <div className="character-ai-error">
-            {aiError}
-          </div>
+        {fillActivity.activity.phase !== 'idle' && (
+          <LocalAIActivityCard
+            activity={fillActivity.activity}
+            title="AI 助理補完角色欄位"
+            message="只補目前仍為空白的欄位，既有內容不會覆寫…"
+            onCancel={fillActivity.cancel}
+            onDismiss={fillActivity.reset}
+            compact
+          />
         )}
 
         {activeTab === 'basic' && (

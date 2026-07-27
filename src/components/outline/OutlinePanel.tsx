@@ -3,6 +3,8 @@ import { useProjectStore } from '../../stores/projectStore';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { Button } from '../common/Button';
 import { complete, isLLMReady } from '../../lib/llm';
+import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
+import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
 
 const GENRES = ['玄幻', '都市', '仙俠', '科幻', '言情', '懸疑', '自定義'];
 const STYLES = ['輕鬆', '沉重', '黑暗', '熱血', '幽默', '爽文', '自定義'];
@@ -18,6 +20,7 @@ export function OutlinePanel() {
   const [genWorldBusy, setGenWorldBusy] = useState(false);
   const [saveLabel, setSaveLabel] = useState('💾 儲存大綱');
   const [fullscreen, setFullscreen] = useState<null | 'world' | 'plot'>(null);
+  const worldActivity = useLocalAIActivity();
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -69,6 +72,7 @@ export function OutlinePanel() {
       alert('請先選擇題材或風格');
       return;
     }
+    const signal = worldActivity.start('依題材與風格整理世界規則、主要勢力與三幕主線…');
     setGenWorldBusy(true);
     try {
       const prompt = `請為一部「${genre || '未指定'}」題材、「${style || '未指定'}」風格的中文小說，依照以下格式輸出，標記不可省略：
@@ -81,7 +85,7 @@ export function OutlinePanel() {
 （在此撰寫主線劇情架構：核心衝突、主角目標、三幕轉折、結局走向，300字以內）
 ##PLOT_END##`;
 
-      const result = await complete(prompt);
+      const result = await complete(prompt, undefined, signal);
 
       const worldMatch = result.match(/##WORLD_START##([\s\S]*?)##WORLD_END##/);
       const plotMatch  = result.match(/##PLOT_START##([\s\S]*?)##PLOT_END##/);
@@ -96,8 +100,9 @@ export function OutlinePanel() {
         worldSetting: worldPart || worldSetting,
         mainPlot:     plotPart  || mainPlot,
       });
+      worldActivity.succeed('世界觀與主線劇情已更新');
     } catch (err) {
-      alert((err as Error).message);
+      worldActivity.fail(err);
     } finally {
       setGenWorldBusy(false);
     }
@@ -175,7 +180,19 @@ export function OutlinePanel() {
         </div>
       </aside>
 
-      <div className="outline-editors">
+      <div className={`outline-editors${worldActivity.activity.phase !== 'idle' ? ' has-activity' : ''}`}>
+        {worldActivity.activity.phase !== 'idle' && (
+          <div className="outline-ai-activity">
+            <LocalAIActivityCard
+              activity={worldActivity.activity}
+              title="AI 助理生成世界觀與主線"
+              message="依題材與風格整理世界規則、主要勢力與三幕主線…"
+              onCancel={worldActivity.cancel}
+              onDismiss={worldActivity.reset}
+              compact
+            />
+          </div>
+        )}
         <section className="outline-editor">
           <div className="outline-editor-header">
             <div>

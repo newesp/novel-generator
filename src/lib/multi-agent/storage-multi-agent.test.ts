@@ -100,6 +100,12 @@ describe('Multi-Agent Storage & Run Manager', () => {
     bookId: 'book_1',
     chapterId: 'chapter_1',
     status: 'pending',
+    activity: {
+      phase: 'queued',
+      currentRole: 'planner',
+      startedAt: 1000,
+      message: '等待 AI 執行槽',
+    },
     createdAt: 1000,
     updatedAt: 1000,
     snapshot: {
