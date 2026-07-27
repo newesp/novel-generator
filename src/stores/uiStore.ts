@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { TabName } from '../types';
 
 export type AppView = 'home' | 'editor';
@@ -21,28 +22,38 @@ interface UIState {
   setLeftPaneWidth: (w: number) => void;
 }
 
-export const useUIStore = create<UIState>((set) => ({
-  view: 'home',
-  activeTab: 'outline',
-  selectedChapterId: null,
-  focusedAgentRunId: null,
-  agentFocusVersion: 0,
-  settingsFocusTab: 'llm',
-  settingsFocusVersion: 0,
-  leftPaneWidth: 340,
-  setView: (view) => set({ view }),
-  setActiveTab: (tab) => set({ activeTab: tab }),
-  setSelectedChapterId: (id) => set({ selectedChapterId: id, focusedAgentRunId: null }),
-  openAgentRun: (chapterId, runId) => set((state) => ({
-    activeTab: 'chapters',
-    selectedChapterId: chapterId,
-    focusedAgentRunId: runId,
-    agentFocusVersion: state.agentFocusVersion + 1,
-  })),
-  clearFocusedAgentRun: () => set({ focusedAgentRunId: null }),
-  openSettings: (tab = 'llm') => set((state) => ({
-    settingsFocusTab: tab,
-    settingsFocusVersion: state.settingsFocusVersion + 1,
-  })),
-  setLeftPaneWidth: (w) => set({ leftPaneWidth: Math.min(500, Math.max(280, w)) }),
-}));
+export const useUIStore = create<UIState>()(
+  persist(
+    (set) => ({
+      view: 'home',
+      activeTab: 'outline',
+      selectedChapterId: null,
+      focusedAgentRunId: null,
+      agentFocusVersion: 0,
+      settingsFocusTab: 'llm',
+      settingsFocusVersion: 0,
+      leftPaneWidth: 340,
+      setView: (view) => set({ view }),
+      setActiveTab: (tab) => set({ activeTab: tab }),
+      setSelectedChapterId: (id) => set({ selectedChapterId: id, focusedAgentRunId: null }),
+      openAgentRun: (chapterId, runId) => set((state) => ({
+        activeTab: 'chapters',
+        selectedChapterId: chapterId,
+        focusedAgentRunId: runId,
+        agentFocusVersion: state.agentFocusVersion + 1,
+      })),
+      clearFocusedAgentRun: () => set({ focusedAgentRunId: null }),
+      openSettings: (tab = 'llm') => set((state) => ({
+        settingsFocusTab: tab,
+        settingsFocusVersion: state.settingsFocusVersion + 1,
+      })),
+      setLeftPaneWidth: (w) => set({ leftPaneWidth: Math.min(600, Math.max(240, w)) }),
+    }),
+    {
+      name: 'novel-generator-ui',
+      partialize: (state) => ({
+        leftPaneWidth: state.leftPaneWidth,
+      }),
+    }
+  )
+);

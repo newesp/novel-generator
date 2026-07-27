@@ -1,5 +1,17 @@
 # 開發日誌
 
+## 2026-07-27 - 修復章節介面 ResizablePane 拖曳與寬度持久化
+
+- 修復 `ResizablePane` 拖曳互動：
+  - 改用 `window` 層級之 `mousemove` 與 `mouseup` 監聽器，解決快速拖曳或移出容器區域時拖曳事件丟失問題。
+  - 正確扣除容器邊界 left offset (`clientX - containerRect.left`)，解決拖曳座標偏移與無法移動問題。
+  - 加寬 resizer 碰撞熱區 (`margin: 0 -3px; width: 6px`) 並提供 active 狀態樣式回饋。
+- 新增 `leftPaneWidth` 寬度持久化：
+  - 在 `uiStore.ts` 引入 Zustand `persist` middleware，使左右區塊調整後的大小自動記錄於 `localStorage` (key: `novel-generator-ui`)，重新整理或重載應用後持續保持上一次設定的大小。
+
+**Verification**
+- `npx tsc -b` 通過。
+
 ## 2026-07-27 - 實作 AI 執行狀態回饋與 Multi-Agent 正文解鎖
 
 - 完成 Multi-Agent 真實執行閉環：預檢後建立 Run 並進入全 App 單一執行槽，依序驅動 Planner 審核、Writer、Critic 路由、Editor 修訂與人工採用／修改，終止狀態會即時解除章節鎖定。
