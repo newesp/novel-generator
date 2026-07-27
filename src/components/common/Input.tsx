@@ -1,6 +1,6 @@
-import type { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
 
-export function Input(props: InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
+export function Input(props: Omit<InputHTMLAttributes<HTMLInputElement>, 'label'> & { label?: ReactNode }) {
   const { label, style, ...rest } = props;
   return (
     <div className="form-group" style={{ flex: 1 }}>

@@ -52,6 +52,30 @@ import { BookExportModal } from './export/BookExportModal';
 import type { LLMProfile, LLMProvider, MultiAgentPrefs, MultiAgentRole } from '../types';
 import { validateCriticThresholds, validateCriticWeights, clampMaxRevisions } from '../stores/settingsStore';
 
+function HelpIcon({ tooltip }: { tooltip: string }) {
+  return (
+    <span
+      title={tooltip}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 14,
+        height: 14,
+        borderRadius: '50%',
+        background: 'rgba(255, 255, 255, 0.15)',
+        color: 'var(--text-secondary, #9ca3af)',
+        fontSize: 10,
+        fontWeight: 'bold',
+        cursor: 'help',
+        marginLeft: 4,
+      }}
+    >
+      ?
+    </span>
+  );
+}
+
 /** 偏好設定 Modal 的分頁 */
 type PrefsTab = 'llm' | 'multi-agent' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
 const PREFS_TABS: { key: PrefsTab; label: string }[] = [
@@ -422,7 +446,10 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* Profile Selector Row */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <label className="form-label">LLM Connection Profile 選擇與管理</label>
+                <label className="form-label" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                  LLM 連線設定檔 (Connection Profile) 選擇與管理
+                  <HelpIcon tooltip="管理多個 LLM API 連線與模型設定檔，可針對不同 Agent 角色指定專屬 Profile。" />
+                </label>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <select
                     className="form-input"
@@ -479,7 +506,10 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
               {selectedProfile && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div>
-                    <label className="form-label">提供商 (Provider)</label>
+                    <label className="form-label" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      服務提供商 (Provider)
+                      <HelpIcon tooltip="選擇 LLM 服務提供者，如 Google Gemini、Grok、Anthropic 或 OpenAI 相容 API。" />
+                    </label>
                     <select
                       className="form-input"
                       value={selectedProfile.provider}
@@ -527,7 +557,12 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                     <Input
-                      label="Temperature (0.0–2.0)"
+                      label={
+                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          發散度 (Temperature 0.0–2.0)
+                          <HelpIcon tooltip="控制 LLM 輸出的隨機與創造性。數值越低（如 0.2）輸出越精確穩定；數值越高（如 0.8）輸出越具創造性與多樣性。" />
+                        </span>
+                      }
                       type="number"
                       step="0.1"
                       min="0"
@@ -536,7 +571,12 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                       onChange={(e) => updateSelectedProfile({ temperature: Math.max(0, Math.min(2, Number(e.target.value) || 0.7)) })}
                     />
                     <Input
-                      label="Max Tokens"
+                      label={
+                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          最大輸出長度 (Max Tokens)
+                          <HelpIcon tooltip="限制單次 LLM 生成回應的最大 Token 數量上限（1 Token 約為 0.75 個英文字或 0.5 個中文字）。" />
+                        </span>
+                      }
                       type="number"
                       step="256"
                       min="1"
@@ -545,7 +585,12 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                       onChange={(e) => updateSelectedProfile({ maxTokens: Math.max(1, Number(e.target.value) || 4096) })}
                     />
                     <Input
-                      label="Timeout 秒數 (30–3600)"
+                      label={
+                        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          連線逾時時間 (Timeout 秒數)
+                          <HelpIcon tooltip="等待 LLM API 回傳回應的最大秒數上限。超過此時間若未獲得回應將視為請求逾時。" />
+                        </span>
+                      }
                       type="number"
                       step="10"
                       min="30"
@@ -654,7 +699,10 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
 
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
                         <div>
-                          <label className="form-label">指定 Profile</label>
+                          <label className="form-label" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                            指定 Profile
+                            <HelpIcon tooltip="為此 Agent 角色指定專屬的 LLM 連線設定檔。未指定時預設使用系統啟用中 Profile。" />
+                          </label>
                           <select
                             className="form-input"
                             value={cfg.profileId || ''}
@@ -669,13 +717,23 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                           </select>
                         </div>
                         <Input
-                          label="模型覆寫 (選填)"
+                          label={
+                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              模型覆寫 (選填)
+                              <HelpIcon tooltip="為此 Agent 覆寫特定模型名稱（如 gpt-4o 或 gemini-2.0-flash）。空白時使用 Profile 預設模型。" />
+                            </span>
+                          }
                           placeholder="跟隨 Profile 預設"
                           value={cfg.modelOverride || ''}
                           onChange={(e) => updateRole({ modelOverride: e.target.value || undefined })}
                         />
                         <Input
-                          label="Temperature (選填)"
+                          label={
+                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              發散度 (Temperature)
+                              <HelpIcon tooltip="為此 Agent 覆寫特定的 Temperature 隨機度（0.0–2.0）。空白時跟隨 Profile 預設值。" />
+                            </span>
+                          }
                           type="number"
                           step="0.1"
                           min="0"
@@ -688,7 +746,12 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                           }}
                         />
                         <Input
-                          label="Max Tokens (選填)"
+                          label={
+                            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              最大長度 (Max Tokens)
+                              <HelpIcon tooltip="為此 Agent 覆寫單次回應最大 Token 上限。空白時跟隨 Profile 預設值。" />
+                            </span>
+                          }
                           type="number"
                           step="256"
                           placeholder="跟隨 Profile"
@@ -701,7 +764,10 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                       </div>
 
                       <div>
-                        <label className="form-label">角色指令 (Role Guidance)</label>
+                        <label className="form-label" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                          角色指引 (Role Guidance)
+                          <HelpIcon tooltip="自訂此 Agent 專屬的行為指引與補充指導語。App 會自動為其注入系統契約與結構規範。" />
+                        </label>
                         <textarea
                           className="form-input"
                           rows={2}
@@ -725,7 +791,12 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                 </h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                   <Input
-                    label="最大 Editor 修訂次數 (1–5)"
+                    label={
+                      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                        最大 Editor 修訂次數 (1–5)
+                        <HelpIcon tooltip="當 Critic 審核未達自動通過標準時，允許 Editor 進行自動針對性修訂的最大次數上限。" />
+                      </span>
+                    }
                     type="number"
                     min="1"
                     max="5"
@@ -738,7 +809,12 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                     }
                   />
                   <Input
-                    label="人工審核門檻 (humanReviewFloor)"
+                    label={
+                      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                        人工審核門檻 (humanReviewFloor)
+                        <HelpIcon tooltip="當 Critic 評分介於此門檻與通過門檻之間時，會暫停自動流程並進入人工審核決策。" />
+                      </span>
+                    }
                     type="number"
                     min="0"
                     max="100"
@@ -754,7 +830,12 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                     }
                   />
                   <Input
-                    label="自動通過門檻 (passScore)"
+                    label={
+                      <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                        自動通過門檻 (passScore)
+                        <HelpIcon tooltip="當 Critic 總分高於或等於此分數且無重大缺陷時，會自動通過並採用正文。" />
+                      </span>
+                    }
                     type="number"
                     min="0"
                     max="100"
@@ -1243,11 +1324,14 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
           </div>
         )}
 
-        {/* —— Inline Edit —— */}
+        {/* —— 上下文範圍 —— */}
         {activePrefsTab === 'inline' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div>
-              <div className="form-label">預設上下文範圍</div>
+              <div className="form-label" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                預設上下文範圍
+                <HelpIcon tooltip="在章節編輯器中選取文字進行「調整內容」時，提供給 LLM 作為參考參考內容的周圍上下文範圍模式。" />
+              </div>
               <div className="inline-edit-radio-row">
                 <label>
                   <input
@@ -1268,7 +1352,10 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
               </div>
             </div>
             <div>
-              <label className="form-label">前後字數（window 模式）</label>
+              <label className="form-label" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                前後字數 (Window 模式)
+                <HelpIcon tooltip="當選擇 Window 模式時，在被選取的段落前後截取作為上下文參考的固定字數長度。" />
+              </label>
               <input
                 type="number"
                 className="form-input"
@@ -1380,26 +1467,9 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
               <label className="form-label">LLM 上限</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     單類型最多頁數
-                    <span
-                      title="進行 Wiki 內部矛盾檢查時，同一類型（如人物、設定、地理）最多抽取的 Wiki 頁數上限，防止超出 LLM 上下文與 Token 預算。"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 14,
-                        height: 14,
-                        borderRadius: '50%',
-                        background: 'rgba(255, 255, 255, 0.15)',
-                        color: 'var(--text-secondary, #9ca3af)',
-                        fontSize: 10,
-                        fontWeight: 'bold',
-                        cursor: 'help',
-                      }}
-                    >
-                      ?
-                    </span>
+                    <HelpIcon tooltip="進行 Wiki 內部矛盾檢查時，同一類型（如人物、設定、地理）最多抽取的 Wiki 頁數上限，防止超出 LLM 上下文與 Token 預算。" />
                   </span>
                   <input
                     type="number" className="form-input" min={1} max={100}
@@ -1412,26 +1482,9 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                   />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     最多角色數
-                    <span
-                      title="進行 Wiki 與章節連貫性檢查時，最多同時進行比對與檢查的核心角色數量上限。"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 14,
-                        height: 14,
-                        borderRadius: '50%',
-                        background: 'rgba(255, 255, 255, 0.15)',
-                        color: 'var(--text-secondary, #9ca3af)',
-                        fontSize: 10,
-                        fontWeight: 'bold',
-                        cursor: 'help',
-                      }}
-                    >
-                      ?
-                    </span>
+                    <HelpIcon tooltip="進行 Wiki 與章節連貫性檢查時，最多同時進行比對與檢查的核心角色數量上限。" />
                   </span>
                   <input
                     type="number" className="form-input" min={1} max={50}
@@ -1444,26 +1497,9 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                   />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     每角色章節數
-                    <span
-                      title="檢查每個角色的章節連貫性時，為該角色抽取的最近最新章節內文摘要數量上限。"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 14,
-                        height: 14,
-                        borderRadius: '50%',
-                        background: 'rgba(255, 255, 255, 0.15)',
-                        color: 'var(--text-secondary, #9ca3af)',
-                        fontSize: 10,
-                        fontWeight: 'bold',
-                        cursor: 'help',
-                      }}
-                    >
-                      ?
-                    </span>
+                    <HelpIcon tooltip="檢查每個角色的章節連貫性時，為該角色抽取的最近最新章節內文摘要數量上限。" />
                   </span>
                   <input
                     type="number" className="form-input" min={1} max={10}
@@ -1476,26 +1512,9 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                   />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     未登錄候選上限
-                    <span
-                      title="掃描未登錄角色與專有名詞時，Pre-filter 預先篩選並送交 LLM 驗證的最多候選名稱數量。"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 14,
-                        height: 14,
-                        borderRadius: '50%',
-                        background: 'rgba(255, 255, 255, 0.15)',
-                        color: 'var(--text-secondary, #9ca3af)',
-                        fontSize: 10,
-                        fontWeight: 'bold',
-                        cursor: 'help',
-                      }}
-                    >
-                      ?
-                    </span>
+                    <HelpIcon tooltip="掃描未登錄角色與專有名詞時，Pre-filter 預先篩選並送交 LLM 驗證的最多候選名稱數量。" />
                   </span>
                   <input
                     type="number" className="form-input" min={1} max={100}

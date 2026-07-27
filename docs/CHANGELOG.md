@@ -3,12 +3,11 @@
 ## 2026-07-27 - 調整偏好設定 UI 佈局與視覺體驗
 
 - 彈出視窗尺寸：偏好設定 Modal 寬度由固定 720px 調整為 App 寬度的 70% (`width="70vw"`)。
-- Tab 頁面命名優化：
-  - 「Multi-Agent 策略」TAB 正式更名為「Agent 設定」。
-  - 「選取調整」TAB 正式更名為「上下文範圍」。
+- Tab 頁面與欄位標籤中文化：
+  - 「Multi-Agent 策略」TAB 更名為「Agent 設定」；「選取調整」TAB 更名為「上下文範圍」。
+  - 統一翻譯介面標籤（如 `服務提供商 (Provider)`、`發散度 (Temperature)`、`最大輸出長度 (Max Tokens)`、`連線逾時時間 (Timeout 秒數)`、`LLM 連線設定檔 (Connection Profile)` 等），保留 Token、LLM、Agent 等專有名詞。
+- 說明提示圖示擴充：在 Temperature、Max Tokens、Timeout、Provider、Agent 角色設定、修訂門檻及 Wiki LLM 上限等欄位名稱旁新增懸停 `?` 說明圖示與詳細文字註解。
 - Agent 區塊視覺強化：為四個 Agent（Planner、Writer、Critic、Editor）角色設定區塊加上左側專屬顏色立體邊框（藍、綠、橘、紫）與深色背景框，顯著提升辨識度。
-- Wiki LLM 上限說明標示：在「單類型最多頁數」、「最多角色數」、「每角色章節數」、「未登錄候選上限」等標籤後方新增 hover 效果之 `?` 說明圖示，懸停時顯示詳細用途說明。
-- 介面用語全中文標準化（保留 Agent、Planner、Writer、Phase 2.5 等專有名詞）。
 
 **Verification**
 - `npx tsc -b` 通過。
