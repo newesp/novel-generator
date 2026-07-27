@@ -9,6 +9,8 @@
   - 更新 `modules/08-llm-adapter.md`：Anthropic 標記為已實作，補充 `LLMProfile` 與共同 `completeNormalized` seam。
   - 更新 `modules/03-chapters.md`：補充「⚡ 快速生成本章」Split Action 下拉選單、重複「↩️ 重新生成」按鈕移除紀錄、正文唯讀鎖定與 AI Activity Card / Agent Inspector 整合。
   - 更新 `specs/tech-stack.md`：補充 Anthropic Claude 直連與 Multi-Agent 協作引擎選型。
+- 移除過時與歷史紀錄資料夾：
+  - 依需求從 Repository 中完全移除 `docs/superpowers/`、`docs/agents/` 與 `docs/adr/` 資料夾。
 - `.gitignore` 規則調整：
   - 依需求將 `docs/superpowers`、`docs/mocks`、`docs/agents`、`docs/adr` 及 `mocks/`、`agents/`、`adr/` 加入忽略清單。
 
