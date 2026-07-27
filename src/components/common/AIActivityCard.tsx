@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, X } from 'lucide-react';
 import type { GenerationStepRole } from '../../types';
 import type { ActivityTone } from '../../lib/multi-agent/presentation';
 import { Button } from './Button';
@@ -25,6 +25,8 @@ interface AIActivityCardProps {
   primaryAction?: AIActivityCardAction;
   secondaryAction?: AIActivityCardAction;
   errorMessage?: string;
+  onDismiss?: () => void;
+  onClose?: () => void;
 }
 
 function formatElapsed(startedAt?: number): string | null {
@@ -50,8 +52,11 @@ export function AIActivityCard({
   primaryAction,
   secondaryAction,
   errorMessage,
+  onDismiss,
+  onClose,
 }: AIActivityCardProps) {
   const [, setClock] = useState(0);
+  const handleDismiss = onDismiss || onClose;
 
   useEffect(() => {
     if (!running || !startedAt) return;
@@ -107,6 +112,17 @@ export function AIActivityCard({
             </Button>
           )}
         </div>
+      )}
+      {handleDismiss && (
+        <button
+          type="button"
+          className="ai-activity-close-btn"
+          onClick={handleDismiss}
+          title="關閉"
+          aria-label="關閉"
+        >
+          <X size={16} />
+        </button>
       )}
     </section>
   );

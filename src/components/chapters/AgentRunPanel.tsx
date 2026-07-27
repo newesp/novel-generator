@@ -27,6 +27,16 @@ function formatRunTime(timestamp: number): string {
   });
 }
 
+function formatFullStepTime(timestamp: number): string {
+  const d = new Date(timestamp);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const min = String(d.getMinutes()).padStart(2, '0');
+  return `${yyyy}/${mm}/${dd} ${hh}:${min}`;
+}
+
 export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: AgentRunPanelProps) {
   const allRuns = useGenerationRunStore((state) => state.runs);
   const refreshAll = useGenerationRunStore((state) => state.refreshAll);
@@ -134,7 +144,7 @@ export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: Ag
                     <img src={`/assets/agents/${step.role}-64.png`} alt="" />
                     <span>
                       <strong>{generationRoleLabel(step.role)}</strong>
-                      <small>Attempt #{step.attempt} · {step.status}</small>
+                      <small>Attempt #{step.attempt} · {step.status} · {formatFullStepTime(step.createdAt)}</small>
                     </span>
                     {step.usage?.totalTokens != null && <em>{step.usage.totalTokens} tokens</em>}
                   </button>

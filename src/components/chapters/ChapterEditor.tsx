@@ -441,6 +441,8 @@ export function ChapterEditor() {
     openAgentRun(visibleRun.chapterId, visibleRun.id);
   };
 
+  const [dismissedRunIds, setDismissedRunIds] = useState<Set<string>>(new Set());
+
   const otherChapters = chapters.filter((c) => c.id !== chapter.id);
   const visibleActivity = visibleRun ? normalizedActivity(visibleRun) : null;
   const runPrimaryLabel =
@@ -497,7 +499,7 @@ export function ChapterEditor() {
         <div className="toolbar-spacer" />
       </div>
 
-      {visibleRun && visibleActivity && (
+      {visibleRun && visibleActivity && !dismissedRunIds.has(visibleRun.id) && (
         <div className="chapter-ai-activity">
           <AIActivityCard
             role={visibleActivity.currentRole}
@@ -507,6 +509,7 @@ export function ChapterEditor() {
             startedAt={visibleActivity.startedAt ?? visibleRun.createdAt}
             tone={generationRunTone(visibleRun)}
             running={visibleRun.status === 'running' || visibleRun.status === 'pending'}
+            onDismiss={() => setDismissedRunIds((prev) => new Set(prev).add(visibleRun.id))}
             steps={
               <div className="agent-phase-steps" aria-label="Agent 流程">
                 {(['planner', 'writer', 'critic', 'editor'] as const).map((role) => (

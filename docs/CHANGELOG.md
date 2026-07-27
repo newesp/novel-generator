@@ -1,5 +1,17 @@
 # 開發日誌
 
+## 2026-07-27 - 新增 AI 訊息卡片關閉按鈕與 Agent 執行紀錄時間戳記
+
+- AI 訊息通知卡片新增關閉按鈕：
+  - 在 `AIActivityCard.tsx` 新增 `onClose` / `onDismiss` 屬性與右上角 `✕` 關閉按鈕（`ai-activity-close-btn`）。
+  - 在 `ChapterEditor.tsx` 中傳入關閉處理程序，使用者點擊 `✕` 時可隱藏該筆 Run 的通知區塊。
+- Agent 執行紀錄標籤顯示時間戳記：
+  - 在 `AgentRunPanel.tsx` 新增 `formatFullStepTime` 格式化函式 (`YYYY/mm/DD HH:MM`)。
+  - 在右側 Agent 頁籤的各個步驟卡片標題處（例如 `Attempt #1 · completed`）補上時間戳記（如 `2026/07/27 15:05`）。
+
+**Verification**
+- `npx tsc -b` 通過。
+
 ## 2026-07-27 - 修復章節介面 ResizablePane 拖曳與寬度持久化
 
 - 修復 `ResizablePane` 拖曳互動：

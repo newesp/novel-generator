@@ -377,6 +377,24 @@ input:focus, select:focus, textarea:focus {
 .ai-activity-card.tone-danger { --activity-color: #f87171; }
 .ai-activity-card.tone-muted { --activity-color: #868e96; }
 .ai-activity-card.tone-success { --activity-color: #4ade80; }
+.ai-activity-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm, 4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 120ms;
+  margin-left: 4px;
+  align-self: flex-start;
+}
+.ai-activity-close-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+}
 .ai-activity-card.compact {
   gap: 8px;
   padding: 6px 9px;
