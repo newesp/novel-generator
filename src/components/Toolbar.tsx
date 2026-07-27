@@ -56,9 +56,9 @@ import { validateCriticThresholds, validateCriticWeights, clampMaxRevisions } fr
 type PrefsTab = 'llm' | 'multi-agent' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
 const PREFS_TABS: { key: PrefsTab; label: string }[] = [
   { key: 'llm',         label: '🔑 LLM API' },
-  { key: 'multi-agent', label: '🤖 Multi-Agent 策略' },
+  { key: 'multi-agent', label: '🤖 Agent 設定' },
   { key: 'image',       label: '🖼 圖片生成' },
-  { key: 'inline',      label: '✨ 選取調整' },
+  { key: 'inline',      label: '🎛 上下文範圍' },
   { key: 'ai-prompts',  label: '📜 AI 提示詞' },
   { key: 'wiki',        label: '📚 Wiki 設定' },
 ];
@@ -327,7 +327,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
         onClose={() => setShowPrefsModal(false)}
         title="⚙️ 偏好設定"
         headerExtra={prefsHeaderExtra}
-        width={720}
+        width="70vw"
         footer={
           <>
             <Button variant="secondary" onClick={() => setShowPrefsModal(false)}>取消</Button>
@@ -598,11 +598,11 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
 
         {/* —— Multi-Agent 策略 —— */}
         {activePrefsTab === 'multi-agent' && (() => {
-          const roles: { key: MultiAgentRole; label: string; desc: string }[] = [
-            { key: 'planner', label: 'Planner (大綱規劃 Agent)', desc: '根據章節節拍、要點、上下文與知識資料產生細綱' },
-            { key: 'writer', label: 'Writer (初稿寫作 Agent)', desc: '依核准的細綱撰寫第一份候選草稿' },
-            { key: 'critic', label: 'Critic (審核評分 Agent)', desc: '依 Rubric 評分、判定重大缺陷並給出修訂要求' },
-            { key: 'editor', label: 'Editor (草稿修訂 Agent)', desc: '依候選草稿與 Critic feedback 進行修訂' },
+          const roles: { key: MultiAgentRole; label: string; desc: string; accentColor: string }[] = [
+            { key: 'planner', label: 'Planner (大綱規劃 Agent)', desc: '根據章節節拍、要點、上下文與知識資料產生細綱', accentColor: '#3b82f6' },
+            { key: 'writer', label: 'Writer (初稿寫作 Agent)', desc: '依核准的細綱撰寫第一份候選草稿', accentColor: '#10b981' },
+            { key: 'critic', label: 'Critic (品質評審 Agent)', desc: '依 Rubric 評分、判定重大缺陷並給出修訂要求', accentColor: '#f59e0b' },
+            { key: 'editor', label: 'Editor (潤色修訂 Agent)', desc: '依候選草稿與 Critic feedback 進行修訂', accentColor: '#8b5cf6' },
           ];
 
           const totalWeight = Object.values(draftMultiAgent.criticRubricWeights).reduce((sum, v) => sum + (Number(v) || 0), 0);
@@ -620,7 +620,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                   為四個專責 Agent 指定預設 Connection Profile 或特定模型參數。未指定時預設使用系統啟用中 Profile。
                 </p>
 
-                {roles.map(({ key: roleKey, label, desc }) => {
+                {roles.map(({ key: roleKey, label, desc, accentColor }) => {
                   const cfg = draftMultiAgent.agents[roleKey];
                   const updateRole = (patch: Partial<typeof cfg>) => {
                     setDraftMultiAgent({
@@ -636,13 +636,15 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                     <div
                       key={roleKey}
                       style={{
-                        padding: 12,
-                        borderRadius: 6,
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-secondary)',
+                        padding: '14px 16px',
+                        borderRadius: 8,
+                        border: '1px solid var(--border-color, #374151)',
+                        borderLeft: `4px solid ${accentColor}`,
+                        background: 'var(--bg-tertiary, #1f2937)',
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 10,
+                        gap: 12,
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1376,9 +1378,29 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
 
             <div>
               <label className="form-label">LLM 上限</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12 }}>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  單類型最多頁數
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: 12 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    單類型最多頁數
+                    <span
+                      title="進行 Wiki 內部矛盾檢查時，同一類型（如人物、設定、地理）最多抽取的 Wiki 頁數上限，防止超出 LLM 上下文與 Token 預算。"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        color: 'var(--text-secondary, #9ca3af)',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        cursor: 'help',
+                      }}
+                    >
+                      ?
+                    </span>
+                  </span>
                   <input
                     type="number" className="form-input" min={1} max={100}
                     value={draftLint.maxPagesPerTypeContradict}
@@ -1386,11 +1408,31 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                       ...draftLint,
                       maxPagesPerTypeContradict: Math.max(1, parseInt(e.target.value) || 20),
                     })}
-                    style={{ width: 80 }}
+                    style={{ width: 90 }}
                   />
                 </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  最多角色數
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    最多角色數
+                    <span
+                      title="進行 Wiki 與章節連貫性檢查時，最多同時進行比對與檢查的核心角色數量上限。"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        color: 'var(--text-secondary, #9ca3af)',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        cursor: 'help',
+                      }}
+                    >
+                      ?
+                    </span>
+                  </span>
                   <input
                     type="number" className="form-input" min={1} max={50}
                     value={draftLint.maxCharactersVsChapter}
@@ -1398,11 +1440,31 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                       ...draftLint,
                       maxCharactersVsChapter: Math.max(1, parseInt(e.target.value) || 10),
                     })}
-                    style={{ width: 80 }}
+                    style={{ width: 90 }}
                   />
                 </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  每角色章節數
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    每角色章節數
+                    <span
+                      title="檢查每個角色的章節連貫性時，為該角色抽取的最近最新章節內文摘要數量上限。"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        color: 'var(--text-secondary, #9ca3af)',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        cursor: 'help',
+                      }}
+                    >
+                      ?
+                    </span>
+                  </span>
                   <input
                     type="number" className="form-input" min={1} max={10}
                     value={draftLint.maxChapterExcerptsPerChar}
@@ -1410,11 +1472,31 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                       ...draftLint,
                       maxChapterExcerptsPerChar: Math.max(1, parseInt(e.target.value) || 3),
                     })}
-                    style={{ width: 80 }}
+                    style={{ width: 90 }}
                   />
                 </label>
-                <label style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  未登錄候選上限
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    未登錄候選上限
+                    <span
+                      title="掃描未登錄角色與專有名詞時，Pre-filter 預先篩選並送交 LLM 驗證的最多候選名稱數量。"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        color: 'var(--text-secondary, #9ca3af)',
+                        fontSize: 10,
+                        fontWeight: 'bold',
+                        cursor: 'help',
+                      }}
+                    >
+                      ?
+                    </span>
+                  </span>
                   <input
                     type="number" className="form-input" min={1} max={100}
                     value={draftLint.maxUnrecordedCandidates}
@@ -1422,7 +1504,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                       ...draftLint,
                       maxUnrecordedCandidates: Math.max(1, parseInt(e.target.value) || 30),
                     })}
-                    style={{ width: 80 }}
+                    style={{ width: 90 }}
                   />
                 </label>
               </div>

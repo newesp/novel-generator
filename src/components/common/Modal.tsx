@@ -7,7 +7,7 @@ interface ModalProps {
   headerExtra?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-  width?: number;
+  width?: number | string;
   fullScreen?: boolean;
   embedded?: boolean;
 }
