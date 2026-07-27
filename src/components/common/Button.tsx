@@ -33,6 +33,7 @@ export function Button({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
+        whiteSpace: 'nowrap',
         transition: 'all 150ms ease-out',
         border: 'none',
         ...VARIANT_STYLES[variant],

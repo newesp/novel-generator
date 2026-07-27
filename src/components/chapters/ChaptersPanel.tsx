@@ -276,10 +276,18 @@ export function ChaptersPanel() {
       {nonSynced.length > 0 && (
         <div style={{
           background: 'var(--bg-tertiary, #f5f5f5)', padding: 8, fontSize: 12, display: 'flex',
-          justifyContent: 'space-between', alignItems: 'center', borderRadius: 4, marginBottom: 8,
+          justifyContent: 'space-between', alignItems: 'center', gap: 8, borderRadius: 4, marginBottom: 8,
         }}>
-          <span>您有 {nonSynced.length} 個章節 Wiki 未完整同步</span>
-          <Button variant="secondary" size="sm" onClick={() => void batchProcess(nonSynced)} disabled={wikiBusy}>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            您有 {nonSynced.length} 個章節 Wiki 未完整同步
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+            onClick={() => void batchProcess(nonSynced)}
+            disabled={wikiBusy}
+          >
             批次處理
           </Button>
         </div>

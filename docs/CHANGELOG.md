@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-07-27 - 防範按鈕文字換行與修復「批次處理」按鈕版型
+
+- 修復「批次處理」按鈕斷行破版：
+  - 在 `ChaptersPanel.tsx` 為 Wiki 未同步提醒卡片的「批次處理」按鈕加上 `flexShrink: 0` 與 `whiteSpace: 'nowrap'`，並將提示文字加上單行溢出省略 (`textOverflow: 'ellipsis'`)，避免左側區塊拉窄時按鈕文字垂直換行破版。
+- 全站 Button 元件基礎防破版保護：
+  - 在 `Button.tsx` 的基底樣式中預設加入 `whiteSpace: 'nowrap'`，防止任何按鈕在窄寬度情境下字體斷行。
+
+**Verification**
+- `npx tsc -b` 通過。
+
 ## 2026-07-27 - 新增 AI 訊息卡片關閉按鈕與 Agent 執行紀錄時間戳記
 
 - AI 訊息通知卡片新增關閉按鈕：
