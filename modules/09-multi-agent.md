@@ -5,7 +5,8 @@
 
 ## 狀態
 
-**未實作。** 現行章節正文生成仍是 `ChapterEditor` 內的單一 Writer 呼叫。本文件記錄已確認的 Multi-Agent 產品與架構規格；實際資料型別、`StorageAdapter` store、orchestrator、LLM profile 與 UI 尚待實作。
+**✅ 已實作（2026-07-27）。**
+現已完成包含 Planner、Writer、Critic、Editor 四個角色的完整 Multi-Agent 協作引擎。核心邏輯、`StorageAdapter` 資料表（Dexie IndexedDB schema v9 / SQLite migration 008）、LLM Profiles 連線設定檔（包含 Anthropic Claude 直連）、人工審核模態框、全域單一 LLM 執行槽、AI Activity Card、章節寫入鎖定、過期軌跡大內容清理與 Agent Inspector 均已完整落地。
 
 領域術語以根目錄 [`CONTEXT.md`](../CONTEXT.md) 為準，重要取捨記錄於 [`docs/adr/`](../docs/adr/)。
 
@@ -286,4 +287,4 @@ Provider 實際回傳的 token usage 無論顯示設定如何都保存到執行�
 
 - 完整流程可能消耗大量 token；先以單章測試，再考慮批次能力。
 - 首版不允許同章多個未結束流程、不提供多 LLM 並行、不在 App 啟動時自動恢復付費工作。
-- 本模組尚未實作；完成規格與分階段計畫後再依 `StorageAdapter`、LLM seam、orchestrator、UI 的順序落地。
+- 本模組已實作完成（2026-07-27），完整程式碼位在 `src/lib/multi-agent/` 及 `src/components/chapters/` 等模組。

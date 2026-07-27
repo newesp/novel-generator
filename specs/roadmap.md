@@ -63,11 +63,21 @@
 
 ---
 
-## Phase 4 — 選做功能（❌ Multi-Agent / 封面圖未開始；部分多媒體能力已提前併入 Phase 6）
+## Phase 4 — 選做功能（🟡 Multi-Agent 協作引擎 ✅ 已實作 2026-07-27；封面圖未開始）
 
-1. ❌ Multi-Agent 協作引擎（Planner / Writer / Critic / Editor）→ 09-multi-agent
-2. ❌ 封面圖生成 → 10-multimedia
-3. 🟡 語音朗讀 / 影片合成：漫畫分鏡旁白 TTS、單格/整章 MP4 與 SRT 已在 Phase 6 桌面流程落地；多角色音色、全書級批次管理與 Web 版降級仍待補
+1. ✅ **Multi-Agent 協作引擎**（Planner / Writer / Critic / Editor）→ 09-multi-agent
+   - 具名 `LLMProfile` 連線設定檔管理，支援 OpenAI-compatible、Google Gemini、Grok 與 Anthropic Claude 直連。
+   - 專責四角色 (Planner, Writer, Critic, Editor) 獨立 Profile、Model、Temperature、MaxTokens 與 Role Guidance 配置。
+   - Planner 步驟產出結構化細綱並暫停進行人工規劃審核（可採用更新章節 `beat` / `points` 或僅供本次生成）。
+   - Writer 撰寫初始 Candidate Draft，Critic 六維度評分、重大缺陷判定與自動採用／Editor 路由／人工審核分流。
+   - Editor 依 candidate draft version 與 Critic feedback 進行針對性修訂，並由 `maxRevisions` 控管修訂上限。
+   - 人工審核模態框 (`HumanReviewModal`) 支援人工放行採用、傳送 Editor（可授權 +1 額外修訂）、人工直接修改草稿等分支路徑。
+   - 完整狀態機與 AbortController 取消控制；全 App 單一執行槽排隊；重啟時安全將未結束 Run 正規化為等待繼續（絕不自動扣款付費）。
+   - 依 `GenerationRun` / `GenerationStep` / `GenerationCheckpoint` 持久化，並提供過期軌跡大內容自動清理與 `RunSummary` 保存。
+   - JSON 備份與還原機制完美整合（匯出自動塗銷 API Key，預設支援可選 includeFullAgentTrace）。
+   - UI 整合：正文 `readOnly` 鎖定保護、AI Activity Card、章節狀態徽章，以及可收合的 Agent Inspector / 時間軸與差異比較。
+2. ❌ **封面圖生成** → 10-multimedia
+3. 🟡 **語音朗讀 / 影片合成**：漫畫分鏡旁白 TTS、單格/整章 MP4 與 SRT 已在 Phase 6 桌面流程落地；多角色音色、全書級批次管理與 Web 版降級仍待補
 
 ---
 

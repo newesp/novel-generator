@@ -17,10 +17,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 docs/*
-!docs/adr/
-!docs/adr/*.md
-!docs/agents/
-!docs/agents/*.md
+!docs/CHANGELOG.md
+!docs/debug.md
+docs/superpowers/
+docs/mocks/
+docs/agents/
+docs/adr/
+mocks/
+agents/
+adr/
 
 # Editor / OS
 .DS_Store

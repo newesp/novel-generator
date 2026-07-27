@@ -1,5 +1,20 @@
 # 開發日誌
 
+## 2026-07-27 - 同步全站規格與模組文件至 Phase 4 Multi-Agent 完成現況
+
+- 同步專案主說明與架構文件至最新實作狀態：
+  - 更新 `README.md` 與 `README.en.md`：標記 Phase 4 Multi-Agent 協作引擎為已完成，補充具名 LLM Profiles 管理與 Anthropic Claude 直連。
+  - 更新 `specs/roadmap.md`：將 Phase 4 Multi-Agent 協作引擎狀態更正為 `✅ 已實作（2026-07-27）`，完整紀錄流程、路由、保護鎖、時間軸與備份還原等細節。
+  - 更新 `modules/09-multi-agent.md`：狀態從「未實作」更新為 `✅ 已實作（2026-07-27）`，詳述各執行器與資料層實作。
+  - 更新 `modules/08-llm-adapter.md`：Anthropic 標記為已實作，補充 `LLMProfile` 與共同 `completeNormalized` seam。
+  - 更新 `modules/03-chapters.md`：補充「⚡ 快速生成本章」Split Action 下拉選單、重複「↩️ 重新生成」按鈕移除紀錄、正文唯讀鎖定與 AI Activity Card / Agent Inspector 整合。
+  - 更新 `specs/tech-stack.md`：補充 Anthropic Claude 直連與 Multi-Agent 協作引擎選型。
+- `.gitignore` 規則調整：
+  - 依需求將 `docs/superpowers`、`docs/mocks`、`docs/agents`、`docs/adr` 及 `mocks/`、`agents/`、`adr/` 加入忽略清單。
+
+**Verification**
+- 純 Markdown 與 `.gitignore` 設定調整；已依 `AGENTS.md` 與 `package.json`、`src/types/`、`src/lib/storage/` 進行交叉檢查。
+
 ## 2026-07-27 - 更新偏好設定的 Wiki 與 Lint 文案
 
 - 移除偏好設定中已過時的「Phase 2.5」與「尚未啟用」字樣；Wiki 問答、LLM Lint 模板與 deterministic pick-pages 均已有實際呼叫路徑。

@@ -19,7 +19,7 @@
 | 桌面殼層（Phase 5+） | Tauri 2.x（Rust + 系統 webview，比 Electron 輕量；Windows 已落地 2026-05） |
 | 影片合成（Phase 6，桌面） | Edge-TTS + ffmpeg sidecar（native，透過 Tauri 安全命令；已支援單格/整章 MP4、SRT 與 motion effects） |
 | 影片合成（Phase 7，Web） | ffmpeg.wasm（功能降級，或介接後端 API） |
-| LLM 呼叫 | 自製 adapter（OpenAI-compatible / Google Gemini / Grok） |
+| LLM 呼叫 | 自製 adapter（具名 LLM Profiles 管理；OpenAI-compatible / Google Gemini / Grok / Anthropic Claude 直連；Multi-Agent Planner/Writer/Critic/Editor 協作） |
 | 全文檢索 | SQLite FTS5 + trigram tokenizer — Phase 2（未來真有 vector 需求改用 sqlite-vec，不引入 Ollama / LanceDB） |
 | Graph 關係層 | 由 characters + wiki pages 即時計算 JSON graph；Wiki 面板可查 2-hop neighborhood |
 | 電子書生成 | epub-gen 或手寫 EPUB 結構 — Phase 3 |

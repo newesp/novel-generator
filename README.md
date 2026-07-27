@@ -2,9 +2,9 @@
 
 [English](README.en.md)
 
-> 版本：1.11（Mantine v2 本機工作區 UI）　更新：2026-07-18
+> 版本：1.12（Multi-Agent 協作引擎與 LLM Connection Profiles）　更新：2026-07-27
 
-本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出、單格影片重輸出、鏡頭動態效果與章節內影片庫。
+本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文（支援單 Writer 快速生成與 Planner / Writer / Critic / Editor 四角色的高品質 Multi-Agent 生成）、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出、單格影片重輸出、鏡頭動態效果與章節內影片庫。
 
 - 目標語言：中文小說（優先）
 - 使用方式：本機瀏覽器或 Windows 桌面版
@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-瀏覽器開 `http://localhost:5173`；首次使用點「偏好設定」填 LLM provider 與 API Key（支援 OpenAI-compatible、Google Gemini、Grok）。
+瀏覽器開 `http://localhost:5173`；首次使用點「偏好設定」填 LLM Connection Profile 與 API Key（支援 OpenAI-compatible、Google Gemini、Grok、Anthropic Claude）。
 
 ### 桌面版（Windows，Phase 5b）
 
@@ -57,8 +57,8 @@ GitHub Actions 使用 `.github/workflows/ci-cd.yml`：
 ## 系統分層
 
 1. **UI 層** — React 19 + TypeScript strict + Vite 8 + Mantine Gray 主題；既有自製元件保留為功能相容層。
-2. **業務邏輯層** — 大綱、角色、章節、版本、LLM Wiki、Context Budget、Lint、Graph、漫畫圖片。
-3. **LLM 適配層** — 自定義 OpenAI-compatible、Google Gemini、Grok（文字）；ComfyUI、OpenAI-compatible image、DeepInfra FLUX、Google Gemini Image（圖片）。
+2. **業務邏輯層** — 大綱、角色、章節、版本、LLM Wiki、Context Budget、Lint、Graph、Multi-Agent 協作引擎、漫畫圖片。
+3. **LLM 適配層** — 具名 LLM Profile 管理；支援自定義 OpenAI-compatible、Google Gemini、Grok、Anthropic Claude（文字）；ComfyUI、OpenAI-compatible image、DeepInfra FLUX、Google Gemini Image（圖片）。
 4. **儲存層** — `StorageAdapter` 統一介面；瀏覽器版走 Dexie / IndexedDB，桌面版走 Tauri SQLite + FTS5。
 
 ---
@@ -75,8 +75,8 @@ GitHub Actions 使用 `.github/workflows/ci-cd.yml`：
 | [05-versions.md](modules/05-versions.md) | 章節版本管理 | 1 | 00 |
 | [06-polish.md](modules/06-polish.md) | 內容潤色器（未實作） | 3 | 00, 08 |
 | [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager（Wiki 摘要 + pick-pages + 摘要品質 ✅） | 1 / 2.5 | 04 |
-| [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM 適配層 | 1 / 2 | tech-stack |
-| [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎（未實作） | 4（選做） | 03, 04, 05, 07, 08 |
+| [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM 適配層（具名 Profile + Anthropic ✅） | 1 / 2 | tech-stack |
+| [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent 協作引擎（Planner / Writer / Critic / Editor ✅） | 4（選做） | 03, 04, 05, 07, 08 |
 | [10-multimedia.md](modules/10-multimedia.md) | 多媒體生成（漫畫圖片、TTS、MP4、SRT、motion effects 與章節內影片庫） | 6 / 4（選做） | 00, tech-stack |
 
 ---
@@ -98,7 +98,7 @@ GitHub Actions 使用 `.github/workflows/ci-cd.yml`：
 
 - Phase 2.5 polish：手動批次摘要重建、LLM pick-pages、Graph 進階事件抽取 / 因果推理。
 - Phase 3：完整內容潤色器；v2 工作區基礎重整已完成，後續持續做局部 UI/UX polish。
-- Phase 4 / 6：Multi-Agent、封面圖生成、完整 Visual Bible 管理、provider reference weighting、全書級媒體庫、批次圖片/影片匯出、video orphan cleanup、多角色/對話 TTS、Web 版影片降級。
+- Phase 4 / 6：封面圖生成、完整 Visual Bible 管理、provider reference weighting、全書級媒體庫、批次圖片/影片匯出、video orphan cleanup、多角色/對話 TTS、Web 版影片降級。
 - Phase 5 / 7：macOS / Linux 打包、code signing、首次啟動自動 IndexedDB→SQLite 遷移（目前採手動 JSON）、`WaSqliteAdapter` / `WebMediaAdapter` / PWA 回部署。
 
 詳細狀態以 [specs/roadmap.md](specs/roadmap.md) 為準。

@@ -10,73 +10,71 @@
 | Google    | Gemini 1.5 Pro, Gemini 2.0 Flash 等 | 2     | ✅ 已實作 |
 | Grok (xAI) | grok-2-latest, grok-2-1212, grok-beta | 2     | ✅ 已實作 |
 | OpenAI    | GPT-4o, GPT-4o-mini 等 | 2     | 透過自定義 OpenAI-compatible endpoint 使用 |
-| Anthropic | Claude 系列 | 2     | 待實作 |
+| Anthropic | Claude 3.5 Sonnet, Claude 3 Opus 等 | 2     | ✅ 已實作 |
 | Ollama    | llama / qwen / mistral 等本機模型 | 2     | 待實作；若提供 OpenAI-compatible endpoint 可先走自定義 API |
 
 ---
 
-## LLMConfig 型別
+## LLMProfile 型別與具名連線設定檔
+
+為了支援多 Provider Profile 以及 Multi-Agent 為不同角色指定不同 LLM，系統定義了具名 `LLMProfile`（2026-07-26 實作）：
 
 ```ts
-type LLMProvider = 'custom' | 'google' | 'grok';
+type LLMProvider = 'custom' | 'google' | 'grok' | 'anthropic';
 
-interface LLMConfig {
+interface LLMProfile {
   id: string;
-  provider: LLMProvider;
   name: string;
-  /** 'custom' 必填；'google' 可留空（使用預設 Gemini endpoint） */
-  baseUrl: string;
-  apiKey: string;
+  provider: LLMProvider;
+  baseUrl?: string;
+  apiKey?: string;
   model: string;
+  temperature?: number;
+  maxTokens?: number;
+  timeoutSec?: number;
+  isDefault?: boolean;
 }
 ```
 
-### Provider 預設值與切換行為
+### Profile 管理與連線驗證
 
-- LLM provider 預設值集中在 `src/lib/llm-provider-defaults.ts`。
-- 使用者在「偏好設定 → LLM API」切換 provider 時，UI 會套用該 provider 的預設 `name` / `baseUrl` / `model`，避免上一個 provider 的 endpoint 或模型殘留。
-- `apiKey` 目前仍是單一 active LLM 設定欄位，切換 provider 時會保留。若未來要記住每個 provider 各自的 API key / model，需把 `LLMConfig` 升級成 provider profiles。
+- **多 Profile 管理**：可在「偏好設定 → Agent 設定 / LLM Profile」新增、編輯、刪除與切換預設 Profile。
+- **連線驗證 (`verifyLLMProfile`)**：發送輕量探針請求驗證 API Key 與連線，並自動遮蔽敏感 API Key。
+- **共同 Completion Seam (`completeNormalized`)**：將各 provider 的 completion 輸出正規化為統一結果結構（包含 `content`、`usage` [promptTokens/completionTokens/totalTokens]、`requestId` 與 `finishReason`）。
 
 ---
 
-## Provider 分支邏輯
+## Provider 分支與認證
 
-### `isLLMReady(cfg: LLMConfig): boolean`
+### `isLLMReady(cfg: LLMConfig | LLMProfile): boolean`
 
 集中判斷 LLM 是否已設定完成：
 
 | Provider | 條件 |
 |----------|------|
-| `google` | `apiKey` 非空即可（`baseUrl` 可留空，使用預設 endpoint） |
-| `grok`   | `apiKey` 非空即可（`baseUrl` 可留空，預設 `https://api.x.ai/v1`） |
-| `custom` | `apiKey` 且 `baseUrl` 皆非空 |
+| `google`   | `apiKey` 非空即可（`baseUrl` 可留空，使用預設 endpoint） |
+| `grok`     | `apiKey` 非空即可（`baseUrl` 可留空，預設 `https://api.x.ai/v1`） |
+| `anthropic`| `apiKey` 非空即可（`baseUrl` 可留空，預設 `https://api.anthropic.com/v1`） |
+| `custom`   | `apiKey` 且 `baseUrl` 皆非空 |
 
-> 此 helper 替代原本各元件自行判斷的邏輯，所有 UI 禁用狀態都呼叫它。
+### `completeNormalized(profile, prompt, options?)` 內部分支
 
-### `complete(prompt, options?)` 內部分支
-
-| Provider | 認證方式 | Endpoint |
-|----------|----------|----------|
-| `custom` | `Authorization: Bearer <key>` | `baseUrl/chat/completions` |
-| `google` | URL query string `?key=<apiKey>`（不送 Authorization） | `https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent` |
-| `grok`   | `Authorization: Bearer <key>` | `https://api.x.ai/v1/chat/completions`（走 OpenAI-compatible） |
+| Provider | 認證與 Header 轉發 | Endpoint |
+|----------|-------------------|----------|
+| `custom`   | `Authorization: Bearer <key>` | `baseUrl/chat/completions` |
+| `google`   | URL query string `?key=<apiKey>`（不送 Authorization） | `https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent` |
+| `grok`     | `Authorization: Bearer <key>` | `https://api.x.ai/v1/chat/completions` |
+| `anthropic`| `x-api-key: <key>`, `anthropic-version: 2023-06-01` | `https://api.anthropic.com/v1/messages` |
 
 ---
 
-## Vite Dev Proxy（CORS 繞過）
+## Vite Dev Proxy（CORS 繞過與 Header 轉發）
 
 `vite.config.ts` 的 `llmProxyPlugin` 攔截 `POST /llm-proxy`，由 Node server 端轉發至外部 LLM API。
 
-**Authorization header 轉發規則（2026-05-11 修正）：**
-
-```ts
-// 只在 client 明確提供非空 Authorization 時才轉發
-// Google Gemini 用 URL query string ?key=... 認證
-// 若總是轉發會被 Google 誤判為無效 OAuth token（401 ACCESS_TOKEN_TYPE_UNSUPPORTED）
-if (typeof incomingAuth === 'string' && incomingAuth.length > 0) {
-  forwardHeaders.Authorization = incomingAuth
-}
-```
+**Headers 轉發規則：**
+- `Authorization`：僅在 Client 有帶時轉發（避免 Google 誤判 401）。
+- `x-api-key` 與 `anthropic-version`：支援 Anthropic 專屬驗證 Header 之轉發。
 
 ---
 

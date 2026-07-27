@@ -2,11 +2,11 @@
 
 [繁體中文](README.md)
 
-> Version: 1.11 (Mantine v2 local workspace UI)
+> Version: 1.12 (Multi-Agent collaboration engine and LLM Connection Profiles)
 >
-> Updated: 2026-07-18
+> Updated: 2026-07-27
 
-A local-first Chinese novel writing tool available as a browser Web App and a Windows desktop app built with Tauri. The core workflow covers book management, outlines, characters, chapter drafting, versions, LLM Wiki, full-text search, knowledge graph, comic image generation, and desktop comic TTS / MP4 / SRT output, including single-panel video rerendering, motion effects, and a chapter-level video library.
+A local-first Chinese novel writing tool available as a browser Web App and a Windows desktop app built with Tauri. The core workflow covers book management, outlines, characters, chapter drafting (supporting single-Writer fast drafting and Planner / Writer / Critic / Editor high-quality Multi-Agent drafting), versions, LLM Wiki, full-text search, knowledge graph, comic image generation, and desktop comic TTS / MP4 / SRT output, including single-panel video rerendering, motion effects, and a chapter-level video library.
 
 - Target language: Chinese novels first
 - Usage: local browser or Windows desktop app
@@ -25,7 +25,7 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` in your browser. On first use, open Preferences and fill in the LLM provider plus API key. Supported text providers include OpenAI-compatible APIs, Google Gemini, and Grok.
+Open `http://localhost:5173` in your browser. On first use, open Preferences and set up your LLM Connection Profiles. Supported text providers include OpenAI-compatible APIs, Google Gemini, Grok, and Anthropic Claude.
 
 ### Desktop App (Windows, Phase 5b)
 
@@ -59,8 +59,8 @@ GitHub Actions uses `.github/workflows/ci-cd.yml`:
 ## System Layers
 
 1. **UI layer** - React 19 + TypeScript strict + Vite 8 + Mantine Gray theme; existing custom components remain as a compatibility layer.
-2. **Business logic layer** - outlines, characters, chapters, versions, LLM Wiki, Context Budget, Lint, Graph, and comic images.
-3. **LLM adapter layer** - custom OpenAI-compatible, Google Gemini, and Grok for text; ComfyUI, OpenAI-compatible image, DeepInfra FLUX, and Google Gemini Image for images.
+2. **Business logic layer** - outlines, characters, chapters, versions, LLM Wiki, Context Budget, Lint, Graph, Multi-Agent collaboration engine, and comic images.
+3. **LLM adapter layer** - named LLM Connection Profiles; custom OpenAI-compatible, Google Gemini, Grok, and Anthropic Claude for text; ComfyUI, OpenAI-compatible image, DeepInfra FLUX, and Google Gemini Image for images.
 4. **Storage layer** - unified `StorageAdapter`; browser uses Dexie / IndexedDB, desktop uses Tauri SQLite + FTS5.
 
 ---
@@ -77,8 +77,8 @@ GitHub Actions uses `.github/workflows/ci-cd.yml`:
 | [05-versions.md](modules/05-versions.md) | Chapter version management | 1 | 00 |
 | [06-polish.md](modules/06-polish.md) | Content polish editor (not implemented) | 3 | 00, 08 |
 | [07-context-budget.md](modules/07-context-budget.md) | Context Budget Manager (Wiki summaries + pick-pages + summary quality) | 1 / 2.5 | 04 |
-| [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM adapter layer | 1 / 2 | tech-stack |
-| [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent collaboration engine (not implemented) | 4 (optional) | 04, 07 |
+| [08-llm-adapter.md](modules/08-llm-adapter.md) | LLM adapter layer (Named Profiles + Anthropic ✅) | 1 / 2 | tech-stack |
+| [09-multi-agent.md](modules/09-multi-agent.md) | Multi-Agent collaboration engine (Planner / Writer / Critic / Editor ✅) | 4 (optional) | 03, 04, 05, 07, 08 |
 | [10-multimedia.md](modules/10-multimedia.md) | Multimedia generation (comic images, TTS, MP4, SRT, motion effects, chapter video library) | 6 / 4 (optional) | 00, tech-stack |
 
 ---
@@ -100,7 +100,7 @@ GitHub Actions uses `.github/workflows/ci-cd.yml`:
 
 - Phase 2.5 polish: manual batch summary rebuild, LLM pick-pages, advanced Graph event extraction / causal reasoning.
 - Phase 3: full content polish editor; the v2 workspace foundation is complete, with focused UI/UX polish continuing.
-- Phase 4 / 6: Multi-Agent, cover image generation, full Visual Bible management, provider reference weighting, full-book media library, batch image/video export, video orphan cleanup, multi-character/dialogue TTS, Web fallback for video features.
+- Phase 4 / 6: cover image generation, full Visual Bible management, provider reference weighting, full-book media library, batch image/video export, video orphan cleanup, multi-character/dialogue TTS, Web fallback for video features.
 - Phase 5 / 7: macOS / Linux packaging, code signing, automatic first-launch IndexedDB -> SQLite migration (currently manual JSON), `WaSqliteAdapter` / `WebMediaAdapter`, and PWA redeployment.
 
 See [specs/roadmap.md](specs/roadmap.md) for the detailed status.
@@ -118,4 +118,3 @@ This project is licensed under the GNU Affero General Public License v3.0 only (
 - `package.json` is the source of truth for package versions.
 - `src/types/index.ts` and `src/lib/storage/types.ts` are the source of truth for the data model and storage interface.
 - `docs/superpowers/specs/` and `docs/superpowers/plans/` are historical design and implementation records. They are not backfilled as current-state docs. Current state is tracked in this README, `modules/`, `specs/`, `docs/CHANGELOG.md`, and the code.
-
