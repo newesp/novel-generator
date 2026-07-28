@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { executeEditorStep } from './editor';
+import { executeCriticStep } from './critic';
 import { DEFAULT_MULTI_AGENT_PREFS, useSettingsStore } from '../../stores/settingsStore';
 import * as llmModule from '../llm';
 
@@ -210,6 +211,8 @@ describe('Editor Revision Loop & maxRevisions Limit', () => {
     const result = await executeEditorStep('run_ed_success');
     expect(result.nextDraftVersion).toBe(2);
     expect(result.revisedDraft).toBe('修訂後的第二版精采正文...');
+
+    await executeCriticStep('run_ed_success', result.revisedDraft, result.nextDraftVersion);
 
     // Chapter.content is updated to revised draft v2 upon Critic adoption
     expect(chaptersMap.get('c1').content).toBe('修訂後的第二版精采正文...');
