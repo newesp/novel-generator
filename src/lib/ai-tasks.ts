@@ -262,6 +262,7 @@ export async function generateCharacterDrafts(args: {
   worldSetting: string;
   mainPlot: string;
   existingNames: string[];
+  writingLanguage?: WritingLanguage;
 }, signal?: AbortSignal): Promise<AICharacterDraft[]> {
   const prompt = buildCharacterDraftsPrompt(args);
 
@@ -297,21 +298,30 @@ export function buildCharacterDraftsPrompt(args: {
   worldSetting: string;
   mainPlot: string;
   existingNames: string[];
+  writingLanguage?: WritingLanguage;
 }): string {
-  const { count, worldSetting, mainPlot, existingNames } = args;
+  const { count, worldSetting, mainPlot, existingNames, writingLanguage = 'zh-Hant' } = args;
   const { aiPrompts } = useSettingsStore.getState();
+  const locale = writingLanguage === 'en' ? 'en' : 'zh-TW';
 
   const existingNamesSection = existingNames.length
-    ? `\n\n已存在的角色（請避免重複，但若主線劇情仍提到他們，請略過此名字並改補其他角色）：${existingNames.join('、')}`
+    ? (writingLanguage === 'en'
+        ? `\n\nExisting characters (avoid duplicate names): ${existingNames.join(', ')}`
+        : `\n\n已存在的角色（請避免重複，但若主線劇情仍提到他們，請略過此名字並改補其他角色）：${existingNames.join('、')}`)
     : '';
 
-  return renderTemplate(aiPrompts.characterDraftsTemplate, {
-    worldSetting: worldSetting || '(未指定)',
-    mainPlot: mainPlot || '(未指定)',
+  const promptPair = getPromptPair(aiPrompts, 'characterProfile', locale);
+  const systemPrompt = promptPair.systemPrompt;
+
+  const userPrompt = renderTemplate(aiPrompts.characterDraftsTemplate || promptPair.userPromptTemplate, {
+    worldSetting: worldSetting || (writingLanguage === 'en' ? '(Unspecified)' : '(未指定)'),
+    mainPlot: mainPlot || (writingLanguage === 'en' ? '(Unspecified)' : '(未指定)'),
     existingNamesSection,
     count,
     visualNegativePromptGuidance: VISUAL_NEGATIVE_PROMPT_GUIDANCE,
   });
+
+  return `${systemPrompt}\n\n${userPrompt}`;
 }
 
 export function filterNewCharacterDrafts(drafts: AICharacterDraft[], existingNames: string[]): AICharacterDraft[] {

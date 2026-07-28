@@ -126,6 +126,7 @@ export function CharactersPanel() {
         worldSetting: project.worldSetting,
         mainPlot: project.mainPlot,
         existingNames: characters.map((c) => c.name).filter(Boolean),
+        writingLanguage: project.writingLanguage,
       }, signal);
 
       if (drafts.length === 0) {
