@@ -45,10 +45,13 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
   const bookId = chapter.projectId;
 
   // [1] Pre-flight
-  const [allPages, allChars] = await Promise.all([
+  const [project, allPages, allChars] = await Promise.all([
+    storage.projects.get(bookId),
     storage.wikiPages.list(bookId),
     storage.characters.listByProject(bookId),
   ]);
+  const writingLanguage = project?.writingLanguage || 'zh-Hant';
+  const isEn = writingLanguage === 'en';
   const chapterContentHash = await sha1Hex(chapter.content);
 
   const indexJson = JSON.stringify(
@@ -58,7 +61,10 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
     })),
     null, 2,
   );
-  const knownCharactersList = allChars.map((c) => c.name).filter(Boolean).join('、') || '(無)';
+  const knownCharactersList = isEn
+    ? (allChars.map((c) => c.name).filter(Boolean).join(', ') || '(None)')
+    : (allChars.map((c) => c.name).filter(Boolean).join('、') || '(無)');
+
   const requiredCharacterEntities = findRequiredCharacterEntities({
     chapterContent: chapter.content,
     characters: allChars,
@@ -73,16 +79,22 @@ export async function ingestChapter(chapter: Chapter): Promise<IngestResult> {
   const chapterSummarySlug = `ch-${chapterOrdinal}`;
 
   const aiPrompts = useSettingsStore.getState().aiPrompts;
-  const planPrompt = renderTemplate(withWikiPlanSafetyRules(aiPrompts.wikiIngestPlanTemplate), {
+  const systemPrompt = isEn
+    ? 'You are a Wiki knowledge graph extraction specialist. Analyze chapter text and extract entities, concepts, and summaries in English.'
+    : '你是 Wiki 知識庫提煉專家，請分析章節內容並精準提煉實體、概念與摘要。';
+
+  const planPromptBody = renderTemplate(withWikiPlanSafetyRules(aiPrompts.wikiIngestPlanTemplate), {
     indexCount: String(allPages.length),
     indexJson,
     knownCharactersList,
-    chapterTitle: chapter.title || '(未命名)',
+    chapterTitle: chapter.title || (isEn ? 'Untitled' : '(未命名)'),
     chapterContent: chapter.content,
     chapterOrdinal: String(chapterOrdinal),
     chapterSummarySlug,
     requiredEntityCandidatesJson,
   });
+
+  const planPrompt = `${systemPrompt}\n\n${planPromptBody}`;
 
   let planRaw: string;
   try {
