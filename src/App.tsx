@@ -21,6 +21,8 @@ import { ComicModal, type ComicWorkspaceMode } from './components/comic/ComicMod
 import { HomePage } from './components/home/HomePage';
 import { useUIStore } from './stores/uiStore';
 import { useProjectStore } from './stores/projectStore';
+import { useSettingsStore } from './stores/settingsStore';
+import { setDocumentLocale, t } from './lib/language-policy';
 import { initializeGenerationOrchestrator } from './lib/multi-agent/orchestrator';
 
 type WorkspaceName = 'outline' | 'characters' | 'chapters' | 'wiki' | 'scene' | 'comic' | 'video';
@@ -44,10 +46,15 @@ const NAVIGATION: NavigationItem[] = [
 export default function App() {
   const { view, activeTab, setActiveTab, selectedChapterId, setSelectedChapterId, agentFocusVersion } = useUIStore();
   const { project, chapters, characters } = useProjectStore();
+  const { generalPrefs } = useSettingsStore();
   const [workspace, setWorkspace] = useState<WorkspaceName>(activeTab);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const selectedChapter = chapters.find((chapter) => chapter.id === selectedChapterId) ?? chapters[0] ?? null;
+
+  useEffect(() => {
+    setDocumentLocale(generalPrefs.interfaceLocale, t('common.appTitle', undefined, generalPrefs.interfaceLocale));
+  }, [generalPrefs.interfaceLocale]);
 
   useEffect(() => {
     if (!selectedChapterId && chapters[0]) setSelectedChapterId(chapters[0].id);
@@ -104,7 +111,7 @@ export default function App() {
       <aside className="v2-sidebar">
         <div className="v2-brand">
           <Library size={19} strokeWidth={2} />
-          <strong>小說產生器</strong>
+          <strong>{t('common.appTitle', undefined, generalPrefs.interfaceLocale)}</strong>
         </div>
 
         <nav className="v2-navigation" aria-label="主要功能">

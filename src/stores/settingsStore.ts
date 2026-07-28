@@ -20,6 +20,11 @@ import {
   DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
 } from '../lib/prompt-defaults';
 import { DEFAULT_LINT_PREFS, type LintPrefs } from '../lib/lint/types';
+import {
+  detectInitialLocale,
+  mapLocaleToDefaultWritingLanguage,
+  type GeneralPrefs,
+} from '../lib/language-policy';
 
 // 為了相容舊 import 路徑，re-export
 export { DEFAULT_CHAPTER_CONTINUATION_RULES };
@@ -225,6 +230,7 @@ const DEFAULT_LLM_PROFILE: LLMProfile = {
 };
 
 interface SettingsState {
+  generalPrefs: GeneralPrefs;
   llmProfiles: LLMProfile[];
   activeProfileId: string;
   llmConfig: LLMConfig;
@@ -234,6 +240,7 @@ interface SettingsState {
   imageGenerationPrefs: ImageGenerationPrefs;
   lintPrefs: LintPrefs;
   multiAgentPrefs: MultiAgentPrefs;
+  setGeneralPrefs: (prefs: Partial<GeneralPrefs>) => void;
   setLlmProfiles: (profiles: LLMProfile[], activeId?: string) => void;
   setActiveProfileId: (id: string) => void;
   upsertLlmProfile: (profile: LLMProfile) => void;
@@ -312,6 +319,10 @@ function deepMergeMultiAgentPrefs(base: MultiAgentPrefs, patch?: DeepPartial<Mul
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
+      generalPrefs: {
+        interfaceLocale: 'zh-TW',
+        defaultWritingLanguage: 'zh-Hant',
+      },
       llmProfiles: [DEFAULT_LLM_PROFILE],
       activeProfileId: 'default',
       llmConfig: DEFAULT_LLM_PROFILE,
@@ -324,6 +335,8 @@ export const useSettingsStore = create<SettingsState>()(
       imageGenerationPrefs: { ...DEFAULT_IMAGE_GENERATION_PREFS },
       lintPrefs: { ...DEFAULT_LINT_PREFS },
       multiAgentPrefs: { ...DEFAULT_MULTI_AGENT_PREFS },
+      setGeneralPrefs: (prefs) =>
+        set((state) => ({ generalPrefs: { ...state.generalPrefs, ...prefs } })),
       setLlmProfiles: (profiles, activeId) =>
         set((state) => {
           const validProfiles = profiles.length > 0 ? profiles : [DEFAULT_LLM_PROFILE];
@@ -416,6 +429,33 @@ export const useSettingsStore = create<SettingsState>()(
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<SettingsState>;
 
+        const hasPersistedData = Boolean(
+          p.llmProfiles || p.llmConfig || p.aiPrompts || p.wikiPrefs || p.imageGenerationPrefs,
+        );
+
+        let generalPrefs: GeneralPrefs;
+        if (p.generalPrefs && p.generalPrefs.interfaceLocale) {
+          generalPrefs = {
+            interfaceLocale: p.generalPrefs.interfaceLocale,
+            defaultWritingLanguage:
+              p.generalPrefs.defaultWritingLanguage ||
+              mapLocaleToDefaultWritingLanguage(p.generalPrefs.interfaceLocale),
+          };
+        } else if (hasPersistedData) {
+          // 既有舊版安裝：缺少語系欄位一律修復補為繁中 zh-TW / zh-Hant，不重新依系統語系判斷
+          generalPrefs = {
+            interfaceLocale: 'zh-TW',
+            defaultWritingLanguage: 'zh-Hant',
+          };
+        } else {
+          // 全新安裝第一次啟動：依系統語系初始化
+          const initialLoc = detectInitialLocale();
+          generalPrefs = {
+            interfaceLocale: initialLoc,
+            defaultWritingLanguage: mapLocaleToDefaultWritingLanguage(initialLoc),
+          };
+        }
+
         // LLM Profiles & Single Config Migration
         let profiles: LLMProfile[] = Array.isArray(p.llmProfiles) && p.llmProfiles.length > 0
           ? p.llmProfiles.map((prof) => ({
@@ -449,6 +489,7 @@ export const useSettingsStore = create<SettingsState>()(
         return {
           ...current,
           ...p,
+          generalPrefs,
           llmProfiles: profiles,
           activeProfileId: activeId,
           llmConfig: activeProf,
@@ -484,4 +525,3 @@ export const useSettingsStore = create<SettingsState>()(
     },
   ),
 );
-

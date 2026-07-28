@@ -53,6 +53,14 @@ import { BookExportModal } from './export/BookExportModal';
 import type { LLMProfile, LLMProvider, MultiAgentPrefs, MultiAgentRole } from '../types';
 import { validateCriticThresholds, validateCriticWeights, clampMaxRevisions } from '../stores/settingsStore';
 
+import {
+  t,
+  setDocumentLocale,
+  type GeneralPrefs,
+  type InterfaceLocale,
+  type WritingLanguage,
+} from '../lib/language-policy';
+
 function HelpIcon({ tooltip }: { tooltip: string }) {
   return (
     <span
@@ -78,14 +86,15 @@ function HelpIcon({ tooltip }: { tooltip: string }) {
 }
 
 /** 偏好設定 Modal 的分頁 */
-type PrefsTab = 'llm' | 'multi-agent' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
-const PREFS_TABS: { key: PrefsTab; label: string }[] = [
-  { key: 'llm',         label: '🔑 LLM API' },
-  { key: 'multi-agent', label: '🤖 Agent 設定' },
-  { key: 'image',       label: '🖼 圖片生成' },
-  { key: 'inline',      label: '🎛 上下文範圍' },
-  { key: 'ai-prompts',  label: '📜 AI 提示詞' },
-  { key: 'wiki',        label: '📚 Wiki 設定' },
+type PrefsTab = 'general' | 'llm' | 'multi-agent' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
+const PREFS_TABS: { key: PrefsTab; labelKey: string; fallbackLabel: string }[] = [
+  { key: 'general',     labelKey: 'prefs.tabGeneral', fallbackLabel: '🌐 一般 / General' },
+  { key: 'llm',         labelKey: 'prefs.tabLlm',     fallbackLabel: '🔑 LLM API' },
+  { key: 'multi-agent', labelKey: 'prefs.tabAgent',   fallbackLabel: '🤖 Agent 設定' },
+  { key: 'image',       labelKey: 'prefs.tabImage',   fallbackLabel: '🖼 圖片生成' },
+  { key: 'inline',      labelKey: 'prefs.tabInline',  fallbackLabel: '🎛 上下文範圍' },
+  { key: 'ai-prompts',  labelKey: 'prefs.tabPrompts', fallbackLabel: '📜 AI 提示詞' },
+  { key: 'wiki',        labelKey: 'prefs.tabWiki',    fallbackLabel: '📚 Wiki 設定' },
 ];
 
 interface ToolbarProps {
@@ -96,14 +105,15 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
   const { project, chapters } = useProjectStore();
   const { view, setView, settingsFocusTab, settingsFocusVersion } = useUIStore();
   const {
-    llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs, multiAgentPrefs,
-    setLlmProfiles, setInlineEdit, setAiPrompts, setWikiPrefs, setImageGenerationPrefs, setLintPrefs, setMultiAgentPrefs,
+    generalPrefs, llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs, multiAgentPrefs,
+    setGeneralPrefs, setLlmProfiles, setInlineEdit, setAiPrompts, setWikiPrefs, setImageGenerationPrefs, setLintPrefs, setMultiAgentPrefs,
   } = useSettingsStore();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const [activePrefsTab, setActivePrefsTab] = useState<PrefsTab>('llm');
+  const [activePrefsTab, setActivePrefsTab] = useState<PrefsTab>('general');
+  const [draftGeneral, setDraftGeneral] = useState<GeneralPrefs>(generalPrefs);
   const [draftProfiles, setDraftProfiles] = useState<LLMProfile[]>(llmProfiles);
   const [draftActiveId, setDraftActiveId] = useState<string>(activeProfileId);
   const [selectedProfileId, setSelectedProfileId] = useState<string>(activeProfileId);
@@ -126,8 +136,9 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
 
   const goHome = () => setView('home');
 
-  const openPrefs = (initialTab: PrefsTab = 'llm') => {
+  const openPrefs = (initialTab: PrefsTab = 'general') => {
     const store = useSettingsStore.getState();
+    setDraftGeneral(store.generalPrefs);
     setDraftProfiles(store.llmProfiles);
     setDraftActiveId(store.activeProfileId);
     setSelectedProfileId(store.activeProfileId);
@@ -170,6 +181,8 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
       return;
     }
 
+    setGeneralPrefs(draftGeneral);
+    setDocumentLocale(draftGeneral.interfaceLocale, t('common.appTitle', undefined, draftGeneral.interfaceLocale));
     setLlmProfiles(draftProfiles, draftActiveId);
     setInlineEdit(draftInline);
     setAiPrompts(draftPrompts);
@@ -182,6 +195,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
 
   const refreshPrefsDraftsFromStore = () => {
     const next = useSettingsStore.getState();
+    setDraftGeneral(next.generalPrefs);
     setDraftProfiles(next.llmProfiles);
     setDraftActiveId(next.activeProfileId);
     setSelectedProfileId(next.activeProfileId);
@@ -355,31 +369,34 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
       <Modal
         open={showPrefsModal}
         onClose={() => setShowPrefsModal(false)}
-        title="⚙️ 偏好設定"
+        title={t('prefs.title', undefined, draftGeneral.interfaceLocale)}
         headerExtra={prefsHeaderExtra}
         width="70vw"
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowPrefsModal(false)}>取消</Button>
-            <Button variant="primary" onClick={savePrefs}>儲存</Button>
+            <Button variant="secondary" onClick={() => setShowPrefsModal(false)}>
+              {t('common.cancel', undefined, draftGeneral.interfaceLocale)}
+            </Button>
+            <Button variant="primary" onClick={savePrefs}>
+              {t('common.save', undefined, draftGeneral.interfaceLocale)}
+            </Button>
           </>
         }
       >
         {/* —— 分頁列 —— */}
         <div className="prefs-tabs">
-          {PREFS_TABS.map((t) => (
+          {PREFS_TABS.map((tabItem) => (
             <button
-              key={t.key}
+              key={tabItem.key}
               type="button"
-              className={`prefs-tab${activePrefsTab === t.key ? ' active' : ''}`}
-              onClick={() => setActivePrefsTab(t.key)}
+              className={`prefs-tab${activePrefsTab === tabItem.key ? ' active' : ''}`}
+              onClick={() => setActivePrefsTab(tabItem.key)}
             >
-              {t.label}
+              {t(tabItem.labelKey, undefined, draftGeneral.interfaceLocale) || tabItem.fallbackLabel}
             </button>
           ))}
         </div>
 
-        {/* —— LLM API —— */}
         {prefsMsg && (
           <div style={{
             margin: '0 0 12px',
@@ -390,6 +407,52 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
               'var(--text-secondary)',
           }}>
             {prefsMsg.text}
+          </div>
+        )}
+
+        {/* —— General / 一般設定 —— */}
+        {activePrefsTab === 'general' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '8px 0' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label className="form-label" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                {t('general.interfaceLocale', undefined, draftGeneral.interfaceLocale)}
+                <HelpIcon tooltip={t('general.interfaceLocaleHelp', undefined, draftGeneral.interfaceLocale)} />
+              </label>
+              <select
+                className="form-input"
+                value={draftGeneral.interfaceLocale}
+                onChange={(e) => {
+                  const nextLocale = e.target.value as InterfaceLocale;
+                  setDraftGeneral({
+                    ...draftGeneral,
+                    interfaceLocale: nextLocale,
+                  });
+                }}
+              >
+                <option value="zh-TW">{t('general.zhTW', undefined, draftGeneral.interfaceLocale)}</option>
+                <option value="en">{t('general.en', undefined, draftGeneral.interfaceLocale)}</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label className="form-label" style={{ display: 'inline-flex', alignItems: 'center' }}>
+                {t('general.defaultWritingLanguage', undefined, draftGeneral.interfaceLocale)}
+                <HelpIcon tooltip={t('general.defaultWritingLanguageHelp', undefined, draftGeneral.interfaceLocale)} />
+              </label>
+              <select
+                className="form-input"
+                value={draftGeneral.defaultWritingLanguage}
+                onChange={(e) => {
+                  setDraftGeneral({
+                    ...draftGeneral,
+                    defaultWritingLanguage: e.target.value as WritingLanguage,
+                  });
+                }}
+              >
+                <option value="zh-Hant">{t('general.zhHantWriting', undefined, draftGeneral.interfaceLocale)}</option>
+                <option value="en">{t('general.enWriting', undefined, draftGeneral.interfaceLocale)}</option>
+              </select>
+            </div>
           </div>
         )}
 

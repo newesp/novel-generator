@@ -2,10 +2,12 @@ import type { LLMConfig, LLMProfile, MultiAgentPrefs } from '../types';
 import { useSettingsStore, type AIPromptPrefs, type ImageGenerationPrefs, type InlineEditPrefs, type WikiPrefs } from '../stores/settingsStore';
 import type { LintPrefs } from './lint/types';
 import { createLLMProfile } from './llm-provider-defaults';
+import type { GeneralPrefs } from './language-policy';
 
 export const SETTINGS_BACKUP_SCHEMA_VERSION = 1 as const;
 
 export interface SettingsBackupData {
+  generalPrefs?: GeneralPrefs;
   llmConfig: Omit<LLMConfig, 'apiKey'> & { apiKey?: string };
   llmProfiles?: (Omit<LLMProfile, 'apiKey'> & { apiKey?: string })[];
   activeProfileId?: string;
@@ -31,7 +33,7 @@ export interface SettingsBackupSnapshot {
 }
 
 export function exportSettingsSnapshot(includeApiKeys: boolean): SettingsBackupSnapshot {
-  const { llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs, multiAgentPrefs } = useSettingsStore.getState();
+  const { generalPrefs, llmConfig, llmProfiles, activeProfileId, inlineEdit, aiPrompts, wikiPrefs, imageGenerationPrefs, lintPrefs, multiAgentPrefs } = useSettingsStore.getState();
   const profilesToExport = (llmProfiles && llmProfiles.length > 0 ? llmProfiles : [llmConfig]).map((p) =>
     includeApiKeys ? { ...p } : omitApiKey(p),
   );
@@ -42,6 +44,7 @@ export function exportSettingsSnapshot(includeApiKeys: boolean): SettingsBackupS
     exportedAt: Date.now(),
     includesApiKeys: includeApiKeys,
     settings: {
+      generalPrefs: { ...generalPrefs },
       llmConfig: includeApiKeys ? { ...llmConfig } : omitApiKey(llmConfig),
       llmProfiles: profilesToExport,
       activeProfileId: activeProfileId || llmConfig.id,
@@ -80,6 +83,10 @@ export function importSettingsSnapshot(snapshot: SettingsBackupSnapshot): void {
 
   const settings = snapshot.settings;
   const store = useSettingsStore.getState();
+
+  if (settings.generalPrefs) {
+    store.setGeneralPrefs(settings.generalPrefs);
+  }
 
   let importedProfiles: LLMProfile[] = [];
   if (settings.llmProfiles && settings.llmProfiles.length > 0) {
