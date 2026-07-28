@@ -6,6 +6,7 @@ import { updateWikiPageWithIntegrity } from '../wiki-mutations';
 import type { WikiPage, WikiLogEntry, WikiPageSnapshot, WikiPageType } from '../../types';
 import type { AIPromptPrefs } from '../../stores/settingsStore';
 import type { LintIssue } from './types';
+import type { WritingLanguage } from '../language-policy';
 
 export interface LlmFixSuggestion {
   /** LLM 產出的完整新 markdown */
@@ -25,6 +26,7 @@ export async function generateFixSuggestion(
   userDirection: string,
   preferredTargetPageId?: string,
   signal?: AbortSignal,
+  writingLanguage: WritingLanguage = 'zh-Hant',
 ): Promise<LlmFixSuggestion> {
   const wikiTargets = issue.targets.filter((t) => t.kind === 'wikiPage');
   const wikiTarget = wikiTargets.find((t) => t.id === preferredTargetPageId) ?? wikiTargets[0];
@@ -32,12 +34,23 @@ export async function generateFixSuggestion(
   const page = pages.find((p) => p.id === wikiTarget.id);
   if (!page) throw new Error(`找不到對應 wiki page id=${wikiTarget.id}`);
 
-  const prompt = renderTemplate(aiPrompts.lintFixSuggestTemplate, {
+  const isEn = writingLanguage === 'en';
+  const systemPrompt = isEn
+    ? 'You are a professional novel knowledge graph editor. Fix the issue according to instructions and output the revised Markdown.'
+    : '你是專業小說知識庫編輯，請依診斷問題與指示修復頁面並輸出完整的新 Markdown。';
+
+  const defaultDirection = isEn
+    ? '(Blank: analyze and resolve issue automatically)'
+    : '(留白：請依 issue 內容自行判斷)';
+
+  const promptBody = renderTemplate(aiPrompts.lintFixSuggestTemplate, {
     issueTitle: issue.title,
     issueDetail: issue.detail,
     originalMarkdown: page.contentMd,
-    userDirection: userDirection || '(留白：請依 issue 內容自行判斷)',
+    userDirection: userDirection || defaultDirection,
   });
+
+  const prompt = `${systemPrompt}\n\n${promptBody}`;
 
   const raw = await complete(prompt, { maxTokens: 4096 }, signal);
   const newMarkdown = raw.trim().replace(/^```(?:markdown)?\s*/i, '').replace(/```\s*$/i, '');
