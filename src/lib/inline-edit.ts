@@ -1,8 +1,9 @@
 import { complete } from './llm';
 import { renderTemplate } from './prompt-template';
-import { useSettingsStore } from '../stores/settingsStore';
+import { useSettingsStore, getPromptPair } from '../stores/settingsStore';
 import type { Chapter } from '../types';
 import type { InlineEditContextMode } from '../stores/settingsStore';
+import { resolveBeatLabel, type WritingLanguage } from './language-policy';
 
 export interface RewriteSelectionInput {
   chapter: Pick<Chapter, 'title' | 'beat' | 'points'>;
@@ -13,6 +14,8 @@ export interface RewriteSelectionInput {
   contextMode: InlineEditContextMode;
   /** window 模式下，前後各取多少字（full 模式忽略此值） */
   contextChars: number;
+  /** 書籍創作語言 */
+  writingLanguage?: WritingLanguage;
 }
 
 export interface RewriteSelectionResult {
@@ -38,7 +41,7 @@ export async function rewriteSelection(
 ): Promise<RewriteSelectionResult> {
   const {
     chapter, fullContent, selectionStart, selectionEnd,
-    adjustInstruction, contextMode, contextChars,
+    adjustInstruction, contextMode, contextChars, writingLanguage = 'zh-Hant',
   } = opts;
 
   const selectedText = fullContent.substring(selectionStart, selectionEnd);
@@ -57,9 +60,15 @@ export async function rewriteSelection(
     beforeContext,
     afterContext,
     adjustInstruction,
+    writingLanguage,
   });
 
-  const raw = (await complete(prompt, undefined, signal)).trim();
+  const isEn = writingLanguage === 'en';
+  const systemPrompt = isEn
+    ? 'You are a professional prose editor. Output only the revised text snippet in English.'
+    : '你是專業小說編輯與精修作家，請直接輸出修改後的文字片段。';
+
+  const raw = (await complete(`${systemPrompt}\n\n${prompt}`, undefined, signal)).trim();
 
   // 保留原選取的前後空白（換行），避免段落結構被破壞
   const leadingWS  = selectedText.match(/^\s*/)?.[0] ?? '';
@@ -79,17 +88,20 @@ function buildPrompt(args: {
   beforeContext: string;
   afterContext: string;
   adjustInstruction: string;
+  writingLanguage: WritingLanguage;
 }): string {
-  const { chapter, selectedText, beforeContext, afterContext, adjustInstruction } = args;
+  const { chapter, selectedText, beforeContext, afterContext, adjustInstruction, writingLanguage } = args;
   const { aiPrompts } = useSettingsStore.getState();
+  const locale = writingLanguage === 'en' ? 'en' : 'zh-TW';
+  const resolvedBeat = resolveBeatLabel(chapter.beat, locale);
 
   return renderTemplate(aiPrompts.inlineAdjustTemplate, {
-    chapterTitle: chapter.title || '(未命名)',
-    beat: chapter.beat || '自定義',
-    points: chapter.points || '無',
-    beforeContext: beforeContext || '(無)',
+    chapterTitle: chapter.title || (writingLanguage === 'en' ? 'Untitled' : '(未命名)'),
+    beat: resolvedBeat || (writingLanguage === 'en' ? 'Unspecified' : '自定義'),
+    points: chapter.points || (writingLanguage === 'en' ? 'None' : '無'),
+    beforeContext: beforeContext || (writingLanguage === 'en' ? '(None)' : '(無)'),
     selectedText,
-    afterContext: afterContext || '(無)',
+    afterContext: afterContext || (writingLanguage === 'en' ? '(None)' : '(無)'),
     adjustInstruction,
   });
 }

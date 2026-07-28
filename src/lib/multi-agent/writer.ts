@@ -9,6 +9,7 @@ import type {
 } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { assertRunWritable, isCancellationError } from './resilience';
+import { resolveBeatLabel } from '../language-policy';
 
 export interface WriterResult {
   candidateDraft: string;
@@ -68,19 +69,20 @@ export async function executeWriterStep(runId: string, signal?: AbortSignal): Pr
 
   const project = await storage.projects.get(run.bookId);
   const chapter = await storage.chapters.get(run.chapterId);
+  const isEn = project?.writingLanguage === 'en';
 
   const promptVars = {
-    storyTitle: run.snapshot.storyTitle || project?.title || '未命名小說',
-    worldSetting: project?.worldSetting || '無',
-    mainPlotSection: project?.mainPlot ? `\n## 主線劇情\n${project.mainPlot}` : '',
+    storyTitle: run.snapshot.storyTitle || project?.title || (isEn ? 'Untitled Novel' : '未命名小說'),
+    worldSetting: project?.worldSetting || (isEn ? 'None' : '無'),
+    mainPlotSection: project?.mainPlot ? `\n## ${isEn ? 'Main Plot' : '主線劇情'}\n${project.mainPlot}` : '',
     charactersSection: '',
     wikiSection: '',
     olderSummarySection: '',
-    chapterTitle: run.snapshot.chapterTitle || chapter?.title || '未命名章節',
-    beat: approvedBeat,
+    chapterTitle: run.snapshot.chapterTitle || chapter?.title || (isEn ? 'Untitled Chapter' : '未命名章節'),
+    beat: resolveBeatLabel(approvedBeat, isEn ? 'en' : 'zh-TW'),
     points: approvedPoints,
     targetWords: String(run.snapshot.targetWordCount || chapter?.targetWords || 2000),
-    roleGuidance: writerConfig.roleGuidance || '依核准的生成細綱與上下文寫作章節正文。',
+    roleGuidance: writerConfig.roleGuidance || (isEn ? 'Write the chapter prose in English based on the approved outline and context.' : '依核准的生成細綱與上下文寫作繁體中文章節正文。'),
   };
 
   const prompt = renderTemplate(DEFAULT_MULTI_AGENT_WRITER_TEMPLATE, promptVars);
@@ -103,10 +105,14 @@ export async function executeWriterStep(runId: string, signal?: AbortSignal): Pr
 
   let response: Awaited<ReturnType<typeof completeNormalized>>;
   try {
+    const systemPrompt = isEn
+      ? 'You are a professional fiction writer. Write the chapter prose fluently and exclusively in English.'
+      : '你是專業小說作家，請直接輸出繁體中文小說正文，嚴禁使用簡體中文或非中文詞彙。';
+
     response = await completeNormalized(
       prompt,
       {
-        systemPrompt: '你是專業小說作家，請直接輸出小說正文。',
+        systemPrompt,
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
       },
