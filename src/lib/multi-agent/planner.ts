@@ -12,6 +12,7 @@ import type {
 } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { assertRunWritable, isCancellationError } from './resilience';
+import { resolveBeatLabel } from '../language-policy';
 
 export interface PlannedOutline {
   beat: string;
@@ -92,20 +93,21 @@ export async function executePlannerStep(runId: string, signal?: AbortSignal): P
 
   const project = await storage.projects.get(run.bookId);
   const chapter = await storage.chapters.get(run.chapterId);
+  const isEn = project?.writingLanguage === 'en';
 
   const promptVars = {
-    storyTitle: run.snapshot.storyTitle || project?.title || '未命名小說',
-    worldSetting: project?.worldSetting || '無',
-    mainPlotSection: project?.mainPlot ? `\n## 主線劇情\n${project.mainPlot}` : '',
+    storyTitle: run.snapshot.storyTitle || project?.title || (isEn ? 'Untitled Novel' : '未命名小說'),
+    worldSetting: project?.worldSetting || (isEn ? 'None' : '無'),
+    mainPlotSection: project?.mainPlot ? `\n## ${isEn ? 'Main Plot' : '主線劇情'}\n${project.mainPlot}` : '',
     charactersSection: '',
     wikiSection: '',
     olderSummarySection: '',
     chapterNumber: String(run.snapshot.chapterNumber ?? ((chapter?.order ?? 0) + 1)),
-    chapterTitle: run.snapshot.chapterTitle || chapter?.title || '未命名章節',
-    beat: chapter?.beat || '引入 (Inciting Incident)',
-    points: chapter?.points || '無要點',
+    chapterTitle: run.snapshot.chapterTitle || chapter?.title || (isEn ? 'Untitled Chapter' : '未命名章節'),
+    beat: resolveBeatLabel(chapter?.beat || 'inciting_incident', isEn ? 'en' : 'zh-TW'),
+    points: chapter?.points || (isEn ? 'No key points' : '無要點'),
     targetWords: String(run.snapshot.targetWordCount || chapter?.targetWords || 2000),
-    roleGuidance: plannerConfig.roleGuidance || '根據章節節拍、要點、上下文與知識資料產生章節細綱。',
+    roleGuidance: plannerConfig.roleGuidance || (isEn ? 'Generate detailed chapter beats in English based on story context.' : '根據章節節拍、要點、上下文與知識資料產生繁體中文章節細綱。'),
   };
 
   const prompt = renderTemplate(DEFAULT_MULTI_AGENT_PLANNER_TEMPLATE, promptVars);
@@ -129,10 +131,14 @@ export async function executePlannerStep(runId: string, signal?: AbortSignal): P
 
   let response1: Awaited<ReturnType<typeof completeNormalized>>;
   try {
+    const systemPrompt = isEn
+      ? 'You are a professional novel planner. Output strict JSON matching the schema in English.'
+      : '你是專業小說大綱與章節細綱規劃專家，請嚴格輸出符合 JSON 規範的回應。';
+
     response1 = await completeNormalized(
       prompt,
       {
-        systemPrompt: '你是專業小說大綱與章節細綱規劃專家，請嚴格輸出符合 JSON 規範的回應。',
+        systemPrompt,
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
       },

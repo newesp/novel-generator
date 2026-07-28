@@ -10,6 +10,7 @@ import type {
 import type { CriticFeedback } from './critic';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { assertRunWritable, isCancellationError } from './resilience';
+import { resolveBeatLabel } from '../language-policy';
 
 export interface EditorResult {
   revisedDraft: string;
@@ -93,11 +94,13 @@ export async function executeEditorStep(runId: string, signal?: AbortSignal): Pr
     maxTokens: editorConfig.maxTokensOverride ?? profileSnapshot?.maxTokens ?? liveProfile.maxTokens,
   };
 
+  const project = await storage.projects.get(run.bookId);
   const chapter = await storage.chapters.get(run.chapterId);
+  const isEn = project?.writingLanguage === 'en';
 
   const plannerChk = checkpoints.find((c) => c.stateName === 'planner_reviewed' || c.stateName === 'planner_done');
-  let beat = chapter?.beat || '鋪墊';
-  let points = chapter?.points || '無要點';
+  let beat = chapter?.beat || 'setup';
+  let points = chapter?.points || (isEn ? 'No key points' : '無要點');
   if (plannerChk) {
     try {
       const data = JSON.parse(plannerChk.data);
@@ -108,23 +111,23 @@ export async function executeEditorStep(runId: string, signal?: AbortSignal): Pr
 
   const nextDraftVersion = draftVersion + 1;
   const majorFlawSection = feedback.hasMajorFlaw
-    ? `⚠️ **重大缺陷問題**：${feedback.majorFlawReason}`
+    ? (isEn ? `⚠️ **Major Flaw Issue**: ${feedback.majorFlawReason}` : `⚠️ **重大缺陷問題**：${feedback.majorFlawReason}`)
     : '';
 
   const requiredChangesList = feedback.requiredChanges.length > 0
     ? feedback.requiredChanges.map((c, i) => `${i + 1}. ${c}`).join('\n')
-    : '無額外指定，請綜合提升正文品質。';
+    : (isEn ? 'No specific changes requested; improve overall prose quality.' : '無額外指定，請綜合提升正文品質。');
 
   const promptVars = {
-    chapterTitle: run.snapshot.chapterTitle || chapter?.title || '未命名章節',
-    beat,
+    chapterTitle: run.snapshot.chapterTitle || chapter?.title || (isEn ? 'Untitled Chapter' : '未命名章節'),
+    beat: resolveBeatLabel(beat, isEn ? 'en' : 'zh-TW'),
     points,
     candidateDraft,
     draftVersion: String(draftVersion),
     nextDraftVersion: String(nextDraftVersion),
     majorFlawSection,
     requiredChangesList,
-    roleGuidance: editorConfig.roleGuidance || '依目前候選草稿與同版本 Critic feedback 進行針對性修訂。',
+    roleGuidance: editorConfig.roleGuidance || (isEn ? 'Revise the candidate draft in English based on Critic feedback.' : '依目前候選草稿與同版本 Critic feedback 進行針對性修訂。'),
   };
 
   const prompt = renderTemplate(DEFAULT_MULTI_AGENT_EDITOR_TEMPLATE, promptVars);
@@ -147,10 +150,14 @@ export async function executeEditorStep(runId: string, signal?: AbortSignal): Pr
 
   let response: Awaited<ReturnType<typeof completeNormalized>>;
   try {
+    const systemPrompt = isEn
+      ? 'You are a professional fiction editor. Output only the revised and polished chapter prose in English.'
+      : '你是專業小說責任編輯，請直接輸出修訂後的繁體中文小說正文。';
+
     response = await completeNormalized(
       prompt,
       {
-        systemPrompt: '你是專業小說責任編輯，請直接輸出修訂後的小說正文。',
+        systemPrompt,
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
       },

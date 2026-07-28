@@ -14,6 +14,7 @@ import type {
 } from '../../types';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { assertRunWritable, isCancellationError } from './resilience';
+import { resolveBeatLabel } from '../language-policy';
 
 export interface CriticScores {
   instructionAndBeat: number;
@@ -229,10 +230,11 @@ export async function executeCriticStep(runId: string, signal?: AbortSignal): Pr
 
   const project = await storage.projects.get(run.bookId);
   const chapter = await storage.chapters.get(run.chapterId);
+  const isEn = project?.writingLanguage === 'en';
 
   const plannerChk = checkpoints.find((c) => c.stateName === 'planner_reviewed' || c.stateName === 'planner_done');
-  let beat = chapter?.beat || '鋪墊';
-  let points = chapter?.points || '無要點';
+  let beat = chapter?.beat || 'setup';
+  let points = chapter?.points || (isEn ? 'No key points' : '無要點');
   if (plannerChk) {
     try {
       const data = JSON.parse(plannerChk.data);
@@ -243,16 +245,16 @@ export async function executeCriticStep(runId: string, signal?: AbortSignal): Pr
 
   const weights = run.snapshot.criticRubricWeights;
   const promptVars = {
-    chapterTitle: run.snapshot.chapterTitle || chapter?.title || '未命名章節',
-    beat,
+    chapterTitle: run.snapshot.chapterTitle || chapter?.title || (isEn ? 'Untitled Chapter' : '未命名章節'),
+    beat: resolveBeatLabel(beat, isEn ? 'en' : 'zh-TW'),
     points,
-    worldSetting: project?.worldSetting || '無',
+    worldSetting: project?.worldSetting || (isEn ? 'None' : '無'),
     charactersSection: '',
     wikiSection: '',
     olderSummarySection: '',
     candidateDraft,
     draftVersion: String(draftVersion),
-    roleGuidance: criticConfig.roleGuidance || '依固定 rubric 評分、判定重大缺陷並產生修訂要求。',
+    roleGuidance: criticConfig.roleGuidance || (isEn ? 'Evaluate the prose objectively against rubric weights.' : '依固定 rubric 評分、判定重大缺陷並產生修訂要求。'),
     weightInstructionGoal: String(weights.instructionAndBeat),
     weightPlotLogic: String(weights.plotLogic),
     weightCharacterConsistency: String(weights.characterConsistency),
@@ -281,10 +283,14 @@ export async function executeCriticStep(runId: string, signal?: AbortSignal): Pr
 
   let response1: Awaited<ReturnType<typeof completeNormalized>>;
   try {
+    const systemPrompt = isEn
+      ? 'You are a rigorous fiction editor and literary critic. Output strict JSON matching the evaluation schema in English.'
+      : '你是嚴謹的小說總編輯與文學評論家，請嚴格輸出符合 JSON 規範的回審結果。';
+
     response1 = await completeNormalized(
       prompt,
       {
-        systemPrompt: '你是嚴謹的小說總編輯與文學評論家，請嚴格輸出符合 JSON 規範的回審結果。',
+        systemPrompt,
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
       },
