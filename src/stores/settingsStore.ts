@@ -36,7 +36,23 @@ export interface InlineEditPrefs {
   contextChars: number;
 }
 
+import {
+  DEFAULT_PROMPT_PAIRS_ZH,
+  getDefaultPromptPair,
+  type PromptPair,
+  type PromptTargetKey,
+} from '../lib/language-policy';
+
 export interface AIPromptPrefs {
+  /** Target Prompt Pairs (Ticket #19) */
+  chapterDrafts?: PromptPair;
+  chapterOutline?: PromptPair;
+  characterProfile?: PromptPair;
+  expandContent?: PromptPair;
+  polishContent?: PromptPair;
+  summaryGeneration?: PromptPair;
+  wikiIngest?: PromptPair;
+
   /** #1 章節骨架 prompt 模板（含接續模式） */
   chapterDraftsTemplate: string;
   /** 接續硬性規則（被插入 chapterDraftsTemplate 的接續規則區段） */
@@ -67,6 +83,17 @@ export interface AIPromptPrefs {
   lintWikiVsChapterTemplate: string;
   /** #12 Lint — 修改建議 */
   lintFixSuggestTemplate: string;
+}
+
+export function getPromptPair(
+  prefs: AIPromptPrefs,
+  target: PromptTargetKey,
+  locale: 'zh-TW' | 'en' = 'zh-TW',
+): PromptPair {
+  if (prefs[target] && prefs[target]?.systemPrompt && prefs[target]?.userPromptTemplate) {
+    return prefs[target]!;
+  }
+  return getDefaultPromptPair(target, locale);
 }
 
 export interface WikiPrefs {
@@ -255,6 +282,14 @@ interface SettingsState {
 }
 
 const DEFAULT_AI_PROMPTS: AIPromptPrefs = {
+  chapterDrafts: DEFAULT_PROMPT_PAIRS_ZH.chapterDrafts,
+  chapterOutline: DEFAULT_PROMPT_PAIRS_ZH.chapterOutline,
+  characterProfile: DEFAULT_PROMPT_PAIRS_ZH.characterProfile,
+  expandContent: DEFAULT_PROMPT_PAIRS_ZH.expandContent,
+  polishContent: DEFAULT_PROMPT_PAIRS_ZH.polishContent,
+  summaryGeneration: DEFAULT_PROMPT_PAIRS_ZH.summaryGeneration,
+  wikiIngest: DEFAULT_PROMPT_PAIRS_ZH.wikiIngest,
+
   chapterDraftsTemplate: DEFAULT_CHAPTER_DRAFTS_TEMPLATE,
   chapterContinuationRules: DEFAULT_CHAPTER_CONTINUATION_RULES,
   chapterContentTemplate: DEFAULT_CHAPTER_CONTENT_TEMPLATE,
