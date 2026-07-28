@@ -117,6 +117,8 @@ export async function exportSnapshot(options?: BackupExportOptions): Promise<Bac
  * 目前只支援 'replace'（清空再寫入）— 簡單、可預期。
  * merge 模式之後需要時再加，會涉及 id 衝突處理。
  */
+import { normalizeProjectLanguage } from '../stores/projectStore';
+
 export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' = 'replace'): Promise<void> {
   if (snapshot?.app !== 'novel-generator') {
     throw new Error('檔案格式不是 novel-generator 備份');
@@ -135,7 +137,7 @@ export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' =
     });
 
     await storage.replaceAll({
-      projects: snapshot.projects ?? [],
+      projects: (snapshot.projects ?? []).map(normalizeProjectLanguage),
       chapters: (snapshot.chapters ?? []).map(upgradeChapterV1ToV2),
       versions: snapshot.versions ?? [],
       characters: snapshot.characters ?? [],

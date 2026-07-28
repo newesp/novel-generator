@@ -1,3 +1,5 @@
+import type { WritingLanguage } from '../lib/language-policy';
+
 export interface Project {
   id: string;
   title: string;
@@ -6,6 +8,7 @@ export interface Project {
   worldSetting: string;
   mainPlot: string;
   chapterOutline: string;
+  writingLanguage: WritingLanguage;
   createdAt: number;
   updatedAt: number;
 }

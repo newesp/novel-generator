@@ -8,6 +8,8 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 
+import type { WritingLanguage } from '../../lib/language-policy';
+
 export function HomePage() {
   const { books, loadAllBooks, loadProject, loadChapters, loadCharacters, createProject, deleteProject, updateProject } = useProjectStore();
   const { setView, setActiveTab, setSelectedChapterId } = useUIStore();
@@ -50,8 +52,8 @@ export function HomePage() {
     setView('editor');
   };
 
-  const handleCreate = async (title: string, genre: string, style: string) => {
-    const id = await createProject({ title, genre, style, worldSetting: '', mainPlot: '', chapterOutline: '' });
+  const handleCreate = async (title: string, genre: string, style: string, writingLanguage: WritingLanguage) => {
+    const id = await createProject({ title, genre, style, worldSetting: '', mainPlot: '', chapterOutline: '', writingLanguage });
     setShowNewModal(false);
     await loadChapters(id);
     await loadCharacters(id);

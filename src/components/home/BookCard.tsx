@@ -59,6 +59,10 @@ export function BookCard({ book, wordCount, onOpen, onRename, onDelete }: Props)
       <div className="book-info">
         <div className="book-title">{book.title || '（無書名）'}</div>
         <div className="book-meta">
+          <span style={{ fontSize: 11, padding: '1px 5px', borderRadius: 4, background: 'rgba(255, 255, 255, 0.1)', color: 'var(--text-secondary)' }}>
+            {book.writingLanguage === 'en' ? 'EN' : '繁中'}
+          </span>
+          <span>·</span>
           {book.genre && <span>{book.genre}</span>}
           {book.genre && <span>·</span>}
           <span>{wordCount.toLocaleString()} 字</span>

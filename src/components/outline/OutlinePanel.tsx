@@ -123,6 +123,12 @@ export function OutlinePanel() {
             />
           </div>
           <div className="form-group">
+            <label className="form-label">創作語言（建書後不可變更）</label>
+            <div className="form-input" style={{ background: 'var(--bg-tertiary, #1f2937)', color: 'var(--text-secondary, #9ca3af)', cursor: 'not-allowed', display: 'flex', alignItems: 'center' }}>
+              🔒 {project.writingLanguage === 'en' ? 'English (英文)' : '繁體中文 (Traditional Chinese)'}
+            </div>
+          </div>
+          <div className="form-group">
             <label className="form-label">題材</label>
             <input
               className="form-input"

@@ -6,6 +6,16 @@ import { recomputeChapterSyncStatus } from '../lib/wiki-ingest';
 import { deleteWikiPageCascade } from '../lib/wiki-mutations';
 import { summarySlugForChapter } from '../lib/wiki-summary-quality';
 
+import { useSettingsStore } from './settingsStore';
+import type { WritingLanguage } from '../lib/language-policy';
+
+export function normalizeProjectLanguage(project: Project): Project {
+  return {
+    ...project,
+    writingLanguage: project.writingLanguage === 'en' ? 'en' : 'zh-Hant',
+  };
+}
+
 interface ProjectState {
   books: Project[];
   project: Project | null;
@@ -15,7 +25,7 @@ interface ProjectState {
 
   loadAllBooks: () => Promise<void>;
   loadProject: (id: string) => Promise<void>;
-  createProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => Promise<string>;
+  createProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> & { writingLanguage?: WritingLanguage }) => Promise<string>;
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 
@@ -45,33 +55,38 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   currentChapterVersions: [],
 
   loadAllBooks: async () => {
-    const books = await storage.projects.listAllByUpdatedDesc();
+    const rawBooks = await storage.projects.listAllByUpdatedDesc();
+    const books = rawBooks.map(normalizeProjectLanguage);
     set({ books });
   },
 
   loadProject: async (id) => {
     const project = await storage.projects.get(id);
-    set({ project: project || null });
+    set({ project: project ? normalizeProjectLanguage(project) : null });
   },
 
   createProject: async (data) => {
     const id = uuid();
     const now = Date.now();
-    const project: Project = { id, ...data, createdAt: now, updatedAt: now };
+    const defaultLang = useSettingsStore.getState().generalPrefs?.defaultWritingLanguage || 'zh-Hant';
+    const writingLanguage = data.writingLanguage || defaultLang;
+    const project: Project = { id, ...data, writingLanguage, createdAt: now, updatedAt: now };
     await storage.projects.add(project);
     set({ project, chapters: [], characters: [], currentChapterVersions: [] });
     // refresh books list
-    const books = await storage.projects.listAllByUpdatedDesc();
+    const books = (await storage.projects.listAllByUpdatedDesc()).map(normalizeProjectLanguage);
     set({ books });
     return id;
   },
 
   updateProject: async (id, data) => {
-    await storage.projects.update(id, { ...data, updatedAt: Date.now() });
+    // 嚴格防止一般更新操作修改不可變的 writingLanguage
+    const { writingLanguage: _ignored, ...allowedData } = data;
+    await storage.projects.update(id, { ...allowedData, updatedAt: Date.now() });
     const project = await storage.projects.get(id);
-    set({ project: project || null });
+    set({ project: project ? normalizeProjectLanguage(project) : null });
     // refresh books list
-    const books = await storage.projects.listAllByUpdatedDesc();
+    const books = (await storage.projects.listAllByUpdatedDesc()).map(normalizeProjectLanguage);
     set({ books });
   },
 
