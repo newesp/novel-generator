@@ -1,5 +1,22 @@
 # 開發日誌
 
+## 2026-07-28 - 完成 i18n & Writing Language 功能 (Ticket #16 ~ #25)
+
+- **Ticket #16**: 實作 Interface Locale 切換閉環與 Language Policy seam（支援 `zh-TW` / `en` 切換、自動偵測與預設寫入）。
+- **Ticket #17**: 實作不可變的書籍 Writing Language 欄位（`writingLanguage: 'zh-Hant' | 'en'`），專案建立時寫入並鎖定，全站唯讀顯示 Badge。
+- **Ticket #18**: 以穩定代碼在地化題材、風格與章節節拍（`normalizeGenre`, `normalizeStyle`, `normalizeBeat`, `resolveBeatLabel`）。
+- **Ticket #19**: 重構 System Prompts 與 Prompt Target 結構語意，支援雙語系預設 PromptPair（`chapterDrafts`, `chapterOutline`, `characterProfile`, `expandContent`, `polishContent`, `summaryGeneration`, `wikiIngest`）。
+- **Ticket #20**: 實作大綱與章節草稿 (Outline / Drafts) LLM 語意邊界與 Prompt 語系隔離。
+- **Ticket #21**: 實作章節正文與段落擴充／潤色 LLM 語意邊界。
+- **Ticket #22**: 實作角色草稿、摘要提煉與角色卡雙語系 LLM 語意邊界。
+- **Ticket #23**: 實作 Multi-Agent (Planner / Critic / Editor) LLM 語意邊界與雙語系評審系統提示詞。
+- **Ticket #24**: 實作摘要與 Wiki Ingest / Query LLM 語意邊界（雙語系標題、實體抽取與 Index JSON 格式化）。
+- **Ticket #25**: 實作 Lint 診斷與修復建議 LLM 語意邊界。
+
+**Verification**
+- 執行 `npx vitest run` 所有 150+ 個單元測試全數通過（含新增之 `policy.test.ts`, `presets.test.ts`, `ai-tasks.drafts-language.test.ts`, `content-generation-language.test.ts`, `character-language.test.ts`, `agents-language.test.ts`, `wiki-language.test.ts`, `llm-fix-language.test.ts`）。
+- 執行 `npx tsc -b` 無任何型別錯誤。
+
 ## 2026-07-28 - 完成中英雙語介面與書籍創作語言規劃
 
 - 使用 `grill-with-docs` 與 domain modeling 釐清介面語系、書籍創作語言、內建／自訂 Prompt、創作內容與技術提示詞的邊界，並更新 `CONTEXT.md`。
