@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { useSettingsStore } from '../../stores/settingsStore';
-import { t, type WritingLanguage } from '../../lib/language-policy';
-
-const GENRES = ['玄幻', '都市', '仙俠', '科幻', '言情', '懸疑', '自定義'];
-const STYLES = ['輕鬆', '沉重', '黑暗', '熱血', '幽默', '爽文', '自定義'];
+import {
+  t,
+  type WritingLanguage,
+  GENRE_PRESETS,
+  STYLE_PRESETS,
+  normalizeGenre,
+  normalizeStyle,
+} from '../../lib/language-policy';
 
 interface Props {
   open: boolean;
@@ -38,7 +42,7 @@ export function NewBookModal({ open, onClose, onCreate }: Props) {
     setTitleError(false);
     setLoading(true);
     try {
-      await onCreate(title.trim(), genre, style, writingLanguage);
+      await onCreate(title.trim(), normalizeGenre(genre), normalizeStyle(style), writingLanguage);
       setTitle('');
       setGenre('');
       setStyle('');
@@ -122,12 +126,16 @@ export function NewBookModal({ open, onClose, onCreate }: Props) {
           <input
             list="genre-list"
             className="form-input"
-            placeholder="點擊選擇或輸入自定義..."
+            placeholder="點擊選擇或輸入..."
             value={genre}
             onChange={(e) => setGenre(e.target.value)}
           />
           <datalist id="genre-list">
-            {GENRES.map((g) => <option key={g} value={g} />)}
+            {GENRE_PRESETS.map((g) => (
+              <option key={g.code} value={g.code}>
+                {locale === 'en' ? g.labelEn : g.labelZh}
+              </option>
+            ))}
           </datalist>
         </div>
 
@@ -137,12 +145,16 @@ export function NewBookModal({ open, onClose, onCreate }: Props) {
           <input
             list="style-list"
             className="form-input"
-            placeholder="點擊選擇或輸入自定義..."
+            placeholder="點擊選擇或輸入..."
             value={style}
             onChange={(e) => setStyle(e.target.value)}
           />
           <datalist id="style-list">
-            {STYLES.map((s) => <option key={s} value={s} />)}
+            {STYLE_PRESETS.map((s) => (
+              <option key={s.code} value={s.code}>
+                {locale === 'en' ? s.labelEn : s.labelZh}
+              </option>
+            ))}
           </datalist>
         </div>
       </div>

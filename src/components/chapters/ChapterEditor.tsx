@@ -40,15 +40,11 @@ import { PlannerReviewModal } from './PlannerReviewModal';
 import { HumanReviewModal } from './HumanReviewModal';
 import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
 import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
-
-const BEATS = [
-  '引入 (Inciting Incident)',
-  '衝突升級 (Rising Action)',
-  '中點轉折 (Midpoint Twist)',
-  '高潮 (Climax)',
-  '結局 (Resolution)',
-  '鋪墊/過渡',
-];
+import {
+  BEAT_PRESETS,
+  normalizeBeat,
+  resolveBeatLabel,
+} from '../../lib/language-policy';
 
 interface InlineEditTarget {
   start: number;
@@ -852,7 +848,11 @@ export function ChapterEditor() {
               disabled={isRegeneratingPoints}
             />
             <datalist id="beat-list">
-              {BEATS.map((item) => <option key={item} value={item} />)}
+              {BEAT_PRESETS.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.labelZh} ({item.labelEn})
+                </option>
+              ))}
             </datalist>
           </label>
 

@@ -1,8 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Project } from '../../types';
 
+import { useSettingsStore } from '../../stores/settingsStore';
+import { resolveGenreLabel } from '../../lib/language-policy';
+
 // genre → hue for colour placeholder
 const GENRE_COLORS: Record<string, string> = {
+  xuanhuan: '#7c3aed',
+  xianxia: '#4f86c6',
+  urban: '#059669',
+  scifi: '#0284c7',
+  romance: '#db2777',
+  mystery: '#b45309',
   玄幻: '#7c3aed',
   仙俠: '#4f86c6',
   都市: '#059669',
@@ -29,6 +38,10 @@ interface Props {
 }
 
 export function BookCard({ book, wordCount, onOpen, onRename, onDelete }: Props) {
+  const { generalPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
+  const genreLabel = resolveGenreLabel(book.genre, locale);
+
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -50,8 +63,8 @@ export function BookCard({ book, wordCount, onOpen, onRename, onDelete }: Props)
         className="book-cover"
         style={{ background: genreBg(book.genre) }}
       >
-        {book.genre && (
-          <span className="book-cover-genre">{book.genre}</span>
+        {genreLabel && (
+          <span className="book-cover-genre">{genreLabel}</span>
         )}
       </div>
 
@@ -63,8 +76,8 @@ export function BookCard({ book, wordCount, onOpen, onRename, onDelete }: Props)
             {book.writingLanguage === 'en' ? 'EN' : '繁中'}
           </span>
           <span>·</span>
-          {book.genre && <span>{book.genre}</span>}
-          {book.genre && <span>·</span>}
+          {genreLabel && <span>{genreLabel}</span>}
+          {genreLabel && <span>·</span>}
           <span>{wordCount.toLocaleString()} 字</span>
         </div>
         <div className="book-date">更新 {formatDate(book.updatedAt)}</div>

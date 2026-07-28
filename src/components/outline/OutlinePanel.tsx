@@ -5,13 +5,18 @@ import { Button } from '../common/Button';
 import { complete, isLLMReady } from '../../lib/llm';
 import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
 import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
-
-const GENRES = ['玄幻', '都市', '仙俠', '科幻', '言情', '懸疑', '自定義'];
-const STYLES = ['輕鬆', '沉重', '黑暗', '熱血', '幽默', '爽文', '自定義'];
+import {
+  GENRE_PRESETS,
+  STYLE_PRESETS,
+  normalizeGenre,
+  normalizeStyle,
+} from '../../lib/language-policy';
 
 export function OutlinePanel() {
   const { project, updateProject } = useProjectStore();
-  const { llmConfig } = useSettingsStore();
+  const { generalPrefs, llmConfig } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
+
   const [genre, setGenre] = useState('');
   const [style, setStyle] = useState('');
   const [title, setTitle] = useState('');
@@ -32,8 +37,8 @@ export function OutlinePanel() {
   useEffect(() => {
     if (project) {
       setTitle(project.title);
-      setGenre(project.genre);
-      setStyle(project.style);
+      setGenre(normalizeGenre(project.genre));
+      setStyle(normalizeStyle(project.style));
       setWorldSetting(project.worldSetting);
       setMainPlot(project.mainPlot);
     }
@@ -52,16 +57,24 @@ export function OutlinePanel() {
   // 是否有未儲存的變更（任一欄位與 DB 中的值不同）
   const isDirty =
     title !== project.title ||
-    genre !== project.genre ||
-    style !== project.style ||
+    normalizeGenre(genre) !== normalizeGenre(project.genre) ||
+    normalizeStyle(style) !== normalizeStyle(project.style) ||
     worldSetting !== project.worldSetting ||
     mainPlot !== project.mainPlot;
 
   const save = async () => {
     try {
-      await updateProject(project.id, { title, genre, style, worldSetting, mainPlot });
+      const normalizedG = normalizeGenre(genre);
+      const normalizedS = normalizeStyle(style);
+      await updateProject(project.id, { 
+        title, 
+        genre: normalizedG, 
+        style: normalizedS, 
+        worldSetting, 
+        mainPlot 
+      });
       setSaveLabel('✅ 已儲存');
-      setTimeout(() => setSaveLabel('💾 儲存大綱'), 1500);
+      setTimeout(() => setSaveLabel('💾 儲存大綱'), 2000);
     } catch (err) {
       alert(`儲存失敗：${(err as Error).message}`);
     }
@@ -138,7 +151,11 @@ export function OutlinePanel() {
               placeholder="點擊選擇或輸入..."
             />
             <datalist id="genre-list">
-              {GENRES.map((g) => <option key={g} value={g} />)}
+              {GENRE_PRESETS.map((g) => (
+                <option key={g.code} value={g.code}>
+                  {locale === 'en' ? g.labelEn : g.labelZh}
+                </option>
+              ))}
             </datalist>
           </div>
           <div className="form-group">
@@ -151,7 +168,11 @@ export function OutlinePanel() {
               placeholder="點擊選擇或輸入..."
             />
             <datalist id="style-list">
-              {STYLES.map((s) => <option key={s} value={s} />)}
+              {STYLE_PRESETS.map((s) => (
+                <option key={s.code} value={s.code}>
+                  {locale === 'en' ? s.labelEn : s.labelZh}
+                </option>
+              ))}
             </datalist>
           </div>
           <Button

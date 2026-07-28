@@ -18,6 +18,7 @@ import {
 } from '../../lib/multi-agent/presentation';
 import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
 import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
+import { resolveBeatLabel } from '../../lib/language-policy';
 
 function WikiBadge({ status }: { status: Chapter['wikiSyncStatus'] }) {
   if (status === 'synced') return null;
@@ -383,7 +384,7 @@ export function ChaptersPanel() {
                 <div className="chapter-item-title">{ch.title || '(未命名)'}</div>
                 <div className="chapter-item-meta">
                   <span>{ch.content ? `約 ${ch.content.length} 字` : '待生成'}</span>
-                  {ch.beat && <span className="badge badge-gray">{ch.beat.split(' ')[0]}</span>}
+                  {ch.beat && <span className="badge badge-gray">{resolveBeatLabel(ch.beat, generalPrefs.interfaceLocale)}</span>}
                   <WikiBadge status={ch.wikiSyncStatus} />
                   {agentRun && (
                     <button
