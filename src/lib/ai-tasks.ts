@@ -1,7 +1,13 @@
 import { complete } from './llm';
 import { logPromptToTemp } from './prompt-log';
 import { renderTemplate } from './prompt-template';
-import { useSettingsStore } from '../stores/settingsStore';
+import { useSettingsStore, getPromptPair } from '../stores/settingsStore';
+import {
+  resolveGenreLabel,
+  resolveStyleLabel,
+  resolveBeatLabel,
+  type WritingLanguage,
+} from './language-policy';
 
 /**
  * AI 批次生成的章節骨架（不含正文）。
@@ -140,9 +146,12 @@ export async function generateChapterDrafts(args: {
   charactersList?: string;
   /** 本批章節寫完時，整個故事的劇情進度（0-100）。0=故事剛開始，100=結局 */
   targetProgress?: number;
+  /** 書籍不可變的創作語言 */
+  writingLanguage?: WritingLanguage;
 }, signal?: AbortSignal): Promise<AIChapterDraft[]> {
-  const { count, worldSetting, mainPlot, existingChapters, charactersList, targetProgress } = args;
+  const { count, worldSetting, mainPlot, existingChapters, charactersList, targetProgress, writingLanguage = 'zh-Hant' } = args;
   const { aiPrompts } = useSettingsStore.getState();
+  const locale = writingLanguage === 'en' ? 'en' : 'zh-TW';
 
   const isContinuation = existingChapters.length > 0;
 
@@ -150,37 +159,62 @@ export async function generateChapterDrafts(args: {
   const contextChapters = isContinuation ? existingChapters.slice(-8) : [];
 
   const existingChaptersSection = isContinuation
-    ? `\n\n## 現有章節（共 ${existingChapters.length} 章，以下列出最後 ${contextChapters.length} 章供參考；新章節必須延續這些章節的情節與伏筆）\n` +
-      contextChapters.map((c) => {
-        const lines = [`第 ${c.index} 章：${c.title}`, `節拍：${c.beat || '(未指定)'}`];
-        if (c.points) lines.push(`要點：${c.points}`);
-        return lines.join('\n');
-      }).join('\n\n')
+    ? (writingLanguage === 'en'
+        ? `\n\n## Existing Chapters (Total ${existingChapters.length} chapters, showing last ${contextChapters.length} for reference; new chapters MUST continue plot lines and foreshadowing)\n` +
+          contextChapters.map((c) => {
+            const resolvedBeat = resolveBeatLabel(c.beat, 'en');
+            const lines = [`Chapter ${c.index}: ${c.title}`, `Beat: ${resolvedBeat || '(Unspecified)'}`];
+            if (c.points) lines.push(`Key Points: ${c.points}`);
+            return lines.join('\n');
+          }).join('\n\n')
+        : `\n\n## 現有章節（共 ${existingChapters.length} 章，以下列出最後 ${contextChapters.length} 章供參考；新章節必須延續這些章節的情節與伏筆）\n` +
+          contextChapters.map((c) => {
+            const resolvedBeat = resolveBeatLabel(c.beat, 'zh-TW');
+            const lines = [`第 ${c.index} 章：${c.title}`, `節拍：${resolvedBeat || '(未指定)'}`];
+            if (c.points) lines.push(`要點：${c.points}`);
+            return lines.join('\n');
+          }).join('\n\n'))
     : '';
 
   const charactersSection = charactersList && charactersList.trim()
-    ? `\n\n## 已建立的角色（**章節要點中只能使用以下角色名字，不可自行創造新名字**；若需提到的角色不在此列，請改用「咖啡館老闆」「她的同事」等職稱或關係代稱）\n${charactersList}`
+    ? (writingLanguage === 'en'
+        ? `\n\n## Existing Characters (**Only use names from this list in chapter points**; if additional minor roles are needed, refer to them by title/relation like "barista" or "her colleague")\n${charactersList}`
+        : `\n\n## 已建立的角色（**章節要點中只能使用以下角色名字，不可自行創造新名字**；若需提到的角色不在此列，請改用「咖啡館老闆」「她的同事」等職稱或關係代稱）\n${charactersList}`)
     : '';
 
   // 接續模式：排除「引入」節拍
   const beatList = isContinuation
-    ? '衝突升級 (Rising Action) / 中點轉折 (Midpoint Twist) / 高潮 (Climax) / 結局 (Resolution) / 鋪墊/過渡'
-    : BEAT_LIST;
+    ? (writingLanguage === 'en'
+        ? 'Rising Action / Midpoint Twist / Climax / Resolution / Setup / Transition'
+        : '衝突升級 (Rising Action) / 中點轉折 (Midpoint Twist) / 高潮 (Climax) / 結局 (Resolution) / 鋪墊/過渡')
+    : (writingLanguage === 'en'
+        ? 'Inciting Incident / Rising Action / Midpoint Twist / Climax / Resolution / Setup / Transition'
+        : BEAT_LIST);
 
   const progressText = typeof targetProgress === 'number' ? buildProgressInstruction(targetProgress) : '';
   const taskIntroBase = isContinuation
-    ? `你正在**為一本已開始的小說規劃後續章節**。現在故事已經寫到第 ${existingChapters.length} 章，請接續規劃第 ${existingChapters.length + 1} 章到第 ${existingChapters.length + count} 章（共 ${count} 章新章節）。`
-    : `根據以下世界觀與主線劇情，為一本中文小說規劃開頭 ${count} 個章節。`;
+    ? (writingLanguage === 'en'
+        ? `You are outlining upcoming chapters for an ongoing novel. The story has reached chapter ${existingChapters.length}. Outline chapters ${existingChapters.length + 1} to ${existingChapters.length + count} (${count} new chapters in English).`
+        : `你正在**為一本已開始的小說規劃後續章節**。現在故事已經寫到第 ${existingChapters.length} 章，請接續規劃第 ${existingChapters.length + 1} 章到第 ${existingChapters.length + count} 章（共 ${count} 章新章節）。`)
+    : (writingLanguage === 'en'
+        ? `Outline the opening ${count} chapters for a novel in English based on the world setting and main plot.`
+        : `根據以下世界觀與主線劇情，為一本中文小說規劃開頭 ${count} 個章節。`);
+
   const taskIntro = progressText ? `${taskIntroBase}\n\n${progressText}` : taskIntroBase;
 
   const rulesText = aiPrompts.chapterContinuationRules?.trim() ?? '';
   const continuationRulesSection = isContinuation && rulesText
-    ? `\n\n# 接續規劃的硬性規則（必須遵守）\n\n${rulesText}`
+    ? `\n\n# ${writingLanguage === 'en' ? 'Continuation Rules' : '接續規劃的硬性規則'}\n\n${rulesText}`
     : '';
 
-  const pointsExtraHint = isContinuation ? '；只能使用已建立的角色名字' : '';
+  const pointsExtraHint = isContinuation
+    ? (writingLanguage === 'en' ? '; only use established character names' : '；只能使用已建立的角色名字')
+    : '';
 
-  const prompt = renderTemplate(aiPrompts.chapterDraftsTemplate, {
+  const promptPair = getPromptPair(aiPrompts, 'chapterDrafts', locale);
+  const systemPrompt = promptPair.systemPrompt;
+
+  const userPrompt = renderTemplate(aiPrompts.chapterDraftsTemplate || promptPair.userPromptTemplate, {
     taskIntro,
     worldSetting: worldSetting || '(未指定)',
     mainPlot: mainPlot || '(未指定)',
@@ -191,6 +225,8 @@ export async function generateChapterDrafts(args: {
     beatList,
     pointsExtraHint,
   });
+
+  const prompt = `${systemPrompt}\n\n${userPrompt}`;
 
   void logPromptToTemp('chapter-drafts', prompt, {
     mode: isContinuation ? 'continuation' : 'fresh',

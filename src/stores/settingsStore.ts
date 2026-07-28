@@ -38,6 +38,7 @@ export interface InlineEditPrefs {
 
 import {
   DEFAULT_PROMPT_PAIRS_ZH,
+  DEFAULT_PROMPT_PAIRS_EN,
   getDefaultPromptPair,
   type PromptPair,
   type PromptTargetKey,
@@ -90,10 +91,24 @@ export function getPromptPair(
   target: PromptTargetKey,
   locale: 'zh-TW' | 'en' = 'zh-TW',
 ): PromptPair {
-  if (prefs[target] && prefs[target]?.systemPrompt && prefs[target]?.userPromptTemplate) {
-    return prefs[target]!;
+  const customPair = prefs[target];
+  const zhDefault = DEFAULT_PROMPT_PAIRS_ZH[target];
+  const enDefault = DEFAULT_PROMPT_PAIRS_EN[target];
+
+  if (!customPair) {
+    return getDefaultPromptPair(target, locale);
   }
-  return getDefaultPromptPair(target, locale);
+
+  // 若使用者未自訂（仍為全域預設的繁中模版），當請求語系為 en 時自動切換成 en 預設模版
+  if (
+    locale === 'en' &&
+    customPair.systemPrompt === zhDefault.systemPrompt &&
+    customPair.userPromptTemplate === zhDefault.userPromptTemplate
+  ) {
+    return enDefault;
+  }
+
+  return customPair;
 }
 
 export interface WikiPrefs {

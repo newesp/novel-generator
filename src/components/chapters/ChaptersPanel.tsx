@@ -110,6 +110,7 @@ export function ChaptersPanel() {
         existingChapters,
         charactersList: formatCharacters(characters),
         targetProgress: aiProgress,
+        writingLanguage: project.writingLanguage,
       }, signal);
 
       if (drafts.length === 0) {
