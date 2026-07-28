@@ -1,5 +1,20 @@
 # 開發日誌
 
+## 2026-07-28 - 完成中英雙語介面與書籍創作語言規劃
+
+- 使用 `grill-with-docs` 與 domain modeling 釐清介面語系、書籍創作語言、內建／自訂 Prompt、創作內容與技術提示詞的邊界，並更新 `CONTEXT.md`。
+- 新增雙語介面與書籍創作語言實作計畫，涵蓋：
+  - 全新／既有安裝的語系初始化。
+  - 書籍建立時選定且鎖定的創作語言。
+  - Prompt provenance、不可覆寫的輸出語言契約與 Multi-Agent snapshot。
+  - 題材、風格、章節節拍穩定代碼與舊資料遷移。
+  - HTML／EPUB 語言 metadata、英文 TTS voices、完整翻譯盤點與雙語視覺 QA。
+- 新增架構決策紀錄，說明為何介面語系與不可變的書籍創作語言必須分離。
+- 查證英文出版／翻譯平台實際使用的題材、風格與敘事節拍名稱；確認 `Xuanhuan`、`Xianxia` 是實際使用的英文借詞，並避免把「都市」誤譯為 `Urban Fantasy`。
+
+**Verification**
+- 純 Markdown 規劃；已與 `package.json`、`src/types/`、`src/lib/storage/`、`settingsStore`、Prompt、Multi-Agent、書籍匯出與 TTS 實作交叉檢查。
+
 ## 2026-07-27 - 同步全站規格與模組文件至 Phase 4 Multi-Agent 完成現況
 
 - 同步專案主說明與架構文件至最新實作狀態：
