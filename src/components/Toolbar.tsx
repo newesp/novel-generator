@@ -93,7 +93,7 @@ function HelpIcon({ tooltip }: { tooltip: string }) {
 /** 偏好設定 Modal 的分頁 */
 type PrefsTab = 'general' | 'llm' | 'multi-agent' | 'image' | 'inline' | 'ai-prompts' | 'wiki';
 const PREFS_TABS: { key: PrefsTab; labelKey: string; fallbackLabel: string }[] = [
-  { key: 'general',     labelKey: 'prefs.tabGeneral', fallbackLabel: '🌐 一般 / General' },
+  { key: 'general',     labelKey: 'prefs.tabGeneral', fallbackLabel: '🌐 一般' },
   { key: 'llm',         labelKey: 'prefs.tabLlm',     fallbackLabel: '🔑 LLM API' },
   { key: 'multi-agent', labelKey: 'prefs.tabAgent',   fallbackLabel: '🤖 Agent 設定' },
   { key: 'image',       labelKey: 'prefs.tabImage',   fallbackLabel: '🖼 圖片生成' },
@@ -705,6 +705,7 @@ export function Toolbar({ variant = 'classic' }: ToolbarProps) {
                     <Button
                       size="sm"
                       variant="secondary"
+                      style={{ alignSelf: 'flex-start' }}
                       disabled={verifyingProfile}
                       onClick={handleVerify}
                     >

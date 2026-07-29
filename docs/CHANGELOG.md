@@ -1,5 +1,12 @@
 # 開發日誌
 
+## 2026-07-29 - 微調介面 Logo 字型大小、連線測試按鈕寬度與偏好設定用語
+
+- 將側邊欄 Logo 標題英文 `Novel Generator` 字型大小由 `15px` 微調為 `14px`，避免標題被 CSS 截斷。
+- 將偏好設定 LLM API 的「測試與驗證此設定檔連線」按鈕設定 `alignSelf: 'flex-start'`，使其寬度自適應文字內容。
+- 將中文版偏好設定「一般 / General」分頁簡化為「一般」。
+- 將中文版偏好設定中 LLM API 與 Agent 設定的「Profile」統一改為中文「設定檔」，圖片生成的「Provider」改為「服務提供商」。
+
 ## 2026-07-29 - 同步雙語介面與創作語言文件
 
 - 更新中、英文 README，說明 `interfaceLocale` 與每本書不可變 `writingLanguage` 的責任邊界、雙語 Prompt、穩定預設代碼與英文 TTS。
