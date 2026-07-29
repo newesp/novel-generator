@@ -3,12 +3,15 @@ import { useProjectStore } from '../../stores/projectStore';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import type { ChapterVersion } from '../../types';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 
 interface Props {
   onApplyVersion: (content: string) => void;
 }
 
 export function VersionPanel({ onApplyVersion }: Props) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   const { currentChapterVersions, pinVersion, deleteVersion } = useProjectStore();
   const [previewing, setPreviewing] = useState<ChapterVersion | null>(null);
 
@@ -19,7 +22,7 @@ export function VersionPanel({ onApplyVersion }: Props) {
 
   return (
     <div className="version-panel">
-      <div className="version-header">📋 版本歷史（{currentChapterVersions.length}）</div>
+      <div className="version-header">{t('versions.header', { count: currentChapterVersions.length }, locale)}</div>
       <div className="version-list">
         {currentChapterVersions.map((v, i) => (
           <div key={v.id} className={`version-item${i === 0 ? ' current' : ''}`}>
@@ -29,7 +32,7 @@ export function VersionPanel({ onApplyVersion }: Props) {
                 {v.isPinned && '📌 '}
                 v{currentChapterVersions.length - i}
                 {v.kind === 'inline' && (
-                  <span className="badge badge-gray" style={{ marginLeft: 6 }}>局部</span>
+                  <span className="badge badge-gray" style={{ marginLeft: 6 }}>{t('versions.inline', undefined, locale)}</span>
                 )}
               </span>
               <span className="version-time">{formatTime(v.createdAt)}</span>
@@ -40,24 +43,24 @@ export function VersionPanel({ onApplyVersion }: Props) {
                 style={{ height: 26, fontSize: 11, padding: '0 8px' }}
                 onClick={() => setPreviewing(v)}
               >
-                預覽
+                {t('versions.preview', undefined, locale)}
               </Button>
               <Button
                 variant="text"
                 style={{ height: 26, fontSize: 11, padding: '0 6px' }}
                 onClick={() => pinVersion(v.id, !v.isPinned)}
               >
-                {v.isPinned ? '解除釘選' : '釘選'}
+                {v.isPinned ? t('versions.unpin', undefined, locale) : t('versions.pin', undefined, locale)}
               </Button>
               {i !== 0 && (
                 <Button
                   variant="text"
                   style={{ height: 26, fontSize: 11, padding: '0 6px', color: 'var(--text-tertiary)' }}
                   onClick={() => {
-                    if (confirm('確定刪除此版本？')) deleteVersion(v.id);
+                    if (confirm(t('versions.deleteConfirm', undefined, locale))) deleteVersion(v.id);
                   }}
                 >
-                  刪除
+                  {t('common.delete', undefined, locale)}
                 </Button>
               )}
             </div>
@@ -65,7 +68,7 @@ export function VersionPanel({ onApplyVersion }: Props) {
         ))}
         {currentChapterVersions.length === 0 && (
           <div style={{ color: 'var(--text-tertiary)', fontSize: 12, padding: '8px 0' }}>
-            尚無版本記錄
+            {t('versions.empty', undefined, locale)}
           </div>
         )}
       </div>
@@ -74,10 +77,10 @@ export function VersionPanel({ onApplyVersion }: Props) {
         <Modal
           open
           onClose={() => setPreviewing(null)}
-          title={`版本預覽 — ${formatTime(previewing.createdAt)}`}
+          title={t('versions.previewTitle', { time: formatTime(previewing.createdAt) }, locale)}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setPreviewing(null)}>關閉</Button>
+              <Button variant="secondary" onClick={() => setPreviewing(null)}>{t('common.close', undefined, locale)}</Button>
               <Button
                 variant="primary"
                 onClick={() => {
@@ -85,7 +88,7 @@ export function VersionPanel({ onApplyVersion }: Props) {
                   setPreviewing(null);
                 }}
               >
-                設為當前
+                {t('versions.setCurrent', undefined, locale)}
               </Button>
             </>
           }
@@ -100,7 +103,7 @@ export function VersionPanel({ onApplyVersion }: Props) {
             fontSize: 13,
             lineHeight: 1.6,
           }}>
-            {previewing.content || '（空內容）'}
+            {previewing.content || t('versions.emptyContent', undefined, locale)}
           </div>
         </Modal>
       )}

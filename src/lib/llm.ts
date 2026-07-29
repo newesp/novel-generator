@@ -1,5 +1,7 @@
 import { useSettingsStore } from '../stores/settingsStore';
+import { useProjectStore } from '../stores/projectStore';
 import type { LLMCompletionResponse, LLMCompletionUsage, LLMProfile } from '../types';
+import { t, type InterfaceLocale } from './language-policy';
 import { isTauri } from './platform';
 
 /** Google Gemini 預設 API 端點 */
@@ -14,6 +16,7 @@ export interface GenerationOptions {
   responseFormat?: 'json_object';
   timeoutSec?: number;
   profile?: LLMProfile;
+  writingLanguage?: string;
 }
 
 export function sanitizeApiKey(text: string, apiKey?: string): string {
@@ -149,22 +152,31 @@ export async function completeNormalized(
   const effectiveTimeoutSec = clampTimeoutSec(options?.timeoutSec ?? profile.timeoutSec);
   const { signal: combinedSignal, cleanup } = createCombinedTimeoutSignal(signal, effectiveTimeoutSec);
 
+  let effectivePrompt = prompt;
+  const writingLanguage = options?.writingLanguage || useProjectStore.getState().project?.writingLanguage;
+
+  if (writingLanguage) {
+    const lang = writingLanguage === 'en' ? 'English' : 'Traditional Chinese (繁體中文)';
+    const langDirective = `\n\n[SYSTEM INSTRUCTION: You must strictly write the story content and core text in ${lang}. This is a hard requirement. Do not translate the structure keys, but output the prose in the required language.]`;
+    effectivePrompt += langDirective;
+  }
+
   try {
     switch (profile.provider) {
       case 'google':
-        return await completeGoogleNormalized(profile, prompt, options, combinedSignal);
+        return await completeGoogleNormalized(profile, effectivePrompt, options, combinedSignal);
       case 'grok':
         return await completeOpenAICompatNormalized(
           { ...profile, baseUrl: profile.baseUrl || GROK_DEFAULT_BASE },
-          prompt,
+          effectivePrompt,
           options,
           combinedSignal,
         );
       case 'anthropic':
-        return await completeAnthropicNormalized(profile, prompt, options, combinedSignal);
+        return await completeAnthropicNormalized(profile, effectivePrompt, options, combinedSignal);
       case 'custom':
       default:
-        return await completeOpenAICompatNormalized(profile, prompt, options, combinedSignal);
+        return await completeOpenAICompatNormalized(profile, effectivePrompt, options, combinedSignal);
     }
   } catch (err) {
     if (err instanceof Error) {
@@ -372,7 +384,10 @@ async function completeAnthropicNormalized(
 }
 
 /** 驗證 Connection Profile */
-export async function verifyLLMProfile(profile: LLMProfile): Promise<{
+export async function verifyLLMProfile(
+  profile: LLMProfile,
+  interfaceLocale: InterfaceLocale = 'zh-TW',
+): Promise<{
   ok: boolean;
   message: string;
   response?: LLMCompletionResponse;
@@ -380,7 +395,7 @@ export async function verifyLLMProfile(profile: LLMProfile): Promise<{
   if (!isLLMReady(profile)) {
     return {
       ok: false,
-      message: '驗證失敗：缺少必要的端點 (Base URL) 或 API Key 設定',
+      message: t('prefsLlm.verifyIncomplete', undefined, interfaceLocale),
     };
   }
 
@@ -395,12 +410,18 @@ export async function verifyLLMProfile(profile: LLMProfile): Promise<{
       undefined,
       profile,
     );
-    const usageStr = response.usage.totalTokens !== null ? ` (Token 使用: ${response.usage.totalTokens})` : '';
+    const usageStr = response.usage.totalTokens !== null
+      ? ` (${t('prefsLlm.verifyTokenUsage', { count: response.usage.totalTokens }, interfaceLocale)})`
+      : '';
     const reqStr = response.requestId ? ` [ID: ${response.requestId}]` : '';
     const finishStr = response.finishReason ? ` [Finish: ${response.finishReason}]` : '';
     return {
       ok: true,
-      message: `連線成功！模型：${profile.model}，回應：${response.text.trim().slice(0, 50)}${usageStr}${reqStr}${finishStr}`,
+      message: t('prefsLlm.verifySuccess', {
+        model: profile.model,
+        response: response.text.trim().slice(0, 50),
+        details: `${usageStr}${reqStr}${finishStr}`,
+      }, interfaceLocale),
       response,
     };
   } catch (err) {
@@ -408,7 +429,7 @@ export async function verifyLLMProfile(profile: LLMProfile): Promise<{
     const sanitizedMsg = sanitizeApiKey(rawMsg, profile.apiKey);
     return {
       ok: false,
-      message: `驗證失敗：${sanitizedMsg}`,
+      message: t('prefsLlm.verifyFailed', { error: sanitizedMsg }, interfaceLocale),
     };
   }
 }

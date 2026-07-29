@@ -41,6 +41,7 @@ export async function lintBook(
   const settings = useSettingsStore.getState();
   const prefs = settings.lintPrefs;
   const aiPrompts = settings.aiPrompts;
+  const interfaceLocale = settings.generalPrefs.interfaceLocale;
 
   const [pages, chapters, characters] = await Promise.all([
     storage.wikiPages.list(bookId),
@@ -50,7 +51,7 @@ export async function lintBook(
 
   const lintBatchId = uuid();
   const ctx: LintContext = {
-    bookId, pages, chapters, characters, prefs, aiPrompts, lintBatchId, signal,
+    bookId, pages, chapters, characters, prefs, aiPrompts, lintBatchId, interfaceLocale, signal,
   };
 
   const progress: LintProgress[] = ALL_CHECKS.map(({ check, prefKey }) => ({

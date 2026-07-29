@@ -1,5 +1,6 @@
 import type { Chapter, Character, WikiPage, WikiPageType } from '../../types';
 import type { AIPromptPrefs } from '../../stores/settingsStore';
+import type { InterfaceLocale } from '../language-policy';
 
 export type LintCheckKind = 'structural' | 'hybrid' | 'llm';
 
@@ -92,6 +93,7 @@ export interface LintContext {
   prefs: LintPrefs;
   aiPrompts: AIPromptPrefs;
   lintBatchId: string;
+  interfaceLocale?: InterfaceLocale;
   signal?: AbortSignal;
 }
 

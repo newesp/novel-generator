@@ -7,6 +7,8 @@ import {
   type KnowledgeGraph,
 } from '../../lib/knowledge-graph';
 import type { Character, WikiPage } from '../../types';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Modal } from '../common/Modal';
@@ -19,6 +21,7 @@ interface Props {
 }
 
 export function KnowledgeGraphModal({ open, onClose, characters, wikiPages }: Props) {
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   const [query, setQuery] = useState('');
   const graph = useMemo(() => buildKnowledgeGraph({ characters, wikiPages }), [characters, wikiPages]);
   const startIds = useMemo(() => findGraphNodeIdsByLabel(graph, query), [graph, query]);
@@ -28,32 +31,32 @@ export function KnowledgeGraphModal({ open, onClose, characters, wikiPages }: Pr
   );
 
   return (
-    <Modal open={open} onClose={onClose} title="Graph 關係查詢" width={720}>
+    <Modal open={open} onClose={onClose} title={t('wiki.graphTitle', undefined, locale)} width={720}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
-          目前由角色關係欄位、Wiki related links、文字提及建立 JSON graph，查詢會顯示 2-hop 關聯。
+          {t('wiki.graphDesc', undefined, locale)}
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
           <Input
             autoFocus
-            placeholder="輸入角色名、Wiki 標題或 alias..."
+            placeholder={t('wiki.graphSearchPlaceholder', undefined, locale)}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             style={{ flex: 1 }}
           />
-          <Button variant="secondary" onClick={() => setQuery('')}>清除</Button>
+          <Button variant="secondary" onClick={() => setQuery('')}>{t('wiki.graphClear', undefined, locale)}</Button>
         </div>
 
-        <GraphStats graph={graph} />
+        <GraphStats graph={graph} locale={locale} />
 
         {!query.trim() ? (
-          <EmptyState text="輸入名稱後會顯示關聯節點與路徑。" />
+          <EmptyState text={t('wiki.graphEmptyStateInit', undefined, locale)} />
         ) : startIds.length === 0 || !neighborhood ? (
-          <EmptyState text="找不到完全符合的角色或 Wiki 名稱。可試試 Wiki alias。" />
+          <EmptyState text={t('wiki.graphEmptyStateNoMatch', undefined, locale)} />
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <ResultSection title={`節點 (${neighborhood.nodes.length})`}>
+            <ResultSection title={t('wiki.graphNodesTitle', { count: neighborhood.nodes.length }, locale)}>
               {neighborhood.nodes.map((node) => (
                 <div key={node.id} style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{node.label}</div>
@@ -63,7 +66,7 @@ export function KnowledgeGraphModal({ open, onClose, characters, wikiPages }: Pr
                 </div>
               ))}
             </ResultSection>
-            <ResultSection title={`關係 (${neighborhood.edges.length})`}>
+            <ResultSection title={t('wiki.graphEdgesTitle', { count: neighborhood.edges.length }, locale)}>
               {neighborhood.edges.map((edge) => (
                 <GraphEdgeRow key={edge.id} graph={graph} edgeId={edge.id} />
               ))}
@@ -75,7 +78,7 @@ export function KnowledgeGraphModal({ open, onClose, characters, wikiPages }: Pr
   );
 }
 
-function GraphStats({ graph }: { graph: KnowledgeGraph }) {
+function GraphStats({ graph, locale }: { graph: KnowledgeGraph, locale: string }) {
   return (
     <div style={{
       display: 'flex',
@@ -83,8 +86,8 @@ function GraphStats({ graph }: { graph: KnowledgeGraph }) {
       color: 'var(--text-secondary)',
       fontSize: 12,
     }}>
-      <span>節點 {graph.nodes.length}</span>
-      <span>關係 {graph.edges.length}</span>
+      <span>{t('wiki.graphStatsNodes', { count: graph.nodes.length }, locale)}</span>
+      <span>{t('wiki.graphStatsEdges', { count: graph.edges.length }, locale)}</span>
     </div>
   );
 }

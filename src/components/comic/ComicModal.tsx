@@ -4,7 +4,7 @@ import { v4 as uuid } from 'uuid';
 import type { Chapter, ChapterComic, Character, ComicPanel, ComicPanelImageVariant, ImageProviderConfig, MediaAsset, Project, SceneVisual } from '../../types';
 import { storage } from '../../lib/storage';
 import { generateStoryboardDraft } from '../../lib/comic/storyboard-generate';
-import { getImageProvider } from '../../lib/comic/providers';
+import { getImageProvider, localizeImageProviderMessage } from '../../lib/comic/providers';
 import { runImageJobQueue } from '../../lib/comic/image-job-queue';
 import { persistableImageOutput } from '../../lib/comic/persistable-image-output';
 import { canonicalizePanelCharacterTokens, composeComicImagePrompt, resolveCharacterToken } from '../../lib/comic/prompt-composer';
@@ -31,13 +31,17 @@ import { validateComicVideoInputs } from '../../lib/comic/video/video-validation
 import { renderComicPanelSegment, renderComicVideo } from '../../lib/comic/video/video-renderer';
 import { loadComicVideoState } from '../../lib/comic/video/video-state-refresh';
 import { COMIC_VIDEO_VOICE_GROUPS } from '../../lib/comic/video/voices';
-import { COMIC_VIDEO_MOTION_EFFECTS, normalizeComicPanelMotionEffect } from '../../lib/comic/video/motion-effects';
+import {
+  COMIC_VIDEO_MOTION_EFFECTS,
+  comicMotionEffectDescription,
+  comicMotionEffectLabel,
+  normalizeComicPanelMotionEffect,
+} from '../../lib/comic/video/motion-effects';
 import {
   buildPanelVideoClipMetadata,
   normalizePanelVideoClipAudioMode,
   normalizePanelVideoClipAudioVolume,
   normalizePanelVideoClipLoopMode,
-  panelHasVideoClips,
   panelVideoClipAssetIds,
   panelVideoClipDurationMs,
   panelVideoClipFileName,
@@ -45,6 +49,7 @@ import {
 } from '../../lib/comic/video/video-clips';
 import { comicWorkspaceStateKey, resolveComicWorkspaceState, type ComicWorkspaceState } from '../../lib/comic/comic-workspace-state';
 import { createDefaultSceneVisual, findPanelsUsingScene, removeSceneReferenceAssetId } from '../../lib/scene-visuals';
+import { t } from '../../lib/language-policy';
 import { errorMessage } from '../../lib/error-message';
 import { saveBlobFile } from '../../lib/file-export';
 import { useSettingsStore } from '../../stores/settingsStore';
@@ -76,7 +81,8 @@ export function ComicModal({
   embedded = false,
   workspaceMode = 'comic',
 }: ComicModalProps) {
-  const { imageGenerationPrefs, setImageGenerationPrefs } = useSettingsStore();
+  const { generalPrefs, imageGenerationPrefs, setImageGenerationPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
   const [comic, setComic] = useState<ChapterComic | null>(null);
   const [panels, setPanels] = useState<ComicPanel[]>([]);
   const [scenes, setScenes] = useState<SceneVisual[]>([]);
@@ -107,7 +113,9 @@ export function ComicModal({
   const [draggingPanelId, setDraggingPanelId] = useState<string | null>(null);
   const [dragTargetPanelId, setDragTargetPanelId] = useState<string | null>(null);
   const [downloadNotice, setDownloadNotice] = useState<{ key: string; label: string } | null>(null);
-  const [videoVoice, setVideoVoice] = useState('zh-TW-HsiaoChenNeural');
+  const [videoVoice, setVideoVoice] = useState(
+    project.writingLanguage === 'en' ? 'en-US-AriaNeural' : 'zh-TW-HsiaoChenNeural',
+  );
   const [voicePreviewing, setVoicePreviewing] = useState(false);
   const [panelPauseMs, setPanelPauseMs] = useState(400);
   const [videoMessage, setVideoMessage] = useState('');
@@ -150,6 +158,10 @@ export function ComicModal({
     if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
     voicePreviewUrlRef.current = null;
   }, []);
+
+  useEffect(() => {
+    setVideoVoice(project.writingLanguage === 'en' ? 'en-US-AriaNeural' : 'zh-TW-HsiaoChenNeural');
+  }, [project.id, project.writingLanguage]);
 
   useEffect(() => {
     if (chapterVideoSettingsOpen) return;
@@ -195,35 +207,35 @@ export function ComicModal({
   const saveComicImage = async (asset: MediaAsset, key: string, baseName: string) => {
     if (!asset.url) return;
     let fileName = `${baseName}.${imageExtension(asset)}`;
-    setDownloadNotice({ key, label: '準備圖片...' });
-    setMessage('正在準備圖片檔案...');
+    setDownloadNotice({ key, label: t('comic.preparingImage', undefined, locale) });
+    setMessage(t('comic.preparingImageFile', undefined, locale));
     try {
-      const blob = await imageAssetBlob(asset);
+      const blob = await imageAssetBlob(asset, locale);
       const extension = imageExtension(asset, blob.type);
       fileName = `${baseName}.${extension}`;
-      setDownloadNotice({ key, label: `選擇儲存位置：${fileName}` });
-      setMessage(`請選擇「${fileName}」的儲存位置。`);
+      setDownloadNotice({ key, label: t('comic.saveLocationTitle', { fileName }, locale) });
+      setMessage(t('comic.saveLocationDesc', { fileName }, locale));
       const result = await saveBlobFile({
         filename: fileName,
         blob,
-        pickerTitle: '選擇漫畫圖片儲存位置',
-        description: imagePickerDescription(extension),
+        pickerTitle: t('comic.selectImageSaveLocation', undefined, locale),
+        description: imagePickerDescription(extension, locale),
         accept: { [blob.type || asset.mimeType || 'image/png']: [`.${extension}`] },
         defaultExtension: extension,
       });
       if (result.status === 'cancelled') {
-        setDownloadNotice({ key, label: `已取消儲存：${fileName}` });
-        setMessage(`已取消儲存 ${fileName}。`);
+        setDownloadNotice({ key, label: t('comic.saveCancelled', { fileName }, locale) });
+        setMessage(t('comic.saveCancelled', { fileName }, locale));
       } else if (result.path) {
-        setDownloadNotice({ key, label: `已儲存：${fileName}` });
-        setMessage(`已儲存圖片到 ${result.path}`);
+        setDownloadNotice({ key, label: t('comic.saveSuccess', { fileName }, locale) });
+        setMessage(t('comic.saveSuccess', { fileName: result.path }, locale));
       } else {
-        setDownloadNotice({ key, label: result.status === 'downloaded' ? `已開始下載：${fileName}` : `已儲存：${fileName}` });
-        setMessage(result.status === 'downloaded' ? `瀏覽器已開始下載 ${fileName}。` : `已儲存圖片 ${fileName}。`);
+        setDownloadNotice({ key, label: result.status === 'downloaded' ? t('comic.downloadStarted', { fileName }, locale) : t('comic.saveSuccess', { fileName }, locale) });
+        setMessage(result.status === 'downloaded' ? t('comic.downloadStarted', { fileName }, locale) : t('comic.saveSuccess', { fileName }, locale));
       }
     } catch (err) {
-      setDownloadNotice({ key, label: `儲存失敗：${fileName}` });
-      setMessage(`儲存圖片失敗：${errorMessage(err)}`);
+      setDownloadNotice({ key, label: t('comic.saveFailed', { fileName }, locale) });
+      setMessage(t('comic.saveFailed', { fileName: errorMessage(err) }, locale));
     }
   };
 
@@ -497,17 +509,22 @@ export function ComicModal({
     referenceImageLabels: string[] = [],
   ): Promise<{ assetId: string; url: string }> => {
     if (!provider) throw new Error('Image provider not found');
-    const output = await provider.generateImage({
-      panelId: panel.id,
-      prompt: panel.finalPromptSnapshot || panel.visualPrompt,
-      negativePrompt: panel.finalNegativePromptSnapshot || panel.negativePrompt,
-      width: imageGenerationPrefs.width,
-      height: imageGenerationPrefs.height,
-      seed: panel.seed,
-      providerConfig: config,
-      referenceImages,
-      referenceImageLabels,
-    });
+    let output;
+    try {
+      output = await provider.generateImage({
+        panelId: panel.id,
+        prompt: panel.finalPromptSnapshot || panel.visualPrompt,
+        negativePrompt: panel.finalNegativePromptSnapshot || panel.negativePrompt,
+        width: imageGenerationPrefs.width,
+        height: imageGenerationPrefs.height,
+        seed: panel.seed,
+        providerConfig: config,
+        referenceImages,
+        referenceImageLabels,
+      });
+    } catch (error) {
+      throw new Error(localizeImageProviderMessage(errorMessage(error), locale), { cause: error });
+    }
     const persistedOutput = await persistableImageOutput(output);
     const asset: MediaAsset = {
       id: uuid(),
@@ -545,7 +562,7 @@ export function ComicModal({
 
   const generateStoryboard = async () => {
     setBusy(true);
-    setMessage('生成分鏡中...');
+    setMessage(t('comic.generatingStoryboard', undefined, locale));
     try {
       const currentComic = comic;
       const previousPanels = panels.map((panel) => ({
@@ -574,7 +591,7 @@ export function ComicModal({
         id: currentComic?.id ?? uuid(),
         projectId: project.id,
         chapterId: chapter.id,
-        title: `${chapter.title} 漫畫分鏡`,
+        title: t('comic.storyboardTitle', { title: chapter.title }, locale),
         status: 'storyboard_ready',
         stylePreset: imageGenerationPrefs.stylePreset,
         providerId: imageGenerationPrefs.providerId,
@@ -629,7 +646,7 @@ export function ComicModal({
       setVideoAsset(null);
       setVideoMessage('');
       setPreviewAsset(null);
-      setMessage(`已產生 ${nextPanels.length} 格分鏡，請確認後開始生圖。`);
+      setMessage(t('comic.storyboardGenerated', { count: nextPanels.length }, locale));
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -668,7 +685,7 @@ export function ComicModal({
       id: uuid(),
       comicId: comic.id,
       order: panels.length + 1,
-      beat: '新增分鏡',
+      beat: t('comic.addPanel', undefined, locale),
       characters: [],
       location: selectedPanel?.location ?? '',
       shotType: selectedPanel?.shotType ?? '',
@@ -695,15 +712,15 @@ export function ComicModal({
     selectPanel(nextPanel.id);
     await storage.comicPanels.add(nextPanel);
     await persistPanelOrder(nextPanels);
-    setMessage(`已新增分鏡 #${nextPanels.find((panel) => panel.id === nextPanel.id)?.order ?? nextPanel.order}。`);
+    setMessage(t('comic.panelAdded', { order: nextPanels.find((panel) => panel.id === nextPanel.id)?.order ?? nextPanel.order }, locale));
   };
 
   const deletePanel = async (panel: ComicPanel) => {
     if (!comic || panels.length <= 1) {
-      setMessage('至少需要保留一格分鏡。');
+      setMessage(t('comic.keepAtLeastOnePanel', undefined, locale));
       return;
     }
-    if (!window.confirm(`刪除分鏡 #${panel.order}？這會移除該格已生成圖片與歷史版本。`)) return;
+    if (!window.confirm(t('comic.deletePanelConfirm', { order: panel.order }, locale))) return;
 
     const variants = await storage.comicPanelImageVariants.listByPanel(panel.id);
     const assetIds = Array.from(new Set([
@@ -723,7 +740,7 @@ export function ComicModal({
         videoStatus: 'idle',
         videoAssetId: undefined,
         subtitleAssetId: undefined,
-        videoErrorMessage: '刪除分鏡後，影片需重新輸出。',
+        videoErrorMessage: t('comic.deletePanelWarning', undefined, locale),
         updatedAt: Date.now(),
       };
       await cleanupMediaAssetFile(comic.videoAssetId);
@@ -757,7 +774,7 @@ export function ComicModal({
     });
     await persistPanelOrder(nextPanels);
     setReferenceLibraryRevision((current) => current + 1);
-    setMessage('分鏡已刪除並重新排序。');
+    setMessage(t('comic.panelDeleted', undefined, locale));
   };
 
   const cleanupMediaAssetFile = async (assetId: string | undefined): Promise<void> => {
@@ -785,19 +802,20 @@ export function ComicModal({
 
   const renderPanelVideo = async (targetPanel: ComicPanel) => {
     if (!comic) return;
-    if (!targetPanel.assetId && !panelHasVideoClips(targetPanel)) {
-      setPanelVideoMessage(`分鏡 #${targetPanel.order} 尚未建立圖片或上傳 MP4 素材。`);
-      return;
-    }
-    if (!targetPanel.narration.trim()) {
-      setPanelVideoMessage(`分鏡 #${targetPanel.order} 尚未填寫旁白。`);
+    const validation = validateComicVideoInputs([targetPanel], {
+      voiceId: videoVoice,
+      writingLanguage: project.writingLanguage,
+      locale,
+    });
+    if (!validation.ok) {
+      setPanelVideoMessage(validation.message);
       return;
     }
 
     try {
       setBusy(true);
-      setPanelVideoMessage(`正在輸出分鏡 #${targetPanel.order} MP4...`);
-      setVideoLibraryMessage(`正在輸出 ${targetPanel.order} 號分鏡 MP4...`);
+      setPanelVideoMessage(t('comic.renderingPanelMp4', { order: targetPanel.order }, locale));
+      setVideoLibraryMessage(t('comic.renderingPanelMp4', { order: targetPanel.order }, locale));
       const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
         projectId: comic.projectId,
         chapterId: comic.chapterId,
@@ -823,8 +841,8 @@ export function ComicModal({
       });
       await refreshVideoState(comic.id);
       if (selectedPanel?.id === targetPanel.id) setPanelVideoAsset(asset);
-      setPanelVideoMessage(`分鏡 #${targetPanel.order} MP4 已輸出完成。`);
-      setVideoLibraryMessage(`分鏡 #${targetPanel.order} MP4 已輸出完成。`);
+      setPanelVideoMessage(t('comic.panelMp4Rendered', { order: targetPanel.order }, locale));
+      setVideoLibraryMessage(t('comic.panelMp4Rendered', { order: targetPanel.order }, locale));
     } catch (error) {
       const message = errorMessage(error);
       setPanelVideoMessage(message);
@@ -854,7 +872,7 @@ export function ComicModal({
 
     try {
       setVoicePreviewing(true);
-      setVoicePreviewMessage('正在產生試聽音訊...');
+      setVoicePreviewMessage(t('comic.generatingVoicePreview', undefined, locale));
       voicePreviewAudioRef.current?.pause();
 
       const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
@@ -864,7 +882,9 @@ export function ComicModal({
       const outputPath = `${mediaRoot}/voice-preview-${safeFileSegment(videoVoice)}.mp3`;
       await desktopComicVideoCommands.generateTtsAudio({
         edgeTtsBin,
-        text: '這是一段旁白音色試聽，用來確認目前選擇的聲音。',
+        text: project.writingLanguage === 'en'
+          ? t('comic.voicePreviewTextEn', undefined, locale)
+          : t('comic.voicePreviewTextZhHant', undefined, locale),
         voice: videoVoice,
         outputPath,
       });
@@ -885,13 +905,13 @@ export function ComicModal({
       audio.onerror = () => {
         if (voicePreviewAudioRef.current !== audio) return;
         setVoicePreviewing(false);
-        setVoicePreviewMessage('試聽音訊播放失敗。');
+        setVoicePreviewMessage(t('comic.voicePreviewPlaybackFailed', undefined, locale));
         voicePreviewAudioRef.current = null;
         if (voicePreviewUrlRef.current) URL.revokeObjectURL(voicePreviewUrlRef.current);
         voicePreviewUrlRef.current = null;
       };
       await audio.play();
-      setVoicePreviewMessage('正在播放試聽。');
+      setVoicePreviewMessage(t('comic.playingVoicePreview', undefined, locale));
     } catch (error) {
       setVoicePreviewing(false);
       setVoicePreviewMessage(errorMessage(error));
@@ -901,7 +921,11 @@ export function ComicModal({
   const renderVideo = async () => {
     if (!comic) return;
     const orderedPanels = [...panels].sort((a, b) => a.order - b.order);
-    const validation = validateComicVideoInputs(orderedPanels);
+    const validation = validateComicVideoInputs(orderedPanels, {
+      voiceId: videoVoice,
+      writingLanguage: project.writingLanguage,
+      locale,
+    });
     if (!validation.ok) {
       setVideoMessage(validation.message);
       setVideoLibraryMessage(validation.message);
@@ -910,8 +934,8 @@ export function ComicModal({
 
     try {
       setBusy(true);
-      setVideoMessage('正在輸出旁白影片...');
-      setVideoLibraryMessage('正在輸出整章 MP4...');
+      setVideoMessage(t('comic.generatingVoiceVideo', undefined, locale));
+      setVideoLibraryMessage(t('comic.generatingChapterVideo', undefined, locale));
       const mediaRoot = await desktopComicVideoCommands.resolveMediaRoot({
         projectId: comic.projectId,
         chapterId: comic.chapterId,
@@ -936,8 +960,8 @@ export function ComicModal({
         },
       });
       await refreshVideoState(comic.id);
-      setVideoMessage('影片已輸出完成。');
-      setVideoLibraryMessage('整章 MP4 已輸出完成。');
+      setVideoMessage(t('comic.videoRendered', undefined, locale));
+      setVideoLibraryMessage(t('comic.chapterMp4Rendered', undefined, locale));
     } catch (error) {
       const message = errorMessage(error);
       setVideoMessage(message);
@@ -960,12 +984,12 @@ export function ComicModal({
 
   const openVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
     if (!item.path) {
-      setVideoLibraryMessage(`${item.label} 找不到媒體檔路徑。`);
+      setVideoLibraryMessage(t('comic.mediaPathNotFound', { label: item.label }, locale));
       return;
     }
     try {
       await desktopComicVideoCommands.openMediaFile({ path: item.path });
-      setVideoLibraryMessage(`已開啟 ${item.label}。`);
+      setVideoLibraryMessage(t('comic.openedItem', { label: item.label }, locale));
     } catch (error) {
       setVideoLibraryMessage(errorMessage(error));
     }
@@ -973,12 +997,12 @@ export function ComicModal({
 
   const openSelectedPanelVideo = async () => {
     if (!currentPanelVideoAsset?.path) {
-      setPanelVideoMessage('此格找不到 MP4 檔案路徑。');
+      setPanelVideoMessage(t('comic.panelMp4PathNotFound', undefined, locale));
       return;
     }
     try {
       await desktopComicVideoCommands.openMediaFile({ path: currentPanelVideoAsset.path });
-      setPanelVideoMessage('已開啟單格 MP4。');
+      setPanelVideoMessage(t('comic.openedPanelMp4', undefined, locale));
     } catch (error) {
       setPanelVideoMessage(errorMessage(error));
     }
@@ -986,12 +1010,12 @@ export function ComicModal({
 
   const revealSelectedPanelVideo = async () => {
     if (!currentPanelVideoAsset?.path) {
-      setPanelVideoMessage('此格找不到 MP4 檔案路徑。');
+      setPanelVideoMessage(t('comic.panelMp4PathNotFound', undefined, locale));
       return;
     }
     try {
       await desktopComicVideoCommands.revealMediaFile({ path: currentPanelVideoAsset.path });
-      setPanelVideoMessage('已定位單格 MP4。');
+      setPanelVideoMessage(t('comic.revealedPanelMp4', undefined, locale));
     } catch (error) {
       setPanelVideoMessage(errorMessage(error));
     }
@@ -999,12 +1023,12 @@ export function ComicModal({
 
   const revealVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
     if (!item.path) {
-      setVideoLibraryMessage(`${item.label} 找不到媒體檔路徑。`);
+      setVideoLibraryMessage(t('comic.mediaPathNotFound', { label: item.label }, locale));
       return;
     }
     try {
       await desktopComicVideoCommands.revealMediaFile({ path: item.path });
-      setVideoLibraryMessage(`已定位 ${item.label}。`);
+      setVideoLibraryMessage(t('comic.revealedItem', { label: item.label }, locale));
     } catch (error) {
       setVideoLibraryMessage(errorMessage(error));
     }
@@ -1012,7 +1036,7 @@ export function ComicModal({
 
   const deleteVideoLibraryItem = async (item: ComicVideoLibraryItem) => {
     if (!item.assetId) return;
-    if (!window.confirm(`刪除 ${item.label}？這會移除媒體檔與資料庫紀錄。`)) return;
+    if (!window.confirm(t('comic.confirmDeleteVideo', { label: item.label }, locale))) return;
     try {
       await cleanupMediaAssetFile(item.assetId);
       setVideoLibraryAssets((current) => {
@@ -1052,7 +1076,7 @@ export function ComicModal({
         if (selectedPanel?.id === item.panelId) setPanelVideoAsset(null);
       }
       setVideoLibraryRevision((current) => current + 1);
-      setVideoLibraryMessage(`已刪除 ${item.label}。`);
+      setVideoLibraryMessage(t('comic.deletedItem', { label: item.label }, locale));
     } catch (error) {
       setVideoLibraryMessage(errorMessage(error));
     }
@@ -1065,7 +1089,7 @@ export function ComicModal({
     }
     const panel = panels.find((candidate) => candidate.id === item.panelId);
     if (!panel) {
-      setVideoLibraryMessage(`${item.label} 找不到對應分鏡。`);
+      setVideoLibraryMessage(t('comic.panelForItemNotFound', { label: item.label }, locale));
       return;
     }
     await renderPanelVideo(panel);
@@ -1195,6 +1219,7 @@ export function ComicModal({
     comic,
     panels,
     assets: Object.values(videoLibraryAssets),
+    locale,
   });
 
   useEffect(() => {
@@ -1249,7 +1274,7 @@ export function ComicModal({
 
   const deletePanelVariant = async (panel: ComicPanel, variant: ComicPanelImageVariant) => {
     if (!canDeleteImageVariant({ panelAssetId: panel.assetId, variantAssetId: variant.assetId })) {
-      const notice = currentVariantDeleteBlockedMessage();
+      const notice = currentVariantDeleteBlockedMessage(locale);
       setMessage(notice);
       setPanelVariantNotice((current) => ({ ...current, [panel.id]: notice }));
       return;
@@ -1288,8 +1313,8 @@ export function ComicModal({
     const projectPanels = (await storage.comicPanels.listAll()).filter((panel) => projectComicIds.has(panel.comicId));
     const usedPanels = findPanelsUsingScene(projectPanels, scene.slug);
     const message = usedPanels.length
-      ? `場景「${scene.title}」目前被 ${usedPanels.length} 格分鏡引用。刪除後這些分鏡會清除場景設定。確定要刪除？`
-      : `刪除場景「${scene.title}」？`;
+      ? t('comic.confirmDeleteUsedScene', { title: scene.title, count: usedPanels.length }, locale)
+      : t('comic.confirmDeleteScene', { title: scene.title }, locale);
     if (!window.confirm(message)) return;
     const usedPanelIds = new Set(usedPanels.map((panel) => panel.id));
     const now = Date.now();
@@ -1302,7 +1327,7 @@ export function ComicModal({
         usedPanelIds.has(panel.id) ? { ...panel, sceneSlug: undefined, updatedAt: now } : panel
       )));
       await refreshScenes();
-      setMessage(`已刪除場景「${scene.title}」。`);
+      setMessage(t('comic.sceneDeleted', { title: scene.title }, locale));
     } catch (error) {
       setMessage(errorMessage(error));
       await refreshScenes();
@@ -1470,11 +1495,11 @@ export function ComicModal({
   const generateImages = async () => {
     if (!provider || !comic) return;
     setBusy(true);
-    setMessage('漫畫圖片生成中...');
+    setMessage(t('comic.generatingImages', undefined, locale));
     try {
       const config = providerConfig();
       const health = await provider.validateConfig(config);
-      if (!health.ok) throw new Error(health.message);
+      if (!health.ok) throw new Error(localizeImageProviderMessage(health.message, locale));
       const characterSnapshot = await loadComicCharacterSnapshot({
         projectId: project.id,
         fallbackCharacters: availableCharacters,
@@ -1502,7 +1527,7 @@ export function ComicModal({
       await storage.comics.update(comic.id, { status: failed ? 'partial' : 'ready', updatedAt: new Date().getTime() });
       setPanels(results);
       setReferenceLibraryRevision((current) => current + 1);
-      setMessage(failed ? `完成，但 ${failed} 格失敗，可修改後重試。` : '漫畫圖片已生成。');
+      setMessage(failed ? t('comic.imagesGeneratedWithErrors', { count: failed }, locale) : t('comic.imagesGenerated', undefined, locale));
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -1513,11 +1538,11 @@ export function ComicModal({
   const regeneratePanelImage = async (panel: ComicPanel) => {
     if (!provider || !comic) return;
     setBusy(true);
-    setMessage(`Regenerating panel #${panel.order}...`);
+    setMessage(t('comic.regeneratingPanelImage', { order: panel.order }, locale));
     try {
       const config = providerConfig();
       const health = await provider.validateConfig(config);
-      if (!health.ok) throw new Error(health.message);
+      if (!health.ok) throw new Error(localizeImageProviderMessage(health.message, locale));
       const characterSnapshot = await loadComicCharacterSnapshot({
         projectId: project.id,
         fallbackCharacters: availableCharacters,
@@ -1539,7 +1564,7 @@ export function ComicModal({
         updatedAt: new Date().getTime(),
       });
       setReferenceLibraryRevision((current) => current + 1);
-      setMessage(`Panel #${panel.order} image regenerated.`);
+      setMessage(t('comic.panelImageRegenerated', { order: panel.order }, locale));
     } catch (error) {
       await updatePanel(panel, {
         status: 'failed',
@@ -1556,7 +1581,7 @@ export function ComicModal({
     const file = files?.[0];
     if (!file || !comic) return;
     if (!file.type.startsWith('image/')) {
-      setMessage('請上傳圖片檔。');
+      setMessage(t('comic.uploadImageRequired', undefined, locale));
       return;
     }
     setBusy(true);
@@ -1595,7 +1620,7 @@ export function ComicModal({
       setVariantAssets((current) => ({ ...current, [asset.id]: asset }));
       setPanelVariantNotice((current) => ({ ...current, [panel.id]: '' }));
       setReferenceLibraryRevision((current) => current + 1);
-      setMessage(`已上傳圖片並加入 #${panel.order} 歷史圖。`);
+      setMessage(t('comic.imageUploadedToHistory', { order: panel.order }, locale));
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -1609,7 +1634,7 @@ export function ComicModal({
       file.type === 'video/mp4' || file.name.toLocaleLowerCase().endsWith('.mp4')
     ));
     if (!videoFiles.length) {
-      setMessage('請選擇 MP4 影片檔。');
+      setMessage(t('comic.selectMp4Required', undefined, locale));
       return;
     }
 
@@ -1678,7 +1703,7 @@ export function ComicModal({
       }));
       setPanelVideoAsset(null);
       setVideoLibraryRevision((current) => current + 1);
-      setMessage(`已加入 ${uploaded.length} 個 MP4 素材到分鏡 #${panel.order}。`);
+      setMessage(t('comic.mp4ClipsAdded', { count: uploaded.length, order: panel.order }, locale));
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -1687,7 +1712,7 @@ export function ComicModal({
   };
 
   const removePanelVideoClip = async (panel: ComicPanel, assetId: string) => {
-    if (!window.confirm('刪除這個分鏡 MP4 素材？相關單格輸出也會失效。')) return;
+    if (!window.confirm(t('comic.confirmDeletePanelMp4', undefined, locale))) return;
     try {
       setBusy(true);
       await cleanupMediaAssetFile(assetId);
@@ -1703,7 +1728,7 @@ export function ComicModal({
       });
       setPanelVideoAsset(null);
       setVideoLibraryRevision((current) => current + 1);
-      setMessage(`已刪除分鏡 #${panel.order} 的 MP4 素材。`);
+      setMessage(t('comic.panelMp4ClipDeleted', { order: panel.order }, locale));
     } catch (error) {
       setMessage(errorMessage(error));
     } finally {
@@ -1732,34 +1757,41 @@ export function ComicModal({
     <Modal
       open={open}
       onClose={() => !busy && onClose()}
-      title={`${workspaceMode === 'scene' ? '場景' : workspaceMode === 'video' ? '影片' : '漫畫'}：${chapter.title}`}
+      title={t('comic.workspaceTitle', {
+        mode: t(
+          workspaceMode === 'scene' ? 'comic.workspaceScene' : workspaceMode === 'video' ? 'comic.workspaceVideo' : 'comic.workspaceComic',
+          undefined,
+          locale,
+        ),
+        chapterTitle: chapter.title,
+      }, locale)}
       width={1100}
       fullScreen
       embedded={embedded}
       footer={workspaceMode === 'scene' && embedded ? undefined : (
         <>
-          {!embedded && <Button variant="secondary" onClick={onClose} disabled={busy}>關閉</Button>}
+          {!embedded && <Button variant="secondary" onClick={onClose} disabled={busy}>{t('common.close', undefined, locale)}</Button>}
           {!embedded && <div style={{ flex: 1 }} />}
           {workspaceMode === 'comic' && (
             <>
               <Button variant="secondary" onClick={generateStoryboard} disabled={busy || !chapter.content.trim()}>
-                {panels.length ? '重新生成分鏡' : '生成分鏡'}
+                {t(panels.length ? 'comic.regenerateStoryboard' : 'comic.generateStoryboard', undefined, locale)}
               </Button>
               <Button variant="primary" onClick={generateImages} disabled={busy || !panels.length || !provider}>
-                開始生圖
+                {t('comic.generateImages', undefined, locale)}
               </Button>
             </>
           )}
           {workspaceMode === 'video' && (
             <>
               <Button variant="secondary" onClick={() => setChapterVideoSettingsOpen(true)} disabled={busy || !comic}>
-                整章影片設定
+                {t('comic.chapterVideoSettings', undefined, locale)}
               </Button>
               <Button variant="secondary" onClick={() => setVideoLibraryOpen(true)} disabled={!comic}>
-                影片庫
+                {t('comic.videoLibrary', undefined, locale)}
               </Button>
               <Button variant="primary" onClick={() => void renderVideo()} disabled={busy || !comic || panels.length === 0}>
-                整章輸出 MP4
+                {t('comic.renderChapterMp4', undefined, locale)}
               </Button>
             </>
           )}
@@ -1773,8 +1805,8 @@ export function ComicModal({
             className="comic-main-close-button"
             onClick={onClose}
             disabled={busy}
-            aria-label="關閉轉漫畫"
-            title="關閉"
+            aria-label={t('comic.closeComicWorkspace', undefined, locale)}
+            title={t('common.close', undefined, locale)}
           >
             ×
           </button>
@@ -1785,8 +1817,8 @@ export function ComicModal({
             <button
               type="button"
               onClick={() => setVideoMessage('')}
-              aria-label="關閉訊息"
-              title="關閉訊息"
+              aria-label={t('common.dismissMessage', undefined, locale)}
+              title={t('common.dismissMessage', undefined, locale)}
             >
               ×
             </button>
@@ -1794,11 +1826,11 @@ export function ComicModal({
         )}
         {workspaceMode === 'comic' && <section className="comic-settings">
           <div className="comic-provider-summary">
-            <FieldLabel label="圖片提供商" help="圖片 provider 在「偏好設定 → 圖片生成」調整。這裡只顯示目前使用的全域設定。" />
+            <FieldLabel label={t('comic.imageProvider', undefined, locale)} help={t('comic.imageProviderHelp', undefined, locale)} />
             <strong>{providerLabel}</strong>
           </div>
           <label>
-            <FieldLabel label="畫風" help="本章漫畫的畫風描述，會進入分鏡與最終圖片 prompt。" />
+            <FieldLabel label={t('comic.stylePreset', undefined, locale)} help={t('comic.stylePresetHelp', undefined, locale)} />
             <input
               className="toolbar-input"
               value={imageGenerationPrefs.stylePreset}
@@ -1806,7 +1838,7 @@ export function ComicModal({
             />
           </label>
           <label>
-            <FieldLabel label="格數" help="希望 LLM 拆成幾格分鏡。短場景可用 4-6，完整章節建議 8-20。" />
+            <FieldLabel label={t('comic.targetPanelCount', undefined, locale)} help={t('comic.targetPanelCountHelp', undefined, locale)} />
             <input
               className="toolbar-input"
               type="number"
@@ -1822,7 +1854,7 @@ export function ComicModal({
         <div className="comic-workspace">
           <aside className="comic-rail">
             <section className="comic-rail-section">
-              <div className="comic-rail-header"><strong>章節</strong><span>{chapters.length} 章</span></div>
+              <div className="comic-rail-header"><strong>{t('comic.chapters', undefined, locale)}</strong><span>{t('comic.chapterCount', { count: chapters.length }, locale)}</span></div>
               <select
                 className="toolbar-input"
                 value={chapter.id}
@@ -1834,24 +1866,26 @@ export function ComicModal({
               >
                 {chapters.map((item) => (
                   <option value={item.id} key={item.id}>
-                    第 {item.order + 1} 章｜{item.title}
+                    {t('comic.chapterOption', { order: item.order + 1, title: item.title }, locale)}
                   </option>
                 ))}
               </select>
             </section>
             <section className="comic-rail-section">
               <div className="comic-rail-header">
-                <strong>分鏡</strong>
-                <span>{selectedPanel ? `目前選 #${selectedPanel.order}` : `${panels.length} 格`}</span>
+                <strong>{t('comic.storyboard', undefined, locale)}</strong>
+                <span>{selectedPanel
+                  ? t('comic.currentPanel', { order: selectedPanel.order }, locale)
+                  : t('comic.panelCount', { count: panels.length }, locale)}</span>
               </div>
               <button
                 type="button"
                 className="comic-panel-add-button"
                 onClick={() => void addPanelAfterSelected()}
                 disabled={busy || !comic}
-                title="新增分鏡"
+                title={t('comic.addPanel', undefined, locale)}
               >
-                + 新增分鏡
+                + {t('comic.addPanel', undefined, locale)}
               </button>
               <div className="comic-panel-mini-list">
                 {panels.map((panel) => (
@@ -1872,7 +1906,7 @@ export function ComicModal({
                   >
                     <span
                       className="comic-panel-drag-handle"
-                      title="拖拉排序"
+                      title={t('comic.dragToReorder', undefined, locale)}
                       onPointerDown={(event) => startPanelPointerDrag(event, panel.id)}
                       aria-hidden="true"
                     >
@@ -1880,12 +1914,12 @@ export function ComicModal({
                     </span>
                     <span className="comic-panel-mini-main">
                       <strong>#{panel.order} {panel.beat}</strong>
-                    <span>{panel.status} · {panelVariants[panel.id]?.length ?? 0} 張歷史圖</span>
+                    <span>{panel.status} · {t('comic.historyImageCount', { count: panelVariants[panel.id]?.length ?? 0 }, locale)}</span>
                     </span>
                     <button
                       type="button"
                       className="comic-panel-mini-delete"
-                      title="刪除分鏡"
+                      title={t('comic.deletePanel', undefined, locale)}
                       onClick={(event) => {
                         event.stopPropagation();
                         void deletePanel(panel);
@@ -1911,13 +1945,18 @@ export function ComicModal({
                 <header>
                   <div className="comic-panel-title-editor">
                     <label>
-                      <FieldLabel label={`分鏡 #${selectedPanel.order} 標題`} help="顯示在左側分鏡列表與圖片檔名中的分鏡名稱。" />
+                      <FieldLabel
+                        label={t('comic.panelTitleWithOrder', { order: selectedPanel.order }, locale)}
+                        help={t('comic.panelTitleHelp', undefined, locale)}
+                      />
                       <input
                         value={selectedPanel.beat}
                         onChange={(event) => void updatePanel(selectedPanel, { beat: event.target.value })}
                       />
                     </label>
-                    <span>{panelCharacterNames(selectedPanel).length ? `角色：${panelCharacterNames(selectedPanel).join('、')}` : '尚未選擇角色'}</span>
+                    <span>{panelCharacterNames(selectedPanel).length
+                      ? t('comic.panelCharacters', { names: panelCharacterNames(selectedPanel).join(', ') }, locale)
+                      : t('comic.noSelectedCharacters', undefined, locale)}</span>
                   </div>
                   <span>{selectedPanel.status}</span>
                 </header>
@@ -1930,48 +1969,48 @@ export function ComicModal({
                           type="button"
                           className="comic-image-button"
                           onClick={() => setPreviewAsset(selectedPanelAsset)}
-                          title="預覽目前圖片"
+                          title={t('comic.previewCurrentImage', undefined, locale)}
                         >
                           <img src={selectedPanelAsset.url} alt={`#${selectedPanel.order} ${selectedPanel.beat}`} loading="lazy" />
                         </button>
                         <figcaption>
-                          <button type="button" onClick={() => setPreviewAsset(selectedPanelAsset)}>預覽</button>
+                          <button type="button" onClick={() => setPreviewAsset(selectedPanelAsset)}>{t('common.preview', undefined, locale)}</button>
                           <button
                             type="button"
                             className={downloadNotice?.key === `panel-${selectedPanel.id}` ? 'download-started' : ''}
                             onClick={() => void saveComicImage(selectedPanelAsset, `panel-${selectedPanel.id}`, `comic-panel-${selectedPanel.order}`)}
                           >
-                            {downloadNotice?.key === `panel-${selectedPanel.id}` ? '處理中' : '下載'}
+                            {t(downloadNotice?.key === `panel-${selectedPanel.id}` ? 'common.processing' : 'common.download', undefined, locale)}
                           </button>
                           <button type="button" onClick={() => void navigator.clipboard?.writeText(selectedPanelAsset.url ?? '')}>
-                            複製 URL
+                            {t('common.copyUrl', undefined, locale)}
                           </button>
                         </figcaption>
                       </figure>
                     ) : (
-                      <div className="comic-image-empty">尚未生成圖片</div>
+                      <div className="comic-image-empty">{t('comic.imageNotGenerated', undefined, locale)}</div>
                     )}
                   </div>
                   <div className="comic-panel-metadata">
                     <label className="comic-panel-title-field">
-                      <FieldLabel label="分鏡標題" help="顯示在左側分鏡列表與圖片檔名中的分鏡名稱。" />
+                      <FieldLabel label={t('comic.panelTitle', undefined, locale)} help={t('comic.panelTitleHelp', undefined, locale)} />
                       <input
                         value={selectedPanel.beat}
                         onChange={(event) => void updatePanel(selectedPanel, { beat: event.target.value })}
                       />
                     </label>
                     <dl>
-                      <dt>提供商</dt><dd>{providerLabel}</dd>
-                      <dt>參考圖</dt><dd>{selectedPanel.referenceAssetIds?.length ?? 0} 張</dd>
-                      <dt>場景</dt><dd>{activeScene(selectedPanel)?.title ?? '無場景'}</dd>
-                      <dt>Asset</dt><dd>{selectedPanel.assetId ?? '尚未建立'}</dd>
+                      <dt>{t('comic.provider', undefined, locale)}</dt><dd>{providerLabel}</dd>
+                      <dt>{t('comic.referenceImages', undefined, locale)}</dt><dd>{t('comic.imageCount', { count: selectedPanel.referenceAssetIds?.length ?? 0 }, locale)}</dd>
+                      <dt>{t('comic.scene', undefined, locale)}</dt><dd>{activeScene(selectedPanel)?.title ?? t('comic.noScene', undefined, locale)}</dd>
+                      <dt>{t('comic.asset', undefined, locale)}</dt><dd>{selectedPanel.assetId ?? t('comic.assetNotCreated', undefined, locale)}</dd>
                     </dl>
                     <div className="comic-panel-image-actions">
                       <Button variant="secondary" onClick={() => regeneratePanelImage(selectedPanel)} disabled={busy || !provider || !comic}>
-                        重生此格
+                        {t('comic.regeneratePanelImage', undefined, locale)}
                       </Button>
                       <label className={`comic-upload-button ${busy || !comic ? 'disabled' : ''}`}>
-                        上傳圖片
+                        {t('comic.uploadImage', undefined, locale)}
                         <input
                           type="file"
                           accept="image/*"
@@ -1985,9 +2024,9 @@ export function ComicModal({
                     </div>
                     <div className="comic-panel-video-clips">
                       <div className="comic-prompt-field-header">
-                        <span>MP4 素材</span>
+                        <span>{t('comic.mp4Clips', undefined, locale)}</span>
                         <label className={`comic-upload-button ${busy || !comic ? 'disabled' : ''}`}>
-                          加入 MP4
+                          {t('comic.addMp4', undefined, locale)}
                           <input
                             type="file"
                             accept="video/mp4,.mp4"
@@ -2008,15 +2047,15 @@ export function ComicModal({
                                 #{index + 1} {panelVideoClipFileName(asset)}
                               </span>
                               <small>{(panelVideoClipDurationMs(asset) / 1000).toFixed(1)}s</small>
-                              <small>{panelVideoClipHasAudio(asset) ? '有音軌' : '無音軌'}</small>
+                              <small>{t(panelVideoClipHasAudio(asset) ? 'comic.hasAudioTrack' : 'comic.noAudioTrack', undefined, locale)}</small>
                               <button type="button" className="danger" onClick={() => void removePanelVideoClip(selectedPanel, asset.id)} disabled={busy}>
-                                刪除
+                                {t('common.delete', undefined, locale)}
                               </button>
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <small>沒有 MP4 素材時，單格輸出會使用目前圖片。</small>
+                        <small>{t('comic.noMp4ClipHelp', undefined, locale)}</small>
                       )}
                       <div className="comic-panel-video-clip-settings">
                         <div className="comic-panel-video-clip-audio-controls">
@@ -2029,10 +2068,10 @@ export function ComicModal({
                                 videoClipAudioMode: event.target.checked ? 'keep' : 'mute',
                               })}
                             />
-                            <span>保留影片原聲</span>
+                            <span>{t('comic.keepOriginalAudio', undefined, locale)}</span>
                           </label>
                           <label className="comic-panel-video-clip-volume">
-                            <FieldLabel label="原聲音量" help="調整 MP4 素材原聲混入旁白時的音量；100% 代表原始音量。" />
+                            <FieldLabel label={t('comic.originalAudioVolume', undefined, locale)} help={t('comic.originalAudioVolumeHelp', undefined, locale)} />
                             <div>
                               <input
                                 type="range"
@@ -2063,14 +2102,14 @@ export function ComicModal({
                                 onChange={(event) => void updatePanelVideoClipSettings(selectedPanel, {
                                   videoClipAudioVolume: normalizePanelVideoClipAudioVolume(Number(event.target.value)),
                                 })}
-                                aria-label="原聲音量百分比"
+                                aria-label={t('comic.originalAudioVolumePercent', undefined, locale)}
                               />
                               <span>%</span>
                             </div>
                           </label>
                         </div>
                         <label>
-                          <FieldLabel label="旁白較長時" help="MP4 素材比旁白短時，選擇停在最後一幀或重播素材畫面。" />
+                          <FieldLabel label={t('comic.whenNarrationIsLonger', undefined, locale)} help={t('comic.whenNarrationIsLongerHelp', undefined, locale)} />
                           <select
                             value={normalizePanelVideoClipLoopMode(selectedPanel.videoClipLoopMode)}
                             disabled={busy || !selectedPanelVideoClips.length}
@@ -2078,8 +2117,8 @@ export function ComicModal({
                               videoClipLoopMode: normalizePanelVideoClipLoopMode(event.target.value),
                             })}
                           >
-                            <option value="freeze">停在最後一幀</option>
-                            <option value="loop">重播影片</option>
+                            <option value="freeze">{t('comic.freezeLastFrame', undefined, locale)}</option>
+                            <option value="loop">{t('comic.loopVideo', undefined, locale)}</option>
                           </select>
                         </label>
                       </div>
@@ -2089,7 +2128,7 @@ export function ComicModal({
 
                 {(panelVariants[selectedPanel.id]?.length ?? 0) > 0 && (
                   <details className="comic-panel-history" open>
-                    <summary>歷史圖 ({panelVariants[selectedPanel.id]?.length ?? 0})</summary>
+                    <summary>{t('comic.imageHistory', { count: panelVariants[selectedPanel.id]?.length ?? 0 }, locale)}</summary>
                     {panelVariantNotice[selectedPanel.id] && (
                       <p className="comic-panel-history-notice">{panelVariantNotice[selectedPanel.id]}</p>
                     )}
@@ -2104,19 +2143,19 @@ export function ComicModal({
                                 type="button"
                                 className="comic-thumb-button"
                                 onClick={() => setPreviewAsset(asset)}
-                                title="預覽歷史圖"
+                                title={t('comic.previewHistoryImage', undefined, locale)}
                               >
                                 <img src={asset.url} alt={`panel ${selectedPanel.order} variant`} loading="lazy" />
                               </button>
                             ) : (
-                              <span className="comic-panel-variant-placeholder">無圖</span>
+                              <span className="comic-panel-variant-placeholder">{t('comic.noImage', undefined, locale)}</span>
                             )}
                             <small>{new Date(variant.createdAt).toLocaleTimeString()} · {variant.providerId || 'provider'}</small>
                             <div className="comic-panel-variant-actions">
                               <button
                                 type="button"
                                 className="comic-icon-button"
-                                title={isCurrent ? '已是目前圖' : '設為目前'}
+                                title={t(isCurrent ? 'comic.currentImage' : 'comic.useAsCurrentImage', undefined, locale)}
                                 disabled={isCurrent || !variant.assetId}
                                 onClick={() => selectPanelVariant(selectedPanel, variant)}
                               >
@@ -2125,7 +2164,7 @@ export function ComicModal({
                               <button
                                 type="button"
                                 className="comic-icon-button danger"
-                                title={isCurrent ? '目前採用圖不可刪除' : '刪除'}
+                                title={t(isCurrent ? 'comic.currentImageCannotDelete' : 'common.delete', undefined, locale)}
                                 onClick={() => deletePanelVariant(selectedPanel, variant)}
                               >
                                 ×
@@ -2140,8 +2179,10 @@ export function ComicModal({
 
                 <section className="comic-narration-panel">
                   <div className="comic-prompt-field-header">
-                    <span>旁白腳本</span>
-                    <span>{selectedPanel.ttsDurationMs ? `音訊 ${Math.round(selectedPanel.ttsDurationMs / 100) / 10}s` : '尚未產生音訊'}</span>
+                    <span>{t('comic.narrationScript', undefined, locale)}</span>
+                    <span>{selectedPanel.ttsDurationMs
+                      ? t('comic.audioDuration', { seconds: Math.round(selectedPanel.ttsDurationMs / 100) / 10 }, locale)
+                      : t('comic.audioNotGenerated', undefined, locale)}</span>
                   </div>
                   <textarea
                     value={selectedPanel.narration}
@@ -2154,7 +2195,7 @@ export function ComicModal({
                     })}
                   />
                   <label className="comic-video-number-field">
-                    <FieldLabel label="手動秒數" help="0 代表使用 TTS 實測音訊長度；大於 0 時會和音訊長度取較長者，避免截斷旁白。" />
+                    <FieldLabel label={t('comic.manualDuration', undefined, locale)} help={t('comic.manualDurationHelp', undefined, locale)} />
                     <input
                       type="number"
                       min={0}
@@ -2164,9 +2205,9 @@ export function ComicModal({
                       onBlur={() => clearPanelDurationDraft(selectedPanel)}
                     />
                   </label>
-                  <small>每格顯示長度 = max(TTS 音訊長度, 手動秒數) + 格間停頓。</small>
+                  <small>{t('comic.panelDisplayDurationHelp', undefined, locale)}</small>
                   <label>
-                    <FieldLabel label="Motion effect" help="套用到這格 MP4 的鏡頭動態；更改後需重新輸出 MP4 才會生效。" />
+                    <FieldLabel label="Motion effect" help={t('comic.motionEffectHelp', undefined, locale)} />
                     <select
                       value={normalizeComicPanelMotionEffect(selectedPanel.motionEffect)}
                       onChange={(event) => void updatePanel(selectedPanel, {
@@ -2174,29 +2215,29 @@ export function ComicModal({
                       })}
                     >
                       {COMIC_VIDEO_MOTION_EFFECTS.map((effect) => (
-                        <option key={effect.id} value={effect.id} title={effect.description}>
-                          {effect.label}
+                        <option key={effect.id} value={effect.id} title={comicMotionEffectDescription(effect, locale)}>
+                          {comicMotionEffectLabel(effect, locale)}
                         </option>
                       ))}
                     </select>
                   </label>
                   <div className="comic-panel-video-actions">
                     <Button variant="secondary" disabled={busy || !comic || !selectedPanel} onClick={() => void renderSelectedPanelVideo()}>
-                      單格輸出 MP4
+                      {t('comic.renderPanelMp4', undefined, locale)}
                     </Button>
                     <span className="comic-panel-video-status">
-                      {selectedPanel.segmentAssetId ? '此格已有 MP4 segment' : '此格尚未輸出 MP4'}
+                      {t(selectedPanel.segmentAssetId ? 'comic.panelMp4Ready' : 'comic.panelMp4NotRendered', undefined, locale)}
                     </span>
                   </div>
                   {currentPanelVideoAsset?.path && (
                     <div className="comic-panel-video-file">
-                      <span title={currentPanelVideoAsset.path}>單格輸出：{currentPanelVideoAsset.path}</span>
+                      <span title={currentPanelVideoAsset.path}>{t('comic.panelOutputPath', { path: currentPanelVideoAsset.path }, locale)}</span>
                       <div>
                         <button type="button" onClick={() => void openSelectedPanelVideo()} disabled={busy}>
-                          開啟
+                          {t('common.open', undefined, locale)}
                         </button>
                         <button type="button" onClick={() => void revealSelectedPanelVideo()} disabled={busy}>
-                          定位
+                          {t('common.reveal', undefined, locale)}
                         </button>
                       </div>
                     </div>
@@ -2207,34 +2248,34 @@ export function ComicModal({
                 <section className="comic-editor-grid">
                   <div className="comic-prompt-box">
                     <div className="comic-prompt-field-header">
-                      <span>畫面提示詞</span>
-                      <button type="button" onClick={() => openExpandedPrompt({ title: '畫面提示詞', value: selectedPanel.visualPrompt, onApply: (value) => updatePanel(selectedPanel, { visualPrompt: value }) })}>展開</button>
+                      <span>{t('comic.visualPrompt', undefined, locale)}</span>
+                      <button type="button" onClick={() => openExpandedPrompt({ title: t('comic.visualPrompt', undefined, locale), value: selectedPanel.visualPrompt, onApply: (value) => updatePanel(selectedPanel, { visualPrompt: value }) })}>{t('common.expand', undefined, locale)}</button>
                     </div>
                     <textarea value={selectedPanel.visualPrompt} onChange={(event) => updatePanel(selectedPanel, { visualPrompt: event.target.value })} />
                   </div>
                   <div className="comic-prompt-box">
                     <div className="comic-prompt-field-header">
-                      <span>排除提示詞</span>
-                      <button type="button" onClick={() => openExpandedPrompt({ title: '排除提示詞', value: selectedPanel.negativePrompt, onApply: (value) => updatePanel(selectedPanel, { negativePrompt: value }) })}>展開</button>
+                      <span>{t('comic.negativePrompt', undefined, locale)}</span>
+                      <button type="button" onClick={() => openExpandedPrompt({ title: t('comic.negativePrompt', undefined, locale), value: selectedPanel.negativePrompt, onApply: (value) => updatePanel(selectedPanel, { negativePrompt: value }) })}>{t('common.expand', undefined, locale)}</button>
                     </div>
                     <textarea value={selectedPanel.negativePrompt} onChange={(event) => updatePanel(selectedPanel, { negativePrompt: event.target.value })} />
                   </div>
                   <div className="comic-prompt-box">
                     <div className="comic-prompt-field-header">
-                      <span>群眾設定 JSON</span>
-                      <button type="button" onClick={() => openExpandedPrompt({ title: '群眾設定 JSON', value: selectedPanel.extraGroupsJson ?? '', onApply: (value) => updatePanel(selectedPanel, { extraGroupsJson: value }) })}>展開</button>
+                      <span>{t('comic.extraGroupsJson', undefined, locale)}</span>
+                      <button type="button" onClick={() => openExpandedPrompt({ title: t('comic.extraGroupsJson', undefined, locale), value: selectedPanel.extraGroupsJson ?? '', onApply: (value) => updatePanel(selectedPanel, { extraGroupsJson: value }) })}>{t('common.expand', undefined, locale)}</button>
                     </div>
                     <textarea
                       className="comic-extras-input"
-                      placeholder='extraGroups JSON，例如 [{"label":"居民","count":12,"role":"civilians","prompt":"穿著舊布衣，站在背景","visualPriority":"low"}]'
+                      placeholder={t('comic.extraGroupsPlaceholder', undefined, locale)}
                       value={selectedPanel.extraGroupsJson ?? ''}
                       onChange={(event) => updatePanel(selectedPanel, { extraGroupsJson: event.target.value })}
                     />
                   </div>
                   <div className="comic-prompt-box">
                     <div className="comic-prompt-field-header">
-                      <span>最終提示詞快照</span>
-                      <button type="button" onClick={() => openExpandedPrompt({ title: '最終提示詞快照', value: selectedPanel.finalPromptSnapshot ?? '', readOnly: true })}>展開</button>
+                      <span>{t('comic.finalPromptSnapshot', undefined, locale)}</span>
+                      <button type="button" onClick={() => openExpandedPrompt({ title: t('comic.finalPromptSnapshot', undefined, locale), value: selectedPanel.finalPromptSnapshot ?? '', readOnly: true })}>{t('common.expand', undefined, locale)}</button>
                     </div>
                     <textarea value={selectedPanel.finalPromptSnapshot ?? ''} readOnly />
                   </div>
@@ -2242,7 +2283,7 @@ export function ComicModal({
                 {selectedPanel.errorMessage && <p className="comic-error">{selectedPanel.errorMessage}</p>}
               </article>
             ) : (
-              <div className="comic-empty-state">尚未產生分鏡。請先生成分鏡。</div>
+              <div className="comic-empty-state">{t('comic.noStoryboardYet', undefined, locale)}</div>
             )}
           </section>
 
@@ -2250,7 +2291,7 @@ export function ComicModal({
             {workspaceMode === 'scene' && (
               <section className="scene-source-toolbar">
                 <label>
-                  <FieldLabel label="章節" help="切換要檢視場景指派的章節。" />
+                  <FieldLabel label={t('comic.sourceChapter', undefined, locale)} help={t('comic.sourceChapterHelp', undefined, locale)} />
                   <select
                     value={chapter.id}
                     onChange={(event) => {
@@ -2261,19 +2302,19 @@ export function ComicModal({
                   >
                     {chapters.map((item) => (
                       <option value={item.id} key={item.id}>
-                        第 {item.order + 1} 章｜{item.title}
+                        {t('comic.chapterOption', { order: item.order + 1, title: item.title }, locale)}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  <FieldLabel label="分鏡來源" help="選擇要指派場景或作為建立場景來源的分鏡。" />
+                  <FieldLabel label={t('comic.panelSource', undefined, locale)} help={t('comic.panelSourceHelp', undefined, locale)} />
                   <select
                     value={selectedPanel?.id ?? ''}
                     onChange={(event) => selectPanel(event.target.value)}
                     disabled={busy || panels.length === 0}
                   >
-                    {panels.length === 0 && <option value="">尚無分鏡</option>}
+                    {panels.length === 0 && <option value="">{t('comic.noPanels', undefined, locale)}</option>}
                     {panels.map((panel) => (
                       <option value={panel.id} key={panel.id}>
                         #{panel.order}｜{panel.beat}
@@ -2286,23 +2327,28 @@ export function ComicModal({
 
             {workspaceMode !== 'scene' && (
               <section className="comic-selector-search">
-                <FieldLabel label="搜尋角色、參考圖、場景" help="用關鍵字篩選角色、參考圖與場景視覺設定。" />
+                <FieldLabel label={t('comic.searchVisualReferences', undefined, locale)} help={t('comic.searchVisualReferencesHelp', undefined, locale)} />
                 <input
                   className="toolbar-input"
                   value={selectorSearch}
                   onChange={(event) => setSelectorSearch(event.target.value)}
-                  placeholder="搜尋角色、場景、章節或分鏡..."
+                  placeholder={t('comic.searchVisualReferencesPlaceholder', undefined, locale)}
                 />
               </section>
             )}
 
             {selectedPanel && (
               <section className="comic-side-section comic-character-section">
-                <h3>角色</h3>
+                <h3>{t('comic.characters', undefined, locale)}</h3>
                 <details className="comic-character-picker" open>
                   <summary>
                     <span className="comic-character-summary-text">
-                      {panelCharacterNames(selectedPanel).length ? `已選 ${panelCharacterNames(selectedPanel).length} 位：${panelCharacterNames(selectedPanel).join('、')}` : '尚未選擇角色'}
+                      {panelCharacterNames(selectedPanel).length
+                        ? t('comic.selectedCharacters', {
+                          count: panelCharacterNames(selectedPanel).length,
+                          names: panelCharacterNames(selectedPanel).join(', '),
+                        }, locale)
+                        : t('comic.noSelectedCharacters', undefined, locale)}
                     </span>
                   </summary>
                   <div className="comic-character-picker-menu">
@@ -2317,14 +2363,15 @@ export function ComicModal({
                           url={referenceThumbnail(character)}
                           label={character.name}
                           onPreview={(url) => previewImageUrl(url, character.name)}
+                          previewTitle={t('comic.previewThumbnail', undefined, locale)}
                         />
                         <span>{character.name}</span>
                         {(character.referenceAssetIds?.length ?? 0) > 0 && (
-                          <small>{character.referenceAssetIds?.length} 張</small>
+                          <small>{t('comic.imageCount', { count: character.referenceAssetIds?.length ?? 0 }, locale)}</small>
                         )}
                       </label>
                     )) : (
-                      <p className="comic-message">沒有符合的角色</p>
+                      <p className="comic-message">{t('comic.noMatchingCharacters', undefined, locale)}</p>
                     )}
                   </div>
                 </details>
@@ -2334,16 +2381,16 @@ export function ComicModal({
                     checked={Boolean(selectedPanel.useContinuityReference)}
                     onChange={(event) => updatePanel(selectedPanel, { useContinuityReference: event.target.checked })}
                   />
-                  <FieldLabel label="自動使用上一格" help="開啟後會優先使用同章上一格的成圖；若這是章節第一格，會嘗試接續前一章最新漫畫的最後一格。" />
+                  <FieldLabel label={t('comic.usePreviousPanelImage', undefined, locale)} help={t('comic.usePreviousPanelImageHelp', undefined, locale)} />
                 </label>
               </section>
             )}
 
             {selectedPanel && (
               <section className="comic-side-section comic-reference-section">
-                <h3>參考圖</h3>
+                <h3>{t('comic.referenceImages', undefined, locale)}</h3>
                 <details className="comic-reference-picker" open>
-                  <summary>已選 {selectedPanel.referenceAssetIds?.length ?? 0} 張</summary>
+                  <summary>{t('comic.selectedReferenceImages', { count: selectedPanel.referenceAssetIds?.length ?? 0 }, locale)}</summary>
                   <div className="comic-reference-picker-menu" ref={referencePickerMenuRef}>
                     {selectedPanelReferenceOptions.length ? Array.from(new Set(
                       selectedPanelReferenceOptions.map((option) => option.chapter.id),
@@ -2355,7 +2402,10 @@ export function ComicModal({
                           key={chapterId}
                           ref={chapterId === chapter.id ? activeReferenceChapterRef : undefined}
                         >
-                          <strong>第 {chapterOptions[0].chapter.order + 1} 章 · {chapterOptions[0].chapter.title}</strong>
+                          <strong>{t('comic.chapterOption', {
+                            order: chapterOptions[0].chapter.order + 1,
+                            title: chapterOptions[0].chapter.title,
+                          }, locale)}</strong>
                           <div className="comic-reference-grid">
                             {chapterOptions.map((option) => (
                               <label className="comic-reference-option" key={option.asset.id}>
@@ -2373,18 +2423,21 @@ export function ComicModal({
                                       event.stopPropagation();
                                       setPreviewAsset(option.asset);
                                     }}
-                                    title="預覽參考圖"
+                                    title={t('comic.previewReferenceImage', undefined, locale)}
                                   >
-                                    <img src={option.asset.url} alt={`第 ${option.chapter.order + 1} 章第 ${option.panel.order} 格`} loading="lazy" />
+                                    <img src={option.asset.url} alt={t('comic.chapterOption', {
+                                      order: option.chapter.order + 1,
+                                      title: `#${option.panel.order}`,
+                                    }, locale)} loading="lazy" />
                                   </button>
                                 )}
-                                <span>第 {option.panel.order} 格</span>
+                                <span>#{option.panel.order}</span>
                               </label>
                             ))}
                           </div>
                         </section>
                       );
-                    }) : <p className="comic-message">尚無可用的已生成分鏡圖</p>}
+                    }) : <p className="comic-message">{t('comic.noGeneratedPanelImages', undefined, locale)}</p>}
                   </div>
                 </details>
               </section>
@@ -2392,16 +2445,16 @@ export function ComicModal({
 
             {(selectedPanel || workspaceMode === 'scene') && (
               <section className="comic-side-section comic-scene-assignment-section">
-                <h3>場景</h3>
+                <h3>{t('comic.scene', undefined, locale)}</h3>
                 <MantineSelect
                   searchable
                   allowDeselect={false}
                   value={workspaceMode === 'scene' ? sceneWorkspaceSlug : selectedPanel?.sceneSlug ?? '__none__'}
                   data={[
-                    { value: '__none__', label: '無場景' },
+                    { value: '__none__', label: t('comic.noScene', undefined, locale) },
                     ...scenes.map((scene) => ({
                       value: scene.slug,
-                      label: `${scene.title} · ${scene.referenceAssetIds.length} 張參考圖`,
+                      label: `${scene.title} · ${t('comic.imageCount', { count: scene.referenceAssetIds.length }, locale)}`,
                     })),
                   ]}
                   onChange={(value) => {
@@ -2409,8 +2462,8 @@ export function ComicModal({
                     if (workspaceMode === 'scene') setSceneWorkspaceSlug(nextSlug ?? '__none__');
                     if (selectedPanel) void updatePanel(selectedPanel, { sceneSlug: nextSlug });
                   }}
-                  placeholder="搜尋或選擇場景"
-                  nothingFoundMessage="沒有符合的場景"
+                  placeholder={t('comic.searchOrSelectScene', undefined, locale)}
+                  nothingFoundMessage={t('comic.noMatchingScenes', undefined, locale)}
                 />
                 <Button
                   variant="secondary"
@@ -2418,7 +2471,7 @@ export function ComicModal({
                   onClick={() => selectedPanel && createSceneFromPanel(selectedPanel)}
                   disabled={busy || !selectedPanel}
                 >
-                  從此格建立場景
+                  {t('comic.createSceneFromPanel', undefined, locale)}
                 </Button>
               </section>
             )}
@@ -2431,18 +2484,18 @@ export function ComicModal({
                       <h3>{selectedScene.title}</h3>
                       <span>{selectedScene.slug}</span>
                     </div>
-                    <button type="button" onClick={() => deleteScene(selectedScene)}>刪除場景</button>
+                    <button type="button" onClick={() => deleteScene(selectedScene)}>{t('comic.deleteScene', undefined, locale)}</button>
                   </header>
                   <label>
-                    <FieldLabel label="場景名稱" help="只改顯示名稱；穩定識別用的 slug 會保留，避免已選分鏡失效。" />
+                    <FieldLabel label={t('comic.sceneName', undefined, locale)} help={t('comic.sceneNameHelp', undefined, locale)} />
                     <input value={selectedScene.title} onChange={(event) => void updateScene(selectedScene, { title: event.target.value })} />
                   </label>
                   <label className="scene-prompt-field">
-                    <FieldLabel label="場景提示詞" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
+                    <FieldLabel label={t('comic.scenePrompt', undefined, locale)} help={t('comic.scenePromptHelp', undefined, locale)} />
                     <textarea value={selectedScene.prompt} onChange={(event) => void updateScene(selectedScene, { prompt: event.target.value })} />
                   </label>
                   <label>
-                    <FieldLabel label="場景排除詞" help="避免場景跑偏的內容，例如 modern apartment、clean lab、futuristic city。" />
+                    <FieldLabel label={t('comic.sceneNegativePrompt', undefined, locale)} help={t('comic.sceneNegativePromptHelp', undefined, locale)} />
                     <input value={selectedScene.negativePrompt} onChange={(event) => void updateScene(selectedScene, { negativePrompt: event.target.value })} />
                   </label>
                 </section>
@@ -2450,12 +2503,12 @@ export function ComicModal({
                 <section className="scene-reference-settings">
                   <header className="scene-settings-header">
                     <div>
-                      <h3>場景參考圖</h3>
-                      <span>{selectedSceneReferenceAssets.length} 張圖片</span>
+                      <h3>{t('comic.sceneReferenceImages', undefined, locale)}</h3>
+                      <span>{t('comic.sceneImageCount', { count: selectedSceneReferenceAssets.length }, locale)}</span>
                     </div>
                   </header>
                   <label className="scene-reference-upload">
-                    <FieldLabel label="加入參考圖" help="支援 reference image 的 provider 會自動帶入這些圖片。" />
+                    <FieldLabel label={t('comic.addSceneReferenceImages', undefined, locale)} help={t('comic.addSceneReferenceImagesHelp', undefined, locale)} />
                     <input
                       type="file"
                       accept="image/*"
@@ -2474,7 +2527,7 @@ export function ComicModal({
                             type="button"
                             className="comic-scene-reference-thumb"
                             onClick={() => setPreviewAsset(asset)}
-                            title="預覽場景參考圖"
+                            title={t('comic.previewSceneReferenceImage', undefined, locale)}
                           >
                             <img src={asset.url} alt={`${selectedScene.title} reference ${index + 1}`} loading="lazy" />
                           </button>
@@ -2484,9 +2537,9 @@ export function ComicModal({
                               type="button"
                               className="comic-scene-reference-delete"
                               onClick={() => void removeSceneReference(selectedScene, asset.id)}
-                              title="刪除場景參考圖"
+                              title={t('comic.deleteSceneReferenceImage', undefined, locale)}
                             >
-                              刪除
+                              {t('common.delete', undefined, locale)}
                             </button>
                           </figcaption>
                         </figure>
@@ -2494,8 +2547,8 @@ export function ComicModal({
                     </div>
                   ) : (
                     <div className="scene-reference-empty">
-                      <span>尚無場景參考圖</span>
-                      <small>可加入不同角度或光線版本，協助維持場景一致性。</small>
+                      <span>{t('comic.noSceneReferenceImages', undefined, locale)}</span>
+                      <small>{t('comic.sceneReferenceImagesHelp', undefined, locale)}</small>
                     </div>
                   )}
                 </section>
@@ -2504,7 +2557,7 @@ export function ComicModal({
 
             {selectedScene && workspaceMode !== 'scene' && (
               <section className="comic-side-section comic-scene-library-section">
-                <h3>場景視覺設定</h3>
+                <h3>{t('comic.sceneVisualSettings', undefined, locale)}</h3>
                 <div className="comic-scene-list">
                     <details className="comic-scene-card" key={selectedScene.id}>
                       <summary>
@@ -2512,27 +2565,28 @@ export function ComicModal({
                           url={referenceThumbnail(selectedScene)}
                           label={selectedScene.title}
                           onPreview={(url) => previewImageUrl(url, selectedScene.title)}
+                          previewTitle={t('comic.previewThumbnail', undefined, locale)}
                         />
                         <span className="comic-scene-card-title">{selectedScene.title}</span>
                         <span>{selectedScene.slug}</span>
                       </summary>
                       <div className="comic-scene-card-actions">
-                        <button type="button" onClick={() => deleteScene(selectedScene)}>刪除</button>
+                        <button type="button" onClick={() => deleteScene(selectedScene)}>{t('common.delete', undefined, locale)}</button>
                       </div>
                       <label>
-                        <FieldLabel label="場景名稱" help="只改顯示名稱；穩定識別用的 slug 會保留，避免已選分鏡失效。" />
+                        <FieldLabel label={t('comic.sceneName', undefined, locale)} help={t('comic.sceneNameHelp', undefined, locale)} />
                         <input value={selectedScene.title} onChange={(event) => void updateScene(selectedScene, { title: event.target.value })} />
                       </label>
                       <label>
-                        <FieldLabel label="場景提示詞" help="固定場景外觀，例如房間格局、家具、光線、材質與時代感。" />
+                        <FieldLabel label={t('comic.scenePrompt', undefined, locale)} help={t('comic.scenePromptHelp', undefined, locale)} />
                         <textarea value={selectedScene.prompt} onChange={(event) => void updateScene(selectedScene, { prompt: event.target.value })} />
                       </label>
                       <label>
-                        <FieldLabel label="場景排除詞" help="避免場景跑偏的內容，例如 modern apartment、clean lab、futuristic city。" />
+                        <FieldLabel label={t('comic.sceneNegativePrompt', undefined, locale)} help={t('comic.sceneNegativePromptHelp', undefined, locale)} />
                         <input value={selectedScene.negativePrompt} onChange={(event) => void updateScene(selectedScene, { negativePrompt: event.target.value })} />
                       </label>
                       <label>
-                        <FieldLabel label="參考圖" help="上傳場景參考圖。支援 reference image 的 provider 會自動帶入。" />
+                        <FieldLabel label={t('comic.referenceImages', undefined, locale)} help={t('comic.addSceneReferenceImagesHelp', undefined, locale)} />
                         <input
                           type="file"
                           accept="image/*"
@@ -2551,7 +2605,7 @@ export function ComicModal({
                                 type="button"
                                 className="comic-scene-reference-thumb"
                                 onClick={() => setPreviewAsset(asset)}
-                                title="預覽場景參考圖"
+                                title={t('comic.previewSceneReferenceImage', undefined, locale)}
                               >
                                 <img src={asset.url} alt={`${selectedScene.title} reference ${index + 1}`} loading="lazy" />
                               </button>
@@ -2561,16 +2615,16 @@ export function ComicModal({
                                   type="button"
                                   className="comic-scene-reference-delete"
                                   onClick={() => void removeSceneReference(selectedScene, asset.id)}
-                                  title="刪除場景參考圖"
+                                  title={t('comic.deleteSceneReferenceImage', undefined, locale)}
                                 >
-                                  刪除
+                                  {t('common.delete', undefined, locale)}
                                 </button>
                               </figcaption>
                             </figure>
                           ))}
                         </div>
                       ) : (
-                        <p className="comic-message">尚無場景參考圖</p>
+                        <p className="comic-message">{t('comic.noSceneReferenceImages', undefined, locale)}</p>
                       )}
                     </details>
                 </div>
@@ -2583,22 +2637,22 @@ export function ComicModal({
             <div className="comic-video-settings-content" onClick={(event) => event.stopPropagation()}>
               <header>
                 <div>
-                  <strong>整章影片設定</strong>
-                  <span>套用於單格輸出與整章輸出 MP4</span>
+                  <strong>{t('comic.chapterVideoSettings', undefined, locale)}</strong>
+                  <span>{t('comic.chapterVideoSettingsHelp', undefined, locale)}</span>
                 </div>
                 <button
                   type="button"
                   className="comic-video-settings-close"
                   onClick={() => setChapterVideoSettingsOpen(false)}
-                  aria-label="關閉整章影片設定"
-                  title="關閉"
+                  aria-label={t('comic.closeChapterVideoSettings', undefined, locale)}
+                  title={t('common.close', undefined, locale)}
                 >
                   ×
                 </button>
               </header>
               <div className="comic-video-settings-grid">
                 <label>
-                  <FieldLabel label="旁白音色" help="MVP 使用單一 Edge-TTS 音色輸出旁白。" />
+                  <FieldLabel label={t('comic.narrationVoice', undefined, locale)} help={t('comic.voiceHelp', undefined, locale)} />
                   <div className="comic-video-voice-row">
                     <select
                       value={videoVoice}
@@ -2608,7 +2662,7 @@ export function ComicModal({
                       }}
                     >
                       {COMIC_VIDEO_VOICE_GROUPS.map((group) => (
-                        <optgroup key={group.label} label={group.label}>
+                        <optgroup key={group.label} label={voiceGroupLabel(group.label, locale)}>
                           {group.voices.map((voice) => (
                             <option key={voice.id} value={voice.id}>{voice.label}</option>
                           ))}
@@ -2620,15 +2674,15 @@ export function ComicModal({
                       className="comic-video-voice-preview"
                       onClick={() => void previewVideoVoice()}
                       disabled={busy || voicePreviewing || !comic}
-                      title="試聽所選旁白音色"
+                      title={t('comic.voicePreviewTitle', undefined, locale)}
                     >
-                      {voicePreviewing ? '播放中' : '試聽'}
+                      {voicePreviewing ? t('comic.playing', undefined, locale) : t('comic.previewVoice', undefined, locale)}
                     </button>
                   </div>
                   {voicePreviewMessage && <small>{voicePreviewMessage}</small>}
                 </label>
                 <label>
-                  <FieldLabel label="格間停頓" help="加在每格音訊後的靜音長度，用於分鏡之間的呼吸感。" />
+                  <FieldLabel label={t('comic.interPanelPause', undefined, locale)} help={t('comic.interPanelPauseHelp', undefined, locale)} />
                   <select value={panelPauseMs} onChange={(event) => setPanelPauseMs(Number(event.target.value))}>
                     <option value={0}>0ms</option>
                     <option value={250}>250ms</option>
@@ -2638,22 +2692,22 @@ export function ComicModal({
                   </select>
                 </label>
                 <label>
-                  <FieldLabel label="Edge-TTS" help="Edge-TTS CLI 指令或完整路徑。" />
+                  <FieldLabel label="Edge-TTS" help={t('comic.edgeTtsHelp', undefined, locale)} />
                   <input value={edgeTtsBin} onChange={(event) => setEdgeTtsBin(event.target.value)} />
                 </label>
                 <label>
-                  <FieldLabel label="ffmpeg" help="ffmpeg CLI 指令或完整路徑。" />
+                  <FieldLabel label="ffmpeg" help={t('comic.ffmpegHelp', undefined, locale)} />
                   <input value={ffmpegBin} onChange={(event) => setFfmpegBin(event.target.value)} />
                 </label>
                 <label>
-                  <FieldLabel label="ffprobe" help="ffprobe CLI 指令或完整路徑，用於量測 TTS 音訊長度。" />
+                  <FieldLabel label="ffprobe" help={t('comic.ffprobeHelp', undefined, locale)} />
                   <input value={ffprobeBin} onChange={(event) => setFfprobeBin(event.target.value)} />
                 </label>
               </div>
               <footer>
-                {videoAsset?.path && <span title={videoAsset.path}>整章輸出：{videoAsset.path}</span>}
+                {videoAsset?.path && <span title={videoAsset.path}>{t('comic.chapterOutputPath', { path: videoAsset.path }, locale)}</span>}
                 <Button variant="primary" onClick={() => setChapterVideoSettingsOpen(false)}>
-                  完成
+                  {t('common.done', undefined, locale)}
                 </Button>
               </footer>
             </div>
@@ -2664,15 +2718,15 @@ export function ComicModal({
             <div className="comic-video-settings-content comic-video-library-content" onClick={(event) => event.stopPropagation()}>
               <header>
                 <div>
-                  <strong>影片庫</strong>
-                  <span>管理此章已輸出的整章 MP4 與單格 MP4 segment</span>
+                  <strong>{t('comic.videoLibrary', undefined, locale)}</strong>
+                  <span>{t('comic.videoLibraryHelp', undefined, locale)}</span>
                 </div>
                 <button
                   type="button"
                   className="comic-video-settings-close"
                   onClick={() => setVideoLibraryOpen(false)}
-                  aria-label="關閉影片庫"
-                  title="關閉"
+                  aria-label={t('comic.closeVideoLibrary', undefined, locale)}
+                  title={t('common.close', undefined, locale)}
                 >
                   ×
                 </button>
@@ -2684,29 +2738,33 @@ export function ComicModal({
                     <article className={`comic-video-library-item ${item.status}`} key={item.id}>
                       <div className="comic-video-library-main">
                         <strong>{item.label}</strong>
-                        <span>{item.kind === 'chapter' ? '整章影片' : item.kind === 'subtitle' ? '旁掛字幕' : '單格影片'}</span>
+                        <span>{t(
+                          item.kind === 'chapter' ? 'comic.videoKindChapter' : item.kind === 'subtitle' ? 'comic.videoKindSubtitle' : 'comic.videoKindPanel',
+                          undefined,
+                          locale,
+                        )}</span>
                         <small title={item.path ?? item.assetId ?? ''}>
-                          {item.path ?? '媒體檔案遺失'}
+                          {item.path ?? t('comic.mediaFileMissing', undefined, locale)}
                         </small>
                       </div>
                       <div className="comic-video-library-meta">
                         <span className={`comic-video-library-status ${item.status}`}>
-                          {item.status === 'ready' ? '可用' : '遺失'}
+                          {t(item.status === 'ready' ? 'comic.videoReady' : 'comic.videoMissing', undefined, locale)}
                         </span>
-                        <span>{item.createdAt ? new Date(item.createdAt).toLocaleString() : '無建立時間'}</span>
+                        <span>{item.createdAt ? new Date(item.createdAt).toLocaleString(locale) : t('comic.noCreationTime', undefined, locale)}</span>
                       </div>
                       <div className="comic-video-library-actions">
                         <button type="button" onClick={() => void openVideoLibraryItem(item)} disabled={busy || !item.path}>
-                          開啟
+                          {t('common.open', undefined, locale)}
                         </button>
                         <button type="button" onClick={() => void revealVideoLibraryItem(item)} disabled={busy || !item.path}>
-                          定位
+                          {t('common.reveal', undefined, locale)}
                         </button>
                         <button type="button" onClick={() => void rerenderVideoLibraryItem(item)} disabled={busy}>
-                          重新輸出
+                          {t('comic.rerender', undefined, locale)}
                         </button>
                         <button type="button" className="danger" onClick={() => void deleteVideoLibraryItem(item)} disabled={busy || !item.assetId}>
-                          刪除
+                          {t('common.delete', undefined, locale)}
                         </button>
                       </div>
                     </article>
@@ -2714,7 +2772,7 @@ export function ComicModal({
                 </div>
               ) : (
                 <div className="comic-empty-state">
-                  尚未輸出 MP4 / SRT。可先使用「單格輸出 MP4」或「整章輸出 MP4」建立影片與字幕。
+                  {t('comic.noVideoOutputYet', undefined, locale)}
                 </div>
               )}
             </div>
@@ -2724,17 +2782,17 @@ export function ComicModal({
           <div className="comic-image-preview" role="dialog" aria-modal="true" onClick={() => setPreviewAsset(null)}>
             <div className="comic-image-preview-content" onClick={(event) => event.stopPropagation()}>
               <button type="button" className="comic-image-preview-close" onClick={() => setPreviewAsset(null)}>×</button>
-              <img src={previewAsset.url} alt="漫畫圖片預覽" />
+              <img src={previewAsset.url} alt={t('comic.imagePreviewAlt', undefined, locale)} />
               <div className="comic-image-preview-actions">
                 <button
                   type="button"
                   className={downloadNotice?.key === `preview-${previewAsset.id}` ? 'download-started' : ''}
                   onClick={() => void saveComicImage(previewAsset, `preview-${previewAsset.id}`, 'comic-panel')}
                 >
-                  {downloadNotice?.key === `preview-${previewAsset.id}` ? '處理中' : '下載圖片'}
+                  {t(downloadNotice?.key === `preview-${previewAsset.id}` ? 'common.processing' : 'comic.downloadImage', undefined, locale)}
                 </button>
                 <button type="button" onClick={() => void navigator.clipboard?.writeText(previewAsset.url ?? '')}>
-                  複製 URL
+                  {t('common.copyUrl', undefined, locale)}
                 </button>
               </div>
             </div>
@@ -2749,12 +2807,12 @@ export function ComicModal({
                   type="button"
                   className="comic-prompt-expand-close"
                   onClick={() => setExpandedPrompt(null)}
-                  aria-label="關閉"
-                  title="關閉"
+                  aria-label={t('common.close', undefined, locale)}
+                  title={t('common.close', undefined, locale)}
                 >
                   ×
                 </button>
-                <button type="button" onClick={() => setExpandedPrompt(null)}>關閉</button>
+                <button type="button" onClick={() => setExpandedPrompt(null)}>{t('common.close', undefined, locale)}</button>
               </header>
               <textarea
                 value={expandedPromptDraft}
@@ -2762,7 +2820,7 @@ export function ComicModal({
                 onChange={(event) => setExpandedPromptDraft(event.target.value)}
               />
               <footer>
-                <button type="button" onClick={() => setExpandedPrompt(null)}>取消</button>
+                <button type="button" onClick={() => setExpandedPrompt(null)}>{t('common.cancel', undefined, locale)}</button>
                 {!expandedPrompt.readOnly && (
                   <button
                     type="button"
@@ -2771,7 +2829,7 @@ export function ComicModal({
                       setExpandedPrompt(null);
                     }}
                   >
-                    套用
+                    {t('common.apply', undefined, locale)}
                   </button>
                 )}
               </footer>
@@ -2783,10 +2841,10 @@ export function ComicModal({
   );
 }
 
-async function imageAssetBlob(asset: MediaAsset): Promise<Blob> {
-  if (!asset.url) throw new Error('圖片沒有可儲存的 URL');
+async function imageAssetBlob(asset: MediaAsset, locale: 'zh-TW' | 'en'): Promise<Blob> {
+  if (!asset.url) throw new Error(t('comic.imageHasNoSavableUrl', undefined, locale));
   const response = await fetch(asset.url);
-  if (!response.ok) throw new Error(`讀取圖片失敗：HTTP ${response.status}`);
+  if (!response.ok) throw new Error(t('comic.imageReadFailed', { status: response.status }, locale));
   const blob = await response.blob();
   const mimeType = imageMimeType(asset, blob.type);
   return blob.type === mimeType ? blob : new Blob([await blob.arrayBuffer()], { type: mimeType });
@@ -2814,11 +2872,8 @@ function dataUrlMimeType(url?: string): string | undefined {
   return /^data:([^;,]+)/.exec(url)?.[1];
 }
 
-function imagePickerDescription(extension: string): string {
-  if (extension === 'jpg') return 'JPEG image';
-  if (extension === 'webp') return 'WebP image';
-  if (extension === 'gif') return 'GIF image';
-  return 'PNG image';
+function imagePickerDescription(extension: string, locale: 'zh-TW' | 'en'): string {
+  return t('comic.imageFileDescription', { format: extension === 'jpg' ? 'JPEG' : extension.toUpperCase() }, locale);
 }
 
 function referenceBindingPrompt(bindings: ComicReferenceBinding[]): string {
@@ -2830,6 +2885,16 @@ function referenceBindingPrompt(bindings: ComicReferenceBinding[]): string {
   ].join('\n');
 }
 
+function voiceGroupLabel(label: string, locale: 'zh-TW' | 'en'): string {
+  if (locale !== 'en') return label;
+  return {
+    台灣華語: 'Mandarin (Taiwan)',
+    中國普通話: 'Mandarin (China)',
+    中國方言: 'Chinese Regional Voices',
+    香港粵語: 'Cantonese (Hong Kong)',
+  }[label] ?? label;
+}
+
 function FieldLabel({ label, help }: { label: string; help: string }) {
   return (
     <span className="comic-field-label">
@@ -2839,7 +2904,17 @@ function FieldLabel({ label, help }: { label: string; help: string }) {
   );
 }
 
-function VisualReferenceThumb({ url, label, onPreview }: { url?: string; label: string; onPreview?: (url: string) => void }) {
+function VisualReferenceThumb({
+  url,
+  label,
+  onPreview,
+  previewTitle,
+}: {
+  url?: string;
+  label: string;
+  onPreview?: (url: string) => void;
+  previewTitle: string;
+}) {
   return url ? (
     <button
       type="button"
@@ -2849,7 +2924,7 @@ function VisualReferenceThumb({ url, label, onPreview }: { url?: string; label: 
         event.stopPropagation();
         onPreview?.(url);
       }}
-      title="預覽縮圖"
+      title={previewTitle}
     >
       <img className="comic-visual-reference-thumb" src={url} alt={`${label} reference`} loading="lazy" />
     </button>

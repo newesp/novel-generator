@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import type { CriticFeedback } from '../../lib/multi-agent/critic';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 
 interface HumanReviewModalProps {
   open: boolean;
@@ -14,6 +16,7 @@ interface HumanReviewModalProps {
   onSendToEditor: (customDirection?: string, allowExtraRevision?: boolean) => Promise<void>;
   onSaveHumanEdit: (editedText: string) => Promise<void>;
   isSubmitting?: boolean;
+  writingLanguage?: string;
 }
 
 export function HumanReviewModal({
@@ -27,7 +30,9 @@ export function HumanReviewModal({
   onSendToEditor,
   onSaveHumanEdit,
   isSubmitting = false,
+  writingLanguage,
 }: HumanReviewModalProps) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [editedText, setEditedText] = useState(candidateDraft);
   const [customDirection, setCustomDirection] = useState('');
@@ -37,17 +42,17 @@ export function HumanReviewModal({
     <Modal
       open={open}
       onClose={() => !isSubmitting && onClose()}
-      title={`🔍 Multi-Agent 候選草稿審核 (v${draftVersion})`}
+      title={t('humanReview.title', { version: draftVersion }, locale)}
       width={800}
       footer={
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            暫時關閉
+            {t('humanReview.closeForNow', undefined, locale)}
           </Button>
           {mode === 'view' ? (
             <>
               <Button variant="secondary" onClick={() => setMode('edit')} disabled={isSubmitting}>
-                ✏️ 人工修改草稿
+                {t('humanReview.editDraft', undefined, locale)}
               </Button>
               {(!isMaxRevisionsReached || allowExtra) && (
                 <Button
@@ -55,24 +60,24 @@ export function HumanReviewModal({
                   disabled={isSubmitting}
                   onClick={() => onSendToEditor(customDirection, allowExtra)}
                 >
-                  🤖 交給 Editor 修訂
+                  {t('humanReview.sendToEditor', undefined, locale)}
                 </Button>
               )}
               <Button variant="primary" disabled={isSubmitting} onClick={onDirectAdopt}>
-                {isSubmitting ? '處理中...' : '💾 人工審核通過並正式採用'}
+                {isSubmitting ? t('humanReview.processing', undefined, locale) : t('humanReview.adopt', undefined, locale)}
               </Button>
             </>
           ) : (
             <>
               <Button variant="secondary" onClick={() => setMode('view')} disabled={isSubmitting}>
-                取消修改
+                {t('humanReview.cancelEdit', undefined, locale)}
               </Button>
               <Button
                 variant="primary"
                 disabled={isSubmitting || !editedText.trim()}
                 onClick={() => onSaveHumanEdit(editedText)}
               >
-                💾 儲存人工修改 (生成 v{draftVersion + 1})
+                {t('humanReview.saveEdit', { version: draftVersion + 1 }, locale)}
               </Button>
             </>
           )}
@@ -95,20 +100,22 @@ export function HumanReviewModal({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <strong>
-                {criticFeedback.hasMajorFlaw ? '⚠️ 發現重大缺陷' : '📊 Critic 審核評分未達自動採用門檻'}
+                {criticFeedback.hasMajorFlaw
+                  ? t('humanReview.majorFlaw', undefined, locale)
+                  : t('humanReview.belowThreshold', undefined, locale)}
               </strong>
               <span style={{ fontWeight: 700, fontSize: 15, color: criticFeedback.totalScore >= 80 ? '#eab308' : '#ef4444' }}>
-                總分：{criticFeedback.totalScore} 分
+                {t('humanReview.totalScore', { score: criticFeedback.totalScore }, locale)}
               </span>
             </div>
             {criticFeedback.hasMajorFlaw && (
               <div style={{ color: '#ef4444', marginTop: 4 }}>
-                重大缺陷原因：{criticFeedback.majorFlawReason}
+                {t('humanReview.majorFlawReason', { reason: criticFeedback.majorFlawReason }, locale)}
               </div>
             )}
             {criticFeedback.requiredChanges.length > 0 && (
               <div style={{ marginTop: 6, color: 'var(--text-secondary)', fontSize: 12 }}>
-                <strong>修改建議：</strong>
+                <strong>{t('humanReview.requiredChanges', undefined, locale)}</strong>
                 <ul style={{ margin: '4px 0 0 18px', padding: 0 }}>
                   {criticFeedback.requiredChanges.map((c, i) => (
                     <li key={i}>{c}</li>
@@ -130,14 +137,14 @@ export function HumanReviewModal({
               fontSize: 12,
             }}
           >
-            🛑 已達到預設 Editor 最高修訂次數上限。
+            {t('humanReview.revisionLimit', undefined, locale)}
             <label style={{ marginLeft: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <input
                 type="checkbox"
                 checked={allowExtra}
                 onChange={(e) => setAllowExtra(e.target.checked)}
               />
-              授權額外執行 1 次 Editor 修訂
+              {t('humanReview.allowExtraRevision', undefined, locale)}
             </label>
           </div>
         )}
@@ -145,7 +152,12 @@ export function HumanReviewModal({
         {mode === 'view' ? (
           <div>
             <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
-              📄 候選草稿正文 (v{draftVersion})：
+              {t('humanReview.candidateDraft', { version: draftVersion }, locale)}
+              {writingLanguage && ` · ${t('agent.writingLanguage', {
+                language: writingLanguage === 'en'
+                  ? t('agent.languageEn', undefined, locale)
+                  : t('agent.languageZhHant', undefined, locale),
+              }, locale)}`}
             </div>
             <div
               style={{
@@ -166,12 +178,12 @@ export function HumanReviewModal({
             {(!isMaxRevisionsReached || allowExtra) && (
               <div style={{ marginTop: 12 }}>
                 <label style={{ fontSize: 12, color: 'var(--text-tertiary)', display: 'block', marginBottom: 4 }}>
-                  💬 給 Editor 的補充修改方向（選填）：
+                  {t('humanReview.additionalDirection', undefined, locale)}
                 </label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="例如：請加強主角登場時的氣氛渲染..."
+                  placeholder={t('humanReview.directionPlaceholder', undefined, locale)}
                   style={{ width: '100%', fontSize: 12 }}
                   value={customDirection}
                   onChange={(e) => setCustomDirection(e.target.value)}
@@ -182,7 +194,7 @@ export function HumanReviewModal({
         ) : (
           <div>
             <div style={{ fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>
-              ✏️ 人工編輯候選草稿：
+              {t('humanReview.manualEdit', undefined, locale)}
             </div>
             <textarea
               className="form-input"

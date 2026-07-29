@@ -3,6 +3,8 @@ import { complete } from '../../llm';
 import { renderTemplate } from '../../prompt-template';
 import type { Chapter, Character, WikiPage } from '../../../types';
 import type { LintCheck, LintContext, LintIssue, IssueTarget } from '../types';
+import { lintChapterLabel, lintText } from '../messages';
+import type { InterfaceLocale } from '../../language-policy';
 
 interface VsChapterResult {
   conflicts: Array<{
@@ -13,12 +15,14 @@ interface VsChapterResult {
   }>;
 }
 
-function parseVsChapterJson(raw: string): VsChapterResult {
+function parseVsChapterJson(raw: string, interfaceLocale: InterfaceLocale = 'zh-TW'): VsChapterResult {
   let s = raw.trim();
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
   const start = s.indexOf('{');
   const end = s.lastIndexOf('}');
-  if (start < 0 || end < 0) throw new Error('LLM 回應不含 JSON');
+  if (start < 0 || end < 0) {
+    throw new Error(lintText(interfaceLocale, 'LLM 回應不含 JSON', 'The LLM response contains no JSON'));
+  }
   const j = JSON.parse(s.slice(start, end + 1));
   return { conflicts: Array.isArray(j.conflicts) ? j.conflicts : [] };
 }
@@ -100,7 +104,11 @@ export const wikiVsChapterCheck: LintCheck = {
     );
     if (allEligible.length > cap) {
       unprocessed.push({
-        reason: `符合條件角色 ${allEligible.length} 個，僅檢查前 ${cap} 個；剩 ${allEligible.length - cap} 個未檢查`,
+        reason: lintText(
+          ctx,
+          `符合條件角色 ${allEligible.length} 個，僅檢查前 ${cap} 個；剩 ${allEligible.length - cap} 個未檢查`,
+          `${allEligible.length} characters were eligible, but only the first ${cap} were checked. ${allEligible.length - cap} were not checked.`,
+        ),
       });
     }
 
@@ -121,15 +129,19 @@ export const wikiVsChapterCheck: LintCheck = {
       try {
         raw = await complete(prompt, { maxTokens: 2048 }, ctx.signal);
       } catch (e) {
-        throw new Error(`Wiki vs 章節 LLM (${item.character.name}) 失敗：${(e as Error).message}`, { cause: e });
+        throw new Error(lintText(
+          ctx,
+          `Wiki vs 章節 LLM (${item.character.name}) 失敗：${(e as Error).message}`,
+          `Wiki vs chapter LLM (${item.character.name}) failed: ${(e as Error).message}`,
+        ), { cause: e });
       }
 
       let parsed: VsChapterResult;
       try {
-        parsed = parseVsChapterJson(raw);
+        parsed = parseVsChapterJson(raw, ctx.interfaceLocale);
       } catch {
         raw = await complete(prompt + '\n\n（重要：請只輸出嚴格 JSON）', { maxTokens: 2048 }, ctx.signal);
-        parsed = parseVsChapterJson(raw);
+        parsed = parseVsChapterJson(raw, ctx.interfaceLocale);
       }
 
       for (const c of parsed.conflicts) {
@@ -155,7 +167,7 @@ export const wikiVsChapterCheck: LintCheck = {
           const excerpt = excerpts.find((e) => e.chapterId === chapterId)?.excerpt;
           targets.push({
             kind: 'chapter', id: chapter.id,
-            label: `章節 ${chapter.title || chapter.id.slice(0, 6)}`,
+            label: lintChapterLabel(ctx, chapter.title || chapter.id.slice(0, 6)),
             sourceExcerpt: excerpt,
           });
         }
@@ -164,8 +176,16 @@ export const wikiVsChapterCheck: LintCheck = {
           checkId: 'wikiVsChapter',
           severity: 'error',
           status: 'open',
-          title: `${item.entityPage.type}/${item.entityPage.slug} 寫「${c.wikiSays}」，但章節寫「${c.chapterSays}」`,
-          detail: `欄位「${c.field}」衝突。Wiki: ${c.wikiSays} ｜ 章節: ${c.chapterSays}`,
+          title: lintText(
+            ctx,
+            `${item.entityPage.type}/${item.entityPage.slug} 寫「${c.wikiSays}」，但章節寫「${c.chapterSays}」`,
+            `${item.entityPage.type}/${item.entityPage.slug} says "${c.wikiSays}", but the chapter says "${c.chapterSays}"`,
+          ),
+          detail: lintText(
+            ctx,
+            `欄位「${c.field}」衝突。Wiki: ${c.wikiSays} ｜ 章節: ${c.chapterSays}`,
+            `Conflict in field "${c.field}". Wiki: ${c.wikiSays} | Chapter: ${c.chapterSays}`,
+          ),
           targets,
           fix: { kind: 'llm' },
         });

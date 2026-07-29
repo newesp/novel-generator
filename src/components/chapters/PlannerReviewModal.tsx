@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import type { PlannedOutline } from '../../lib/multi-agent/planner';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 
 interface PlannerReviewModalProps {
   open: boolean;
@@ -26,6 +28,7 @@ export function PlannerReviewModal({
   onConfirmChoice,
   isSubmitting = false,
 }: PlannerReviewModalProps) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   const [editedBeat, setEditedBeat] = useState(plan.beat);
   const [editedPoints, setEditedPoints] = useState(plan.points);
 
@@ -33,26 +36,26 @@ export function PlannerReviewModal({
     <Modal
       open={open}
       onClose={() => !isSubmitting && onClose()}
-      title="📋 Planner 大綱規劃審核與比較"
+      title={t('plannerReview.title', undefined, locale)}
       width={720}
       footer={
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', width: '100%' }}>
           <Button variant="secondary" onClick={onClose} disabled={isSubmitting}>
-            暫時關閉
+            {t('plannerReview.closeForNow', undefined, locale)}
           </Button>
           <Button
             variant="secondary"
             disabled={isSubmitting || !editedBeat.trim() || !editedPoints.trim()}
             onClick={() => onConfirmChoice('use_for_run_only', editedBeat, editedPoints)}
           >
-            🎯 僅供本次生成使用
+            {t('plannerReview.useForThisRun', undefined, locale)}
           </Button>
           <Button
             variant="primary"
             disabled={isSubmitting || !editedBeat.trim() || !editedPoints.trim()}
             onClick={() => onConfirmChoice('apply_to_chapter', editedBeat, editedPoints)}
           >
-            {isSubmitting ? '處理中...' : '💾 正式採用並更新章節規劃'}
+            {isSubmitting ? t('plannerReview.processing', undefined, locale) : t('plannerReview.apply', undefined, locale)}
           </Button>
         </div>
       }
@@ -68,7 +71,7 @@ export function PlannerReviewModal({
               fontSize: 12,
             }}
           >
-            <strong>💡 Planner 佈局與規劃說明：</strong>
+            <strong>{t('plannerReview.explanation', undefined, locale)}</strong>
             <div style={{ marginTop: 4, color: 'var(--text-secondary)' }}>{plan.explanation}</div>
           </div>
         )}
@@ -85,14 +88,14 @@ export function PlannerReviewModal({
             }}
           >
             <div style={{ fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 8 }}>
-              📌 現有章節規劃
+              {t('plannerReview.currentPlan', undefined, locale)}
             </div>
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>現有語氣/節拍</div>
-              <div style={{ fontWeight: 500, marginTop: 2 }}>{originalBeat || '(未設定)'}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('plannerReview.currentBeat', undefined, locale)}</div>
+              <div style={{ fontWeight: 500, marginTop: 2 }}>{originalBeat || t('plannerReview.unset', undefined, locale)}</div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>現有要點</div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('plannerReview.currentPoints', undefined, locale)}</div>
               <div
                 style={{
                   marginTop: 2,
@@ -103,7 +106,7 @@ export function PlannerReviewModal({
                   overflowY: 'auto',
                 }}
               >
-                {originalPoints || '(無要點)'}
+                {originalPoints || t('plannerReview.noPoints', undefined, locale)}
               </div>
             </div>
           </div>
@@ -118,11 +121,11 @@ export function PlannerReviewModal({
             }}
           >
             <div style={{ fontWeight: 600, color: '#4ade80', marginBottom: 8 }}>
-              ✨ Planner 生成之新規劃 (可微調)
+              {t('plannerReview.newPlan', undefined, locale)}
             </div>
             <div style={{ marginBottom: 8 }}>
               <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block' }}>
-                語氣/節拍
+                {t('plannerReview.beat', undefined, locale)}
               </label>
               <input
                 type="text"
@@ -134,7 +137,7 @@ export function PlannerReviewModal({
             </div>
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'block' }}>
-                章節要點
+                {t('plannerReview.points', undefined, locale)}
               </label>
               <textarea
                 className="form-input"
@@ -148,10 +151,7 @@ export function PlannerReviewModal({
         </div>
 
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-          提示：
-          <br />
-          - 選擇<strong>「正式採用並更新章節規劃」</strong>將同步寫回章節設定 (`Chapter.beat` 與 `Chapter.points`)，後續即使取消正文生成也不會復原本項變更。
-          <br />- 選擇<strong>「僅供本次生成使用」</strong>僅會把本規劃帶入接下來的 Writer 正文生成，不修改現有章節設定。
+          {t('plannerReview.note', undefined, locale)}
         </div>
       </div>
     </Modal>

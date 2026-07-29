@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { t, type InterfaceLocale } from '../lib/language-policy';
 
 export type LocalAIActivityPhase = 'idle' | 'running' | 'success' | 'failed' | 'cancelled';
 
@@ -11,7 +12,7 @@ export interface LocalAIActivityState {
 
 const IDLE_ACTIVITY: LocalAIActivityState = { phase: 'idle' };
 
-export function useLocalAIActivity() {
+export function useLocalAIActivity(interfaceLocale: InterfaceLocale = 'zh-TW') {
   const [activity, setActivity] = useState<LocalAIActivityState>(IDLE_ACTIVITY);
   const controllerRef = useRef<AbortController | null>(null);
   const lastSignalRef = useRef<AbortSignal | null>(null);
@@ -78,7 +79,7 @@ export function useLocalAIActivity() {
     setActivity((current) => ({
       ...current,
       phase: 'cancelled',
-      message: '已停止請求；provider 仍可能已計費',
+      message: t('localAi.cancelled', undefined, interfaceLocale),
       errorMessage: undefined,
     }));
     scheduleClear();

@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import type { LintCheck, LintContext, LintIssue } from '../types';
+import { lintText } from '../messages';
 
 export const orphanCheck: LintCheck = {
   id: 'orphan',
@@ -30,8 +31,12 @@ export const orphanCheck: LintCheck = {
         checkId: 'orphan',
         severity: 'info',
         status: 'open',
-        title: `${key} 沒被任何頁或章節引用`,
-        detail: `頁 ${key}（${page.title}）的 title 與 aliases 都未在其他 wiki 頁的 relatedSlugs、也未在任何章節正文中出現。可能是未登場的伏筆、也可能是廢頁；請人工判斷。`,
+        title: lintText(ctx, `${key} 沒被任何頁或章節引用`, `${key} is not referenced by any page or chapter`),
+        detail: lintText(
+          ctx,
+          `頁 ${key}（${page.title}）的 title 與 aliases 都未在其他 wiki 頁的 relatedSlugs、也未在任何章節正文中出現。可能是未登場的伏筆、也可能是廢頁；請人工判斷。`,
+          `Neither the title nor aliases of ${key} (${page.title}) appear in another Wiki page's relatedSlugs or in any chapter text. It may be an unrevealed plot element or an obsolete page; review it manually.`,
+        ),
         targets: [
           { kind: 'wikiPage', id: page.id, label: key },
         ],

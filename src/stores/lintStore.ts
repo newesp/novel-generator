@@ -12,6 +12,10 @@ import { useSettingsStore } from './settingsStore';
 import { useWikiStore } from './wikiStore';
 import type { LintIssue, LintReport } from '../lib/lint/types';
 
+function lintStoreText(zhTW: string, en: string): string {
+  return useSettingsStore.getState().generalPrefs.interfaceLocale === 'en' ? en : zhTW;
+}
+
 interface LintState {
   isRunning: boolean;
   progress: LintProgress[];
@@ -100,7 +104,10 @@ export const useLintStore = create<LintState>((set, get) => ({
       try {
         await useWikiStore.getState().renamePageSlug(fix.pageId, fix.newSlug);
       } catch (e) {
-        alert(`Slug 重命名失敗：${(e as Error).message}`);
+        alert(lintStoreText(
+          `Slug 重命名失敗：${(e as Error).message}`,
+          `Failed to rename slug: ${(e as Error).message}`,
+        ));
         busy.delete(issue.id);
         set({ busyIssueIds: new Set(busy) });
         return;
@@ -120,7 +127,7 @@ export const useLintStore = create<LintState>((set, get) => ({
     const pages = await storage.wikiPages.list(report.bookId);
     const page = pages.find((p) => p.id === fix.pageId);
     if (!page) {
-      alert(`找不到頁 id=${fix.pageId}`);
+      alert(lintStoreText(`找不到頁 id=${fix.pageId}`, `Page not found: id=${fix.pageId}`));
       busy.delete(issue.id);
       set({ busyIssueIds: new Set(busy) });
       return;
@@ -131,11 +138,12 @@ export const useLintStore = create<LintState>((set, get) => ({
       page,
       removeTarget: fix.target,
       lintBatchId: report.lintBatchId,
+      interfaceLocale: useSettingsStore.getState().generalPrefs.interfaceLocale,
     });
 
     busy.delete(issue.id);
     if (result.status === 'failed') {
-      alert(`移除失敗：${result.error}`);
+      alert(lintStoreText(`移除失敗：${result.error}`, `Removal failed: ${result.error}`));
       set({ busyIssueIds: new Set(busy) });
       return;
     }
@@ -162,6 +170,7 @@ export const useLintStore = create<LintState>((set, get) => ({
       const pages = await storage.wikiPages.list(report.bookId);
       const direction = get().userDirections[issue.id] ?? '';
       const aiPrompts = useSettingsStore.getState().aiPrompts;
+      const project = await storage.projects.get(report.bookId);
       const suggestion = await generateFixSuggestion(
         issue,
         pages,
@@ -169,6 +178,8 @@ export const useLintStore = create<LintState>((set, get) => ({
         direction,
         get().fixTargetPageIds[issue.id],
         signal,
+        project?.writingLanguage === 'en' ? 'en' : 'zh-Hant',
+        useSettingsStore.getState().generalPrefs.interfaceLocale,
       );
       set((s) => ({ fixSuggestions: { ...s.fixSuggestions, [issue.id]: suggestion } }));
     } catch (e) {
@@ -191,7 +202,7 @@ export const useLintStore = create<LintState>((set, get) => ({
     const pages = await storage.wikiPages.list(report.bookId);
     const page = pages.find((p) => p.id === suggestion.targetPageId);
     if (!page) {
-      alert('找不到要修改的 wiki page');
+      alert(lintStoreText('找不到要修改的 Wiki 頁面', 'Wiki page to edit was not found'));
       const busy2 = new Set(busy); busy2.delete(issue.id);
       set({ busyIssueIds: busy2 });
       return;
@@ -208,7 +219,7 @@ export const useLintStore = create<LintState>((set, get) => ({
     const busy2 = new Set(busy); busy2.delete(issue.id);
 
     if (result.status === 'failed') {
-      alert(`套用失敗：${result.error}`);
+      alert(lintStoreText(`套用失敗：${result.error}`, `Apply failed: ${result.error}`));
       set({ busyIssueIds: busy2 });
       return;
     }
@@ -250,7 +261,7 @@ export const useLintStore = create<LintState>((set, get) => ({
       });
       await useWikiStore.getState().loadForBook(report.bookId);
       if (result.revertedCount === 0) {
-        alert('找不到可還原的 Wiki 操作。');
+        alert(lintStoreText('找不到可還原的 Wiki 操作。', 'No Wiki operations were available to undo.'));
         return;
       }
       const updated = report.issues.map((issue) =>
@@ -262,7 +273,10 @@ export const useLintStore = create<LintState>((set, get) => ({
         busyIssueIds: new Set(),
       });
     } catch (e) {
-      alert(`還原失敗：${(e as Error).message}`);
+      alert(lintStoreText(
+        `還原失敗：${(e as Error).message}`,
+        `Undo failed: ${(e as Error).message}`,
+      ));
     } finally {
       set({ isUndoingBatch: false });
     }

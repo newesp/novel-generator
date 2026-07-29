@@ -1,6 +1,8 @@
 import type { Character } from '../types';
 import { renderTemplate } from './prompt-template';
 import { useSettingsStore } from '../stores/settingsStore';
+import { getBuiltInAIPrompts } from '../stores/settingsStore';
+import type { WritingLanguage } from './language-policy';
 
 export interface BudgetInputs {
   worldSetting: string;
@@ -68,22 +70,27 @@ export function allocateBudget(
  * 將角色列表壓縮為 prompt 用的多行字串。
  * 每行：「姓名 (性別/年齡/種族)：性格；背景；能力；關係」
  */
-export function formatCharacters(characters: Character[]): string {
+export function formatCharacters(
+  characters: Character[],
+  writingLanguage: WritingLanguage = 'zh-Hant',
+): string {
   if (characters.length === 0) return '';
+  const isEn = writingLanguage === 'en';
   return characters
     .map((c) => {
-      const head = [c.gender, c.age && `${c.age}歲`, c.race].filter(Boolean).join('/');
+      const head = [c.gender, c.age && (isEn ? `Age ${c.age}` : `${c.age}歲`), c.race].filter(Boolean).join('/');
+      const labelSeparator = isEn ? ': ' : '：';
       const detail = [
-        c.personality && `性格：${c.personality}`,
-        c.background && `背景：${c.background}`,
-        c.appearance && `外貌：${c.appearance}`,
-        c.abilities && `能力：${c.abilities}`,
-        c.relations && `關係：${c.relations}`,
-        c.arc && `成長弧線：${c.arc}`,
+        c.personality && `${isEn ? 'Personality' : '性格'}${labelSeparator}${c.personality}`,
+        c.background && `${isEn ? 'Background' : '背景'}${labelSeparator}${c.background}`,
+        c.appearance && `${isEn ? 'Appearance' : '外貌'}${labelSeparator}${c.appearance}`,
+        c.abilities && `${isEn ? 'Abilities' : '能力'}${labelSeparator}${c.abilities}`,
+        c.relations && `${isEn ? 'Relationships' : '關係'}${labelSeparator}${c.relations}`,
+        c.arc && `${isEn ? 'Character Arc' : '成長弧線'}${labelSeparator}${c.arc}`,
       ]
         .filter(Boolean)
-        .join('；');
-      return `- ${c.name || '(未命名)'}${head ? ` (${head})` : ''}${detail ? `：${detail}` : ''}`;
+        .join(isEn ? '; ' : '；');
+      return `- ${c.name || (isEn ? '(Unnamed)' : '(未命名)')}${head ? ` (${head})` : ''}${detail ? `${isEn ? ': ' : '：'}${detail}` : ''}`;
     })
     .join('\n');
 }
@@ -98,41 +105,48 @@ export function buildGenerationPrompt(
   budget: BudgetAllocation,
   chapterTitle: string,
   targetWords: number | null,
-  adjustInstruction = ''
+  adjustInstruction = '',
+  writingLanguage: WritingLanguage = 'zh-Hant',
 ): string {
   const { aiPrompts } = useSettingsStore.getState();
+  const isEn = writingLanguage === 'en';
 
   const mainPlotSection = budget.mainPlot
-    ? `\n\n### 主線劇情\n${budget.mainPlot}`
+    ? `\n\n### ${isEn ? 'Main Plot' : '主線劇情'}\n${budget.mainPlot}`
     : '';
 
   const charactersSection = budget.characters
-    ? `\n\n### 主要角色\n${budget.characters}`
+    ? `\n\n### ${isEn ? 'Main Characters' : '主要角色'}\n${budget.characters}`
     : '';
 
   const referenceSection = budget.referenceChapterContent
-    ? `\n\n## 前文（參考章節：${budget.referenceChapterTitle || '前一章'}）\n${budget.referenceChapterContent}`
+    ? `\n\n## ${isEn ? `Previous Context (Reference Chapter: ${budget.referenceChapterTitle || 'Previous Chapter'})` : `前文（參考章節：${budget.referenceChapterTitle || '前一章'}）`}\n${budget.referenceChapterContent}`
     : '';
 
   const olderSummarySection = budget.olderChapterSummary
-    ? `\n\n## 更早章節摘要\n${budget.olderChapterSummary}`
+    ? `\n\n## ${isEn ? 'Earlier Chapter Summary' : '更早章節摘要'}\n${budget.olderChapterSummary}`
     : '';
 
   const adjustInstructionSection = adjustInstruction
-    ? `\n\n## ⚠️ 用戶調整指令（最高優先級，必須遵守）\n${adjustInstruction}`
+    ? `\n\n## ⚠️ ${isEn ? 'User Instructions (highest priority; must follow)' : '用戶調整指令（最高優先級，必須遵守）'}\n${adjustInstruction}`
     : '';
 
-  const adjustInstructionRule = adjustInstruction ? '與「用戶調整指令」' : '';
+  const adjustInstructionRule = adjustInstruction
+    ? (isEn ? 'and the User Instructions' : '與「用戶調整指令」')
+    : '';
 
-  return renderTemplate(aiPrompts.chapterContentTemplate, {
-    worldSetting: budget.worldSetting || '(未設定)',
+  const template = isEn
+    ? getBuiltInAIPrompts('en').chapterContentTemplate
+    : aiPrompts.chapterContentTemplate;
+  return renderTemplate(template, {
+    worldSetting: budget.worldSetting || (isEn ? '(Not set)' : '(未設定)'),
     mainPlotSection,
     charactersSection,
     wikiSection: budget.wikiSection || '',
-    chapterTitle: chapterTitle || '(未命名)',
-    beat: budget.beat || '自定義',
-    points: budget.chapterPoints || '無',
-    targetWords: targetWords ?? '由你自行決定',
+    chapterTitle: chapterTitle || (isEn ? '(Untitled)' : '(未命名)'),
+    beat: budget.beat || (isEn ? 'Custom' : '自定義'),
+    points: budget.chapterPoints || (isEn ? 'None' : '無'),
+    targetWords: targetWords ?? (isEn ? 'Use your judgment' : '由你自行決定'),
     referenceSection,
     olderSummarySection,
     adjustInstructionSection,

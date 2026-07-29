@@ -49,4 +49,22 @@ describe('validateComicVideoInputs', () => {
       panel({ id: 'panel-1', order: 1, videoClipAssetIds: ['clip-1'] }),
     ])).toEqual({ ok: true });
   });
+
+  it('rejects mismatching English voice for zh-Hant project', () => {
+    expect(validateComicVideoInputs([
+      panel({ id: 'panel-1', order: 1, assetId: 'image-1' }),
+    ], { voiceId: 'en-US-AriaNeural', writingLanguage: 'zh-Hant', locale: 'zh-TW' })).toEqual({
+      ok: false,
+      message: 'TTS 音色與創作語言不符：繁體中文 小說請選擇對應的音色（目前選擇了 en-US-AriaNeural）。',
+    });
+  });
+
+  it('rejects mismatching Chinese voice for en project', () => {
+    expect(validateComicVideoInputs([
+      panel({ id: 'panel-1', order: 1, assetId: 'image-1' }),
+    ], { voiceId: 'zh-TW-HsiaoChenNeural', writingLanguage: 'en', locale: 'en' })).toEqual({
+      ok: false,
+      message: 'TTS voice and writing language mismatch: For English book, please select a matching voice (currently zh-TW-HsiaoChenNeural).',
+    });
+  });
 });

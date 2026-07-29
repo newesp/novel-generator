@@ -3,6 +3,8 @@ import { complete } from '../../llm';
 import { renderTemplate } from '../../prompt-template';
 import type { Chapter, Character, WikiPage } from '../../../types';
 import type { LintCheck, LintContext, LintIssue, IssueTarget } from '../types';
+import { lintChapterLabel, lintText } from '../messages';
+import type { InterfaceLocale } from '../../language-policy';
 
 /**
  * 未登錄角色 — hybrid check
@@ -152,12 +154,14 @@ interface LlmVerifyResult {
   rejected: string[];
 }
 
-function parseVerifyJson(raw: string): LlmVerifyResult {
+function parseVerifyJson(raw: string, interfaceLocale: InterfaceLocale = 'zh-TW'): LlmVerifyResult {
   let s = raw.trim();
   s = s.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
   const start = s.indexOf('{');
   const end = s.lastIndexOf('}');
-  if (start < 0 || end < 0) throw new Error('LLM 回應不含 JSON');
+  if (start < 0 || end < 0) {
+    throw new Error(lintText(interfaceLocale, 'LLM 回應不含 JSON', 'The LLM response contains no JSON'));
+  }
   const json = JSON.parse(s.slice(start, end + 1));
   return {
     newCharacters: Array.isArray(json.newCharacters) ? json.newCharacters : [],
@@ -174,7 +178,13 @@ export const unrecordedCheck: LintCheck = {
     const cap = ctx.prefs.maxUnrecordedCandidates;
     const candidates = allCandidates.slice(0, cap);
     const unprocessed = allCandidates.length > cap
-      ? [{ reason: `候選 ${allCandidates.length} 個，超出上限 ${cap}，未送 LLM 驗證的：${allCandidates.slice(cap).map((c) => c.name).join('、')}` }]
+      ? [{
+          reason: lintText(
+            ctx,
+            `候選 ${allCandidates.length} 個，超出上限 ${cap}，未送 LLM 驗證的：${allCandidates.slice(cap).map((c) => c.name).join('、')}`,
+            `${allCandidates.length} candidates exceeded the limit of ${cap}. Not sent for LLM verification: ${allCandidates.slice(cap).map((c) => c.name).join(', ')}`,
+          ),
+        }]
       : [];
 
     if (candidates.length === 0) return { issues: [], unprocessed };
@@ -193,16 +203,20 @@ export const unrecordedCheck: LintCheck = {
     try {
       raw = await complete(prompt, { maxTokens: 2048 }, ctx.signal);
     } catch (e) {
-      throw new Error(`未登錄角色 LLM verify 失敗：${(e as Error).message}`, { cause: e });
+      throw new Error(lintText(
+        ctx,
+        `未登錄角色 LLM verify 失敗：${(e as Error).message}`,
+        `Unrecorded-character LLM verification failed: ${(e as Error).message}`,
+      ), { cause: e });
     }
 
     let parsed: LlmVerifyResult;
     try {
-      parsed = parseVerifyJson(raw);
+      parsed = parseVerifyJson(raw, ctx.interfaceLocale);
     } catch {
       // 重試 1 次
       raw = await complete(prompt + '\n\n（重要：請只輸出嚴格 JSON）', { maxTokens: 2048 }, ctx.signal);
-      parsed = parseVerifyJson(raw);
+      parsed = parseVerifyJson(raw, ctx.interfaceLocale);
     }
 
     const issues: LintIssue[] = [];
@@ -212,7 +226,10 @@ export const unrecordedCheck: LintCheck = {
       const targets: IssueTarget[] = cand.occurrences.map((o) => ({
         kind: 'chapter' as const,
         id: o.chapterId,
-        label: `章節 ${ctx.chapters.find((c) => c.id === o.chapterId)?.title ?? o.chapterId.slice(0, 6)}`,
+        label: lintChapterLabel(
+          ctx,
+          ctx.chapters.find((c) => c.id === o.chapterId)?.title ?? o.chapterId.slice(0, 6),
+        ),
         sourceExcerpt: o.excerpt,
       }));
       issues.push({
@@ -220,8 +237,16 @@ export const unrecordedCheck: LintCheck = {
         checkId: 'unrecorded',
         severity: 'warn',
         status: 'open',
-        title: `未登錄角色「${nc.name}」${nc.isMainEnough ? '（建議加入）' : '（次要）'}`,
-        detail: `候選名稱「${nc.name}」出現 ${cand.freq} 次，未在 wiki entity 或 characters 表登錄。`,
+        title: lintText(
+          ctx,
+          `未登錄角色「${nc.name}」${nc.isMainEnough ? '（建議加入）' : '（次要）'}`,
+          `Unrecorded character "${nc.name}" ${nc.isMainEnough ? '(recommended)' : '(minor)'}`,
+        ),
+        detail: lintText(
+          ctx,
+          `候選名稱「${nc.name}」出現 ${cand.freq} 次，未在 wiki entity 或 characters 表登錄。`,
+          `The candidate name "${nc.name}" appears ${cand.freq} times but is not recorded in Wiki entities or the characters table.`,
+        ),
         targets,
         fix: { kind: 'llm' },
       });

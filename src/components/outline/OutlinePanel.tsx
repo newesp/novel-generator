@@ -5,12 +5,7 @@ import { Button } from '../common/Button';
 import { complete, isLLMReady } from '../../lib/llm';
 import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
 import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
-import {
-  GENRE_PRESETS,
-  STYLE_PRESETS,
-  normalizeGenre,
-  normalizeStyle,
-} from '../../lib/language-policy';
+import { GENRE_PRESETS, STYLE_PRESETS, normalizeGenre, normalizeStyle, resolveGenreLabel, resolveStyleLabel, t } from '../../lib/language-policy';
 
 export function OutlinePanel() {
   const { project, updateProject } = useProjectStore();
@@ -23,9 +18,9 @@ export function OutlinePanel() {
   const [worldSetting, setWorldSetting] = useState('');
   const [mainPlot, setMainPlot] = useState('');
   const [genWorldBusy, setGenWorldBusy] = useState(false);
-  const [saveLabel, setSaveLabel] = useState('💾 儲存大綱');
+  const [justSaved, setJustSaved] = useState(false);
   const [fullscreen, setFullscreen] = useState<null | 'world' | 'plot'>(null);
-  const worldActivity = useLocalAIActivity();
+  const worldActivity = useLocalAIActivity(locale);
 
   useEffect(() => {
     if (!fullscreen) return;
@@ -37,17 +32,17 @@ export function OutlinePanel() {
   useEffect(() => {
     if (project) {
       setTitle(project.title);
-      setGenre(normalizeGenre(project.genre));
-      setStyle(normalizeStyle(project.style));
+      setGenre(resolveGenreLabel(project.genre, locale));
+      setStyle(resolveStyleLabel(project.style, locale));
       setWorldSetting(project.worldSetting);
       setMainPlot(project.mainPlot);
     }
-  }, [project?.id]);
+  }, [project?.id, locale]);
 
   if (!project) {
     return (
       <div style={{ padding: 24, color: 'var(--text-secondary)', fontSize: 14 }}>
-        請先在工具列點擊「新建專案」開始
+        {t('outline.noProject', undefined, locale)}
       </div>
     );
   }
@@ -73,22 +68,32 @@ export function OutlinePanel() {
         worldSetting, 
         mainPlot 
       });
-      setSaveLabel('✅ 已儲存');
-      setTimeout(() => setSaveLabel('💾 儲存大綱'), 2000);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 2000);
     } catch (err) {
-      alert(`儲存失敗：${(err as Error).message}`);
+      alert(t('outline.saveFailed', { error: (err as Error).message }, locale));
     }
   };
 
   const generateWorld = async () => {
     if (!genre && !style) {
-      alert('請先選擇題材或風格');
+      alert(t('outline.selectGenreOrStyle', undefined, locale));
       return;
     }
-    const signal = worldActivity.start('依題材與風格整理世界規則、主要勢力與三幕主線…');
+    const signal = worldActivity.start(t('outline.activityMessage', undefined, locale));
     setGenWorldBusy(true);
     try {
-      const prompt = `請為一部「${genre || '未指定'}」題材、「${style || '未指定'}」風格的中文小說，依照以下格式輸出，標記不可省略：
+      const prompt = project.writingLanguage === 'en'
+        ? `Create a world setting and main plot for an English-language ${genre || 'unspecified genre'} novel in a ${style || 'unspecified style'}. Use the exact markers below:
+
+##WORLD_START##
+(Write the world setting: geography, world rules, and major factions, within 250 words.)
+##WORLD_END##
+
+##PLOT_START##
+(Write the main plot structure: core conflict, protagonist goal, three-act turning points, and ending direction, within 250 words.)
+##PLOT_END##`
+        : `請為一部「${genre || '未指定'}」題材、「${style || '未指定'}」風格的繁體中文小說，依照以下格式輸出，標記不可省略：
 
 ##WORLD_START##
 （在此撰寫世界觀設定：地域架構、世界規則、主要勢力格局，300字以內）
@@ -98,7 +103,7 @@ export function OutlinePanel() {
 （在此撰寫主線劇情架構：核心衝突、主角目標、三幕轉折、結局走向，300字以內）
 ##PLOT_END##`;
 
-      const result = await complete(prompt, undefined, signal);
+      const result = await complete(prompt, { writingLanguage: project.writingLanguage }, signal);
 
       const worldMatch = result.match(/##WORLD_START##([\s\S]*?)##WORLD_END##/);
       const plotMatch  = result.match(/##PLOT_START##([\s\S]*?)##PLOT_END##/);
@@ -113,7 +118,7 @@ export function OutlinePanel() {
         worldSetting: worldPart || worldSetting,
         mainPlot:     plotPart  || mainPlot,
       });
-      worldActivity.succeed('世界觀與主線劇情已更新');
+      worldActivity.succeed(t('outline.activitySuccess', undefined, locale));
     } catch (err) {
       worldActivity.fail(err);
     } finally {
@@ -125,9 +130,9 @@ export function OutlinePanel() {
     <div className="outline-workspace">
       <aside className="outline-basics">
         <div className="outline-basics-content">
-          <div className="section-title">基本設定</div>
+          <div className="section-title">{t('outline.basicSettings', undefined, locale)}</div>
           <div className="form-group">
-            <label className="form-label">書名</label>
+            <label className="form-label">{t('outline.bookTitle', undefined, locale)}</label>
             <input
               className="form-input"
               value={title}
@@ -136,42 +141,40 @@ export function OutlinePanel() {
             />
           </div>
           <div className="form-group">
-            <label className="form-label">創作語言（建書後不可變更）</label>
+            <label className="form-label">{t('outline.writingLanguage', undefined, locale)}</label>
             <div className="form-input" style={{ background: 'var(--bg-tertiary, #1f2937)', color: 'var(--text-secondary, #9ca3af)', cursor: 'not-allowed', display: 'flex', alignItems: 'center' }}>
-              🔒 {project.writingLanguage === 'en' ? 'English (英文)' : '繁體中文 (Traditional Chinese)'}
+              🔒 {project.writingLanguage === 'en'
+                ? t('general.enWriting', undefined, locale)
+                : t('general.zhHantWriting', undefined, locale)}
             </div>
           </div>
           <div className="form-group">
-            <label className="form-label">題材</label>
+            <label className="form-label">{t('outline.genre', undefined, locale)}</label>
             <input
               className="form-input"
               list="genre-list"
               value={genre}
               onChange={(e) => setGenre(e.target.value)}
-              placeholder="點擊選擇或輸入..."
+              placeholder={t('common.selectOrType', undefined, locale)}
             />
             <datalist id="genre-list">
               {GENRE_PRESETS.map((g) => (
-                <option key={g.code} value={g.code}>
-                  {locale === 'en' ? g.labelEn : g.labelZh}
-                </option>
+                <option key={g.code} value={locale === 'en' ? g.labelEn : g.labelZh} />
               ))}
             </datalist>
           </div>
           <div className="form-group">
-            <label className="form-label">風格</label>
+            <label className="form-label">{t('outline.style', undefined, locale)}</label>
             <input
               className="form-input"
               list="style-list"
               value={style}
               onChange={(e) => setStyle(e.target.value)}
-              placeholder="點擊選擇或輸入..."
+              placeholder={t('common.selectOrType', undefined, locale)}
             />
             <datalist id="style-list">
               {STYLE_PRESETS.map((s) => (
-                <option key={s.code} value={s.code}>
-                  {locale === 'en' ? s.labelEn : s.labelZh}
-                </option>
+                <option key={s.code} value={locale === 'en' ? s.labelEn : s.labelZh} />
               ))}
             </datalist>
           </div>
@@ -181,16 +184,16 @@ export function OutlinePanel() {
             onClick={generateWorld}
             disabled={genWorldBusy || !apiReady || (!genre && !style)}
             title={
-              !apiReady ? '請先設定 API'
-              : (!genre && !style) ? '請先填寫題材或風格'
+              !apiReady ? t('outline.apiRequired', undefined, locale)
+              : (!genre && !style) ? t('outline.genreOrStyleRequired', undefined, locale)
               : ''
             }
           >
-            {genWorldBusy ? '✨ 生成中...' : '✨ AI 生成世界觀 / 主線劇情'}
+            {genWorldBusy ? t('outline.generateBusy', undefined, locale) : t('outline.generate', undefined, locale)}
           </Button>
           {!apiReady && (
             <p className="outline-api-note">
-              請先在工具列「🔑 API 設定」中設定 LLM endpoint 與 API Key
+              {t('outline.apiSetupHint', undefined, locale)}
             </p>
           )}
         </div>
@@ -200,9 +203,11 @@ export function OutlinePanel() {
             style={{ width: '100%', justifyContent: 'center' }}
             onClick={save}
             disabled={!isDirty}
-            title={!isDirty ? '無變更' : ''}
+            title={!isDirty ? t('outline.noChanges', undefined, locale) : ''}
           >
-            {isDirty ? saveLabel : '✅ 已儲存'}
+            {isDirty
+              ? (justSaved ? t('outline.saved', undefined, locale) : t('outline.save', undefined, locale))
+              : t('outline.saved', undefined, locale)}
           </Button>
         </div>
       </aside>
@@ -212,8 +217,8 @@ export function OutlinePanel() {
           <div className="outline-ai-activity">
             <LocalAIActivityCard
               activity={worldActivity.activity}
-              title="AI 助理生成世界觀與主線"
-              message="依題材與風格整理世界規則、主要勢力與三幕主線…"
+              title={t('outline.activityTitle', undefined, locale)}
+              message={t('outline.activityMessage', undefined, locale)}
               onCancel={worldActivity.cancel}
               onDismiss={worldActivity.reset}
               compact
@@ -223,42 +228,42 @@ export function OutlinePanel() {
         <section className="outline-editor">
           <div className="outline-editor-header">
             <div>
-              <div className="section-title">世界觀設定</div>
-              <p>時空背景、制度、規則與世界運作方式</p>
+              <div className="section-title">{t('outline.worldTitle', undefined, locale)}</div>
+              <p>{t('outline.worldDescription', undefined, locale)}</p>
             </div>
             <button
               type="button"
               onClick={() => setFullscreen('world')}
-              title="展開全螢幕編輯"
-              aria-label="展開世界觀全螢幕編輯"
+              title={t('outline.fullscreen', undefined, locale)}
+              aria-label={t('outline.fullscreenWorld', undefined, locale)}
             >⛶</button>
           </div>
           <textarea
             className="form-textarea outline-editor-textarea"
             value={worldSetting}
             onChange={(e) => setWorldSetting(e.target.value)}
-            placeholder="描述故事發生的世界、規則、勢力格局..."
+            placeholder={t('outline.worldPlaceholder', undefined, locale)}
           />
         </section>
 
         <section className="outline-editor">
           <div className="outline-editor-header">
             <div>
-              <div className="section-title">主線劇情架構</div>
-              <p>主要衝突、角色目標與故事發展方向</p>
+              <div className="section-title">{t('outline.plotTitle', undefined, locale)}</div>
+              <p>{t('outline.plotDescription', undefined, locale)}</p>
             </div>
             <button
               type="button"
               onClick={() => setFullscreen('plot')}
-              title="展開全螢幕編輯"
-              aria-label="展開主線劇情全螢幕編輯"
+              title={t('outline.fullscreen', undefined, locale)}
+              aria-label={t('outline.fullscreenPlot', undefined, locale)}
             >⛶</button>
           </div>
           <textarea
             className="form-textarea outline-editor-textarea"
             value={mainPlot}
             onChange={(e) => setMainPlot(e.target.value)}
-            placeholder="概述故事主線走向與核心衝突..."
+            placeholder={t('outline.plotPlaceholder', undefined, locale)}
           />
         </section>
       </div>
@@ -273,16 +278,22 @@ export function OutlinePanel() {
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontSize: 17, fontWeight: 600 }}>
-              {fullscreen === 'world' ? '世界觀設定' : '主線劇情架構'}
+              {fullscreen === 'world'
+                ? t('outline.worldTitle', undefined, locale)
+                : t('outline.plotTitle', undefined, locale)}
             </div>
-            <Button variant="secondary" onClick={() => setFullscreen(null)}>✕ 收起 (Esc)</Button>
+            <Button variant="secondary" onClick={() => setFullscreen(null)}>
+              {t('outline.exitFullscreen', undefined, locale)}
+            </Button>
           </div>
           <textarea
             autoFocus
             className="form-textarea"
             value={fullscreen === 'world' ? worldSetting : mainPlot}
             onChange={(e) => (fullscreen === 'world' ? setWorldSetting(e.target.value) : setMainPlot(e.target.value))}
-            placeholder={fullscreen === 'world' ? '描述故事發生的世界、規則、勢力格局...' : '概述故事主線走向與核心衝突...'}
+            placeholder={fullscreen === 'world'
+              ? t('outline.worldPlaceholder', undefined, locale)
+              : t('outline.plotPlaceholder', undefined, locale)}
             style={{ flex: 1, width: '100%', resize: 'none', fontSize: 15, lineHeight: 1.7 }}
           />
         </div>

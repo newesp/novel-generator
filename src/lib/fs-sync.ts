@@ -12,6 +12,7 @@
  */
 import { storage } from './storage';
 import { isTauri } from './platform';
+import { t, type InterfaceLocale } from './language-policy';
 import {
   BACKUP_FILENAME,
   exportSnapshot,
@@ -69,14 +70,14 @@ async function ensurePermission(
 }
 
 /** 讓使用者選一個資料夾並儲存 handle。回傳 handle 或 null（取消）。 */
-export async function pickAndLinkFolder(): Promise<FileSystemDirectoryHandle | null> {
+export async function pickAndLinkFolder(locale: InterfaceLocale = 'zh-TW'): Promise<FileSystemDirectoryHandle | null> {
   if (!isFsAccessSupported()) {
-    throw new Error('此瀏覽器不支援 File System Access API（請使用 Chrome / Edge / Opera）');
+    throw new Error(t('backup.fsUnsupported', undefined, locale));
   }
   try {
     const showDirectoryPicker = fileSystemAccessGlobal().showDirectoryPicker;
     if (!showDirectoryPicker) {
-      throw new Error('此瀏覽器不支援 File System Access API（請使用 Chrome / Edge / Opera）');
+      throw new Error(t('backup.fsUnsupported', undefined, locale));
     }
     const handle = await showDirectoryPicker({
       mode: 'readwrite',
@@ -84,7 +85,7 @@ export async function pickAndLinkFolder(): Promise<FileSystemDirectoryHandle | n
       startIn: 'documents',
     });
     if (!(await ensurePermission(handle, 'readwrite'))) {
-      throw new Error('未授予資料夾寫入權限');
+      throw new Error(t('backup.folderPermissionDenied', undefined, locale));
     }
     await saveHandle(handle);
     return handle;
@@ -140,11 +141,12 @@ export async function writeSnapshotToFolder(
 /** 讀取資料夾中的 backup 檔；不存在回 null。 */
 export async function readSnapshotFromFolder(
   handle: FileSystemDirectoryHandle,
+  locale: InterfaceLocale = 'zh-TW',
 ): Promise<BackupSnapshot | null> {
   try {
     const fileHandle = await handle.getFileHandle(BACKUP_FILENAME, { create: false });
     const file = await fileHandle.getFile();
-    return await readSnapshotFromFile(file);
+    return await readSnapshotFromFile(file, locale);
   } catch (err) {
     if ((err as Error).name === 'NotFoundError') return null;
     throw err;
@@ -161,11 +163,11 @@ export async function pushSnapshotNow(): Promise<boolean> {
 }
 
 /** 從連結資料夾讀取並還原至本機 DB。回傳是否完成。 */
-export async function pullSnapshotNow(): Promise<boolean> {
+export async function pullSnapshotNow(locale: InterfaceLocale = 'zh-TW'): Promise<boolean> {
   const handle = await getLinkedFolderHandle();
   if (!handle) return false;
-  const snapshot = await readSnapshotFromFolder(handle);
+  const snapshot = await readSnapshotFromFolder(handle, locale);
   if (!snapshot) return false;
-  await importSnapshot(snapshot, 'replace');
+  await importSnapshot(snapshot, 'replace', locale);
   return true;
 }

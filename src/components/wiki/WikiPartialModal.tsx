@@ -1,3 +1,5 @@
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import type { Chapter } from '../../types';
@@ -14,11 +16,12 @@ interface Props {
 }
 
 export function WikiPartialModal({ chapter, actions, onClose }: Props) {
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   return (
     <Modal
       open={true}
       onClose={onClose}
-      title={`「${chapter.title}」Wiki 處理`}
+      title={t('wiki.wikiPartialTitle', { title: chapter.title }, locale)}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 8 }}>
         <div style={{ fontSize: 12, color: 'var(--text-tertiary, #888)', marginBottom: 8 }}>

@@ -21,6 +21,8 @@ import { exportProjectArchive, importProjectArchive } from '../lib/project-archi
 import { isTauri } from '../lib/platform';
 import { errorMessage } from '../lib/error-message';
 import { useProjectStore } from '../stores/projectStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { t } from '../lib/language-policy';
 
 interface Props {
   open: boolean;
@@ -29,6 +31,7 @@ interface Props {
 
 export function BackupModal({ open, onClose }: Props) {
   const { loadAllBooks } = useProjectStore();
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   const [linkedFolder, setLinkedFolder] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
@@ -52,16 +55,16 @@ export function BackupModal({ open, onClose }: Props) {
     try {
       const snap = await exportSnapshot();
       const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const result = await saveSnapshotAsJson(snap, `novel-generator-backup-${ts}.json`);
+      const result = await saveSnapshotAsJson(snap, `novel-generator-backup-${ts}.json`, locale);
       if (result.status === 'cancelled') {
-        flash('info', '已取消匯出');
+        flash('info', t('backup.msgExportCancel', undefined, locale));
       } else if (result.path) {
-        flash('ok', `已匯出至 ${result.path}：${describeSnapshot(snap)}`);
+        flash('ok', t('backup.msgExportOk', { path: result.path, desc: describeSnapshot(snap, locale) }, locale));
       } else {
-        flash('ok', `已開始下載：${describeSnapshot(snap)}`);
+        flash('ok', t('backup.msgExportOkWeb', { desc: describeSnapshot(snap, locale) }, locale));
       }
     } catch (err) {
-      flash('err', `匯出失敗：${errorMessage(err)}`);
+      flash('err', t('backup.msgExportFail', { error: errorMessage(err) }, locale));
     } finally {
       setBusy(false);
     }
@@ -74,15 +77,15 @@ export function BackupModal({ open, onClose }: Props) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!confirm('匯入會「取代」目前本機所有書本資料，確定繼續？')) return;
+    if (!confirm(t('backup.msgImportConfirm', undefined, locale))) return;
     setBusy(true);
     try {
-      const snap = await readSnapshotFromFile(file);
-      await importSnapshot(snap, 'replace');
+      const snap = await readSnapshotFromFile(file, locale);
+      await importSnapshot(snap, 'replace', locale);
       await loadAllBooks();
-      flash('ok', `匯入完成：${describeSnapshot(snap)}`);
+      flash('ok', t('backup.msgImportOk', { desc: describeSnapshot(snap, locale) }, locale));
     } catch (err) {
-      flash('err', `匯入失敗：${errorMessage(err)}`);
+      flash('err', t('backup.msgImportFail', { error: errorMessage(err) }, locale));
     } finally {
       setBusy(false);
     }
@@ -92,34 +95,38 @@ export function BackupModal({ open, onClose }: Props) {
   const handleExportProjectArchive = async () => {
     setBusy(true);
     try {
-      const result = await exportProjectArchive();
+      const result = await exportProjectArchive(locale);
       if (!result) {
-        flash('info', '已取消匯出 ZIP');
+        flash('info', t('backup.msgZipExportCancel', undefined, locale));
         return;
       }
-      const missing = result.missingFiles.length > 0 ? `，缺少 ${result.missingFiles.length} 個素材` : '';
-      flash('ok', `已匯出完整 ZIP 至 ${result.path}：${result.snapshotDescription}，素材 ${result.mediaFileCount} 個${missing}`);
+      const missing = result.missingFiles.length > 0
+        ? t('backup.missingMedia', { count: result.missingFiles.length }, locale)
+        : '';
+      flash('ok', t('backup.msgZipExportOk', { path: result.path || '', desc: describeSnapshot(result.snapshot, locale), media: String(result.mediaFileCount), missing }, locale));
     } catch (err) {
-      flash('err', `完整 ZIP 匯出失敗：${errorMessage(err)}`);
+      flash('err', t('backup.msgZipExportFail', { error: errorMessage(err) }, locale));
     } finally {
       setBusy(false);
     }
   };
 
   const handleImportProjectArchive = async () => {
-    if (!confirm('匯入完整 ZIP 會取代目前本機資料，並把素材還原到這台電腦的專案 media 資料夾。確定繼續？')) return;
+    if (!confirm(t('backup.msgZipImportConfirm', undefined, locale))) return;
     setBusy(true);
     try {
-      const result = await importProjectArchive();
+      const result = await importProjectArchive(locale);
       if (!result) {
-        flash('info', '已取消匯入 ZIP');
+        flash('info', t('backup.msgZipImportCancel', undefined, locale));
         return;
       }
       await loadAllBooks();
-      const missing = result.missingFiles.length > 0 ? `，原匯出時缺少 ${result.missingFiles.length} 個素材` : '';
-      flash('ok', `完整 ZIP 匯入完成：${result.snapshotDescription}，已還原素材 ${result.mediaFileCount} 個${missing}`);
+      const missing = result.missingFiles.length > 0
+        ? t('backup.missingMediaAtExport', { count: result.missingFiles.length }, locale)
+        : '';
+      flash('ok', t('backup.msgZipImportOk', { desc: describeSnapshot(result.snapshot, locale), media: String(result.mediaFileCount), missing }, locale));
     } catch (err) {
-      flash('err', `完整 ZIP 匯入失敗：${errorMessage(err)}`);
+      flash('err', t('backup.msgZipImportFail', { error: errorMessage(err) }, locale));
     } finally {
       setBusy(false);
     }
@@ -128,14 +135,14 @@ export function BackupModal({ open, onClose }: Props) {
   const handleLink = async () => {
     setBusy(true);
     try {
-      const handle = await pickAndLinkFolder();
-      if (!handle) { flash('info', '已取消'); return; }
+      const handle = await pickAndLinkFolder(locale);
+      if (!handle) { flash('info', t('backup.msgLinkCancel', undefined, locale)); return; }
       setLinkedFolder(handle.name);
       // 連結後立刻推一份
       await pushSnapshotNow();
-      flash('ok', `已連結資料夾「${handle.name}」並寫入備份檔`);
+      flash('ok', t('backup.msgLinkOk', { folder: handle.name }, locale));
     } catch (err) {
-      flash('err', `連結失敗：${errorMessage(err)}`);
+      flash('err', t('backup.msgLinkFail', { error: errorMessage(err) }, locale));
     } finally {
       setBusy(false);
     }
@@ -145,8 +152,8 @@ export function BackupModal({ open, onClose }: Props) {
     setBusy(true);
     try {
       const handle = await reactivateLinkedFolder();
-      if (!handle) { flash('err', '權限請求失敗或已失效，請重新連結'); return; }
-      flash('ok', `已恢復連結「${handle.name}」`);
+      if (!handle) { flash('err', t('backup.msgReactivateFail', undefined, locale)); return; }
+      flash('ok', t('backup.msgReactivateOk', { folder: handle.name }, locale));
     } finally {
       setBusy(false);
     }
@@ -156,58 +163,58 @@ export function BackupModal({ open, onClose }: Props) {
     setBusy(true);
     try {
       const ok = await pushSnapshotNow();
-      flash(ok ? 'ok' : 'err', ok ? '已寫入同步資料夾' : '寫入失敗 — 請確認資料夾連結');
+      flash(ok ? 'ok' : 'err', ok ? t('backup.msgPushOk', undefined, locale) : t('backup.msgPushFail', undefined, locale));
     } catch (err) {
-      flash('err', `寫入失敗：${errorMessage(err)}`);
+      flash('err', t('backup.msgPushError', { error: errorMessage(err) }, locale));
     } finally {
       setBusy(false);
     }
   };
 
   const handlePullNow = async () => {
-    if (!confirm('從同步資料夾還原會「取代」目前本機所有書本資料，確定繼續？')) return;
+    if (!confirm(t('backup.msgPullConfirm', undefined, locale))) return;
     setBusy(true);
     try {
-      const ok = await pullSnapshotNow();
+      const ok = await pullSnapshotNow(locale);
       if (ok) {
         await loadAllBooks();
-        flash('ok', '已從同步資料夾還原');
+        flash('ok', t('backup.msgPullOk', undefined, locale));
       } else {
-        flash('err', '同步資料夾沒有備份檔，無法還原');
+        flash('err', t('backup.msgPullNone', undefined, locale));
       }
     } catch (err) {
-      flash('err', `還原失敗：${errorMessage(err)}`);
+      flash('err', t('backup.msgPullFail', { error: errorMessage(err) }, locale));
     } finally {
       setBusy(false);
     }
   };
 
   const handleUnlink = async () => {
-    if (!confirm('解除連結後將不再自動同步（資料夾中的檔案保留），確定？')) return;
+    if (!confirm(t('backup.msgUnlinkConfirm', undefined, locale))) return;
     await unlinkFolder();
     setLinkedFolder(null);
-    flash('info', '已解除連結');
+    flash('info', t('backup.msgUnlinkOk', undefined, locale));
   };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="💾 備份與同步"
+      title={t('backup.title', undefined, locale)}
       width={520}
-      footer={<Button variant="secondary" onClick={onClose}>關閉</Button>}
+      footer={<Button variant="secondary" onClick={onClose}>{t('backup.close', undefined, locale)}</Button>}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
         {/* —— 手動匯出/匯入 —— */}
         <section>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>📦 手動備份</div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{t('backup.manualTitle', undefined, locale)}</div>
           <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px', lineHeight: 1.6 }}>
-            匯出單一 JSON 檔，可保存或在其他電腦/瀏覽器匯入。所有瀏覽器都支援。
+            {t('backup.manualDesc', undefined, locale)}
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="secondary" onClick={handleExport} disabled={busy}>📤 匯出全部</Button>
-            <Button variant="secondary" onClick={handleImportClick} disabled={busy}>📥 匯入 JSON</Button>
+            <Button variant="secondary" onClick={handleExport} disabled={busy}>{t('backup.exportAll', undefined, locale)}</Button>
+            <Button variant="secondary" onClick={handleImportClick} disabled={busy}>{t('backup.importJson', undefined, locale)}</Button>
             <input
               ref={fileInputRef}
               type="file"
@@ -219,50 +226,49 @@ export function BackupModal({ open, onClose }: Props) {
         </section>
 
         <section>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>完整專案 ZIP（桌面版）</div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{t('backup.zipTitle', undefined, locale)}</div>
           <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px', lineHeight: 1.6 }}>
-            匯出 JSON 備份與 media 素材檔；匯入時會把素材放到這台電腦的專案 media 資料夾，並保留原本相對路徑。不包含偏好設定或 API Key。
+            {t('backup.zipDesc', undefined, locale)}
           </p>
           {tauriDesktop ? (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Button variant="secondary" onClick={handleExportProjectArchive} disabled={busy}>匯出完整 ZIP</Button>
-              <Button variant="secondary" onClick={handleImportProjectArchive} disabled={busy}>匯入完整 ZIP</Button>
+              <Button variant="secondary" onClick={handleExportProjectArchive} disabled={busy}>{t('backup.exportZip', undefined, locale)}</Button>
+              <Button variant="secondary" onClick={handleImportProjectArchive} disabled={busy}>{t('backup.importZip', undefined, locale)}</Button>
             </div>
           ) : (
             <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-              Web 版完整 ZIP 匯出/匯入暫列 TODO。
+              {t('backup.zipWebTodo', undefined, locale)}
             </div>
           )}
         </section>
 
         {/* —— 同步資料夾 —— */}
         <section>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>🔗 同步資料夾（自動寫入）</div>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>{t('backup.syncTitle', undefined, locale)}</div>
           <p style={{ fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px', lineHeight: 1.6 }}>
-            連結一個本機資料夾，App 會在每次資料變動 2 秒後自動寫入 <code>novel-generator-backup.json</code>。
-            若把資料夾選在 OneDrive / Google Drive / iCloud 同步資料夾，即可跨機使用。
+            {t('backup.syncDesc', undefined, locale)}
           </p>
           {!fsSupported ? (
             <div style={{ fontSize: 12, color: '#f87171' }}>
-              ⚠ 此瀏覽器不支援 File System Access API（請改用 Chrome / Edge / Opera）
+              {t('backup.syncNoFs', undefined, locale)}
             </div>
           ) : linkedFolder ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ fontSize: 12 }}>
-                ✓ 已連結：<code>{linkedFolder}</code>
+                {t('backup.syncLinked', { folder: linkedFolder }, locale)}
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <Button variant="secondary" onClick={handlePushNow} disabled={busy}>⬆ 立刻推送</Button>
-                <Button variant="secondary" onClick={handlePullNow} disabled={busy}>⬇ 從資料夾還原</Button>
-                <Button variant="secondary" onClick={handleReactivate} disabled={busy}>🔑 恢復權限</Button>
-                <Button variant="text" onClick={handleUnlink} disabled={busy}>✕ 解除連結</Button>
+                <Button variant="secondary" onClick={handlePushNow} disabled={busy}>{t('backup.syncPush', undefined, locale)}</Button>
+                <Button variant="secondary" onClick={handlePullNow} disabled={busy}>{t('backup.syncPull', undefined, locale)}</Button>
+                <Button variant="secondary" onClick={handleReactivate} disabled={busy}>{t('backup.syncReactivate', undefined, locale)}</Button>
+                <Button variant="text" onClick={handleUnlink} disabled={busy}>{t('backup.syncUnlink', undefined, locale)}</Button>
               </div>
               <p style={{ fontSize: 11, color: 'var(--text-tertiary)', margin: 0, lineHeight: 1.5 }}>
-                提示：開新分頁/重啟瀏覽器後，第一次寫入時瀏覽器可能會請求權限；若被拒絕，按「🔑 恢復權限」重新授權。
+                {t('backup.syncHint', undefined, locale)}
               </p>
             </div>
           ) : (
-            <Button variant="primary" onClick={handleLink} disabled={busy}>選擇資料夾連結…</Button>
+            <Button variant="primary" onClick={handleLink} disabled={busy}>{t('backup.syncLinkBtn', undefined, locale)}</Button>
           )}
         </section>
 
@@ -291,10 +297,7 @@ export function BackupModal({ open, onClose }: Props) {
         <section style={{
           fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1.6,
           padding: '8px 10px', borderRadius: 4, background: 'var(--bg-secondary)',
-        }}>
-          ℹ️ <b>無痕模式</b>：瀏覽器關閉時會清除所有本機儲存（含資料夾連結），這是瀏覽器規範行為，無法繞過。
-          建議於無痕模式關閉前先「📤 匯出全部」，下次開啟再「📥 匯入 JSON」。
-        </section>
+        }} dangerouslySetInnerHTML={{ __html: t('backup.incognitoWarn', undefined, locale) }} />
       </div>
     </Modal>
   );

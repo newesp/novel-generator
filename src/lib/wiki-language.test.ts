@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ingestChapter } from './wiki-ingest';
-import { storage } from './storage';
 import { complete } from './llm';
 
 vi.mock('./llm', () => ({

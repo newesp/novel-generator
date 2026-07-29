@@ -1,5 +1,7 @@
 import type { LocalAIActivityState } from '../../hooks/useLocalAIActivity';
 import { AIActivityCard } from './AIActivityCard';
+import { t } from '../../lib/language-policy';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface LocalAIActivityCardProps {
   activity: LocalAIActivityState;
@@ -18,17 +20,18 @@ export function LocalAIActivityCard({
   onDismiss,
   compact = false,
 }: LocalAIActivityCardProps) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   if (activity.phase === 'idle') return null;
   const running = activity.phase === 'running';
   const failed = activity.phase === 'failed';
   const cancelled = activity.phase === 'cancelled';
   const succeeded = activity.phase === 'success';
   const displayTitle = failed
-    ? `${title}：失敗`
+    ? t('activity.failedSuffix', { title }, locale)
     : cancelled
-      ? `${title}：已停止`
+      ? t('activity.stoppedSuffix', { title }, locale)
       : succeeded
-        ? `${title}：已完成`
+        ? t('activity.completedSuffix', { title }, locale)
         : title;
 
   return (
@@ -42,7 +45,7 @@ export function LocalAIActivityCard({
       tone={failed ? 'danger' : cancelled ? 'muted' : succeeded ? 'success' : 'active'}
       compact={compact}
       secondaryAction={{
-        label: running ? '停止' : '關閉',
+        label: running ? t('activity.stop', undefined, locale) : t('common.close', undefined, locale),
         onClick: running ? onCancel : onDismiss,
         danger: running,
       }}

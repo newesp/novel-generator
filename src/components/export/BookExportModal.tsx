@@ -3,6 +3,8 @@ import type { Chapter, Project } from '../../types';
 import { buildBookExportArtifact, type BookExportFormat } from '../../lib/book-export';
 import { saveBlobFile } from '../../lib/file-export';
 import { errorMessage } from '../../lib/error-message';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 
@@ -16,34 +18,35 @@ interface BookExportModalProps {
 const FORMAT_OPTIONS: Array<{
   format: BookExportFormat;
   label: string;
-  description: string;
+  descKey: 'formatTxtDesc' | 'formatHtmlDesc' | 'formatEpubDesc';
   accept: Record<string, string[]>;
   defaultExtension: string;
 }> = [
   {
     format: 'txt',
     label: 'TXT',
-    description: '純文字，適合備份正文或貼到其他工具。',
+    descKey: 'formatTxtDesc',
     accept: { 'text/plain': ['.txt'] },
     defaultExtension: 'txt',
   },
   {
     format: 'html',
     label: 'HTML',
-    description: '含目錄與閱讀樣式，可直接用瀏覽器開啟。',
+    descKey: 'formatHtmlDesc',
     accept: { 'text/html': ['.html'] },
     defaultExtension: 'html',
   },
   {
     format: 'epub',
     label: 'EPUB',
-    description: '電子書格式，適合匯入閱讀器或書庫管理工具。',
+    descKey: 'formatEpubDesc',
     accept: { 'application/epub+zip': ['.epub'] },
     defaultExtension: 'epub',
   },
 ];
 
 export function BookExportModal({ open, onClose, project, chapters }: BookExportModalProps) {
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   const [busyFormat, setBusyFormat] = useState<BookExportFormat | null>(null);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
 
@@ -60,24 +63,24 @@ export function BookExportModal({ open, onClose, project, chapters }: BookExport
     setBusyFormat(format);
     setMessage(null);
     try {
-      const artifact = await buildBookExportArtifact(format, { project, chapters });
+      const artifact = await buildBookExportArtifact(format, { project, chapters, locale });
       const result = await saveBlobFile({
         filename: artifact.filename,
         blob: artifact.blob,
-        pickerTitle: `匯出 ${artifact.filename}`,
-        description: option.label,
+        pickerTitle: t('export.pickerTitle', { filename: artifact.filename }, locale),
+        description: t(`export.${option.descKey}`, undefined, locale),
         accept: option.accept,
         defaultExtension: option.defaultExtension,
       });
       if (result.status === 'cancelled') {
-        setMessage({ kind: 'info', text: '已取消匯出' });
+        setMessage({ kind: 'info', text: t('export.cancelled', undefined, locale) });
       } else if (result.path) {
-        setMessage({ kind: 'ok', text: `已匯出至 ${result.path}` });
+        setMessage({ kind: 'ok', text: t('export.successPath', { path: result.path }, locale) });
       } else {
-        setMessage({ kind: 'ok', text: `已開始下載 ${artifact.filename}` });
+        setMessage({ kind: 'ok', text: t('export.successDownload', { filename: artifact.filename }, locale) });
       }
     } catch (err) {
-      setMessage({ kind: 'err', text: `匯出失敗：${errorMessage(err)}` });
+      setMessage({ kind: 'err', text: t('export.failed', { error: errorMessage(err) }, locale) });
     } finally {
       setBusyFormat(null);
     }
@@ -87,15 +90,19 @@ export function BookExportModal({ open, onClose, project, chapters }: BookExport
     <Modal
       open={open}
       onClose={() => !busyFormat && onClose()}
-      title="📤 匯出書本"
+      title={t('export.title', undefined, locale)}
       width={560}
-      footer={<Button variant="secondary" onClick={onClose} disabled={!!busyFormat}>關閉</Button>}
+      footer={<Button variant="secondary" onClick={onClose} disabled={!!busyFormat}>{t('export.close', undefined, locale)}</Button>}
     >
       <div className="book-export-modal">
         <section className="book-export-summary">
           <strong>{project.title}</strong>
           <span>
-            {stats.chapterCount} 章，{stats.writtenChapters} 章已有正文，約 {stats.chars.toLocaleString()} 字
+            {t('export.stats', {
+              chapterCount: String(stats.chapterCount),
+              writtenChapters: String(stats.writtenChapters),
+              chars: stats.chars.toLocaleString()
+            }, locale)}
           </span>
         </section>
 
@@ -107,10 +114,10 @@ export function BookExportModal({ open, onClose, project, chapters }: BookExport
               className="book-export-option"
               onClick={() => handleExport(option.format)}
               disabled={!!busyFormat}
-              title={option.description}
+              title={t(`export.${option.descKey}`, undefined, locale)}
             >
-              <span className="book-export-option-label">{busyFormat === option.format ? '處理中' : option.label}</span>
-              <span>{option.description}</span>
+              <span className="book-export-option-label">{busyFormat === option.format ? t('export.busy', undefined, locale) : option.label}</span>
+              <span>{t(`export.${option.descKey}`, undefined, locale)}</span>
             </button>
           ))}
         </div>

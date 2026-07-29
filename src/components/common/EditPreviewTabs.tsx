@@ -13,6 +13,7 @@ interface Props {
  * 套樣式 .edit-preview-tabs / .edit-preview-tab(.active)，於 index.css 定義。
  */
 export function EditPreviewTabs({ mode, onChange, extra, className }: Props) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   return (
     <div className={`edit-preview-tabs${className ? ' ' + className : ''}`}>
       <button
@@ -20,16 +21,18 @@ export function EditPreviewTabs({ mode, onChange, extra, className }: Props) {
         className={`edit-preview-tab${mode === 'edit' ? ' active' : ''}`}
         onClick={() => onChange('edit')}
       >
-        ✏️ 編輯
+        {t('editorTabs.edit', undefined, locale)}
       </button>
       <button
         type="button"
         className={`edit-preview-tab${mode === 'preview' ? ' active' : ''}`}
         onClick={() => onChange('preview')}
       >
-        👁 預覽
+        {t('editorTabs.preview', undefined, locale)}
       </button>
       {extra && <div className="edit-preview-extra">{extra}</div>}
     </div>
   );
 }
+import { t } from '../../lib/language-policy';
+import { useSettingsStore } from '../../stores/settingsStore';

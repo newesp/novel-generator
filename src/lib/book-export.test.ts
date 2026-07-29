@@ -18,6 +18,7 @@ const project: Project = {
   chapterOutline: '',
   createdAt: 1,
   updatedAt: 1,
+  writingLanguage: 'zh-Hant',
 };
 
 const chapters: Chapter[] = [

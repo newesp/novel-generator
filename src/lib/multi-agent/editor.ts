@@ -96,7 +96,8 @@ export async function executeEditorStep(runId: string, signal?: AbortSignal): Pr
 
   const project = await storage.projects.get(run.bookId);
   const chapter = await storage.chapters.get(run.chapterId);
-  const isEn = project?.writingLanguage === 'en';
+  const writingLanguage = run.snapshot.writingLanguage || project?.writingLanguage || 'zh-Hant';
+  const isEn = writingLanguage === 'en';
 
   const plannerChk = checkpoints.find((c) => c.stateName === 'planner_reviewed' || c.stateName === 'planner_done');
   let beat = chapter?.beat || 'setup';
@@ -160,6 +161,7 @@ export async function executeEditorStep(runId: string, signal?: AbortSignal): Pr
         systemPrompt,
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
+        writingLanguage: run.snapshot.writingLanguage ?? 'zh-Hant',
       },
       signal,
       targetProfile,

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { executePlannerStep } from './planner';
 import { executeCriticStep } from './critic';
 import { executeEditorStep } from './editor';
-import { storage } from '../storage';
 import { completeNormalized } from '../llm';
 import { useSettingsStore } from '../../stores/settingsStore';
 
@@ -18,7 +17,7 @@ const mockBook = {
   style: 'dark',
   worldSetting: 'Neo-Tokyo 2099',
   mainPlot: 'Infiltrate Arasaka Tower',
-  chapterOutline: '',
+  chapterOutline: '1. The Job, 2. The Breach, 3. The Escape',
   writingLanguage: 'en' as const,
   createdAt: Date.now(),
   updatedAt: Date.now(),
@@ -134,7 +133,7 @@ describe('Multi-Agent Language Boundary (Ticket #23)', () => {
     useSettingsStore.setState({
       activeProfileId: 'prof-test',
       llmProfiles: [
-        { id: 'prof-test', name: 'Test', provider: 'openai', apiKey: 'test-key', model: 'gpt-4o' },
+        { id: 'prof-test', name: 'Test', provider: 'google', apiKey: 'test-key', model: 'gpt-4o', baseUrl: '', temperature: 0.7, maxTokens: 4000, timeoutSec: 60 },
       ],
     });
   });
@@ -144,11 +143,12 @@ describe('Multi-Agent Language Boundary (Ticket #23)', () => {
       text: JSON.stringify({ beat: 'Inciting Incident', points: 'Hack Arasaka mainframe', sceneOutlines: [] }),
       usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
       finishReason: 'stop',
+      requestId: 'mock-req',
     });
 
     await executePlannerStep('run-en');
 
-    const options = vi.mocked(completeNormalized).mock.calls[0][1];
+    const options = vi.mocked(completeNormalized).mock.calls[0][1]!;
     expect(options.systemPrompt).toContain('You are a professional novel planner');
   });
 
@@ -164,11 +164,12 @@ describe('Multi-Agent Language Boundary (Ticket #23)', () => {
       }),
       usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
       finishReason: 'stop',
+      requestId: 'mock-req',
     });
 
-    await executeCriticStep('run-en', 'Draft text in English', 1);
+    await executeCriticStep('run-en');
 
-    const options = vi.mocked(completeNormalized).mock.calls[0][1];
+    const options = vi.mocked(completeNormalized).mock.calls[0][1]!;
     expect(options.systemPrompt).toContain('You are a rigorous fiction editor and literary critic');
   });
 
@@ -177,11 +178,12 @@ describe('Multi-Agent Language Boundary (Ticket #23)', () => {
       text: 'Revised English prose content',
       usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
       finishReason: 'stop',
+      requestId: 'mock-req',
     });
 
     await executeEditorStep('run-en');
 
-    const options = vi.mocked(completeNormalized).mock.calls[0][1];
+    const options = vi.mocked(completeNormalized).mock.calls[0][1]!;
     expect(options.systemPrompt).toContain('You are a professional fiction editor');
   });
 });

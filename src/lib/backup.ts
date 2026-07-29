@@ -119,12 +119,16 @@ export async function exportSnapshot(options?: BackupExportOptions): Promise<Bac
  */
 import { normalizeProjectLanguage } from '../stores/projectStore';
 
-export async function importSnapshot(snapshot: BackupSnapshot, mode: 'replace' = 'replace'): Promise<void> {
+export async function importSnapshot(
+  snapshot: BackupSnapshot,
+  mode: 'replace' = 'replace',
+  locale: InterfaceLocale = 'zh-TW',
+): Promise<void> {
   if (snapshot?.app !== 'novel-generator') {
-    throw new Error('檔案格式不是 novel-generator 備份');
+    throw new Error(t('backup.invalidFormat', undefined, locale));
   }
   if (snapshot.schema !== 1 && snapshot.schema !== 2) {
-    throw new Error(`不支援的備份版本：${snapshot.schema}（目前支援 v1, v2）`);
+    throw new Error(t('backup.unsupportedVersion', { version: snapshot.schema }, locale));
   }
 
   if (mode === 'replace') {
@@ -172,29 +176,43 @@ export function downloadSnapshotAsJson(snapshot: BackupSnapshot, filename = BACK
 export function saveSnapshotAsJson(
   snapshot: BackupSnapshot,
   filename = BACKUP_FILENAME,
+  locale: InterfaceLocale = 'zh-TW',
 ): Promise<SaveTextFileResult> {
   return saveJsonFile({
     filename,
     content: JSON.stringify(snapshot, null, 2),
-    pickerTitle: '選擇備份匯出資料夾',
+    pickerTitle: t('backup.exportPickerTitle', undefined, locale),
   });
 }
 
 /** 從 File 物件讀取並 parse 成 snapshot */
-export async function readSnapshotFromFile(file: File): Promise<BackupSnapshot> {
+export async function readSnapshotFromFile(
+  file: File,
+  locale: InterfaceLocale = 'zh-TW',
+): Promise<BackupSnapshot> {
   const text = await file.text();
   try {
     return JSON.parse(text) as BackupSnapshot;
   } catch {
-    throw new Error('JSON 解析失敗，請確認檔案內容');
+    throw new Error(t('backup.parseError', undefined, locale));
   }
 }
 
+import { t, type InterfaceLocale } from './language-policy';
+
 /** 統計 snapshot 內容用於 UI 顯示 */
-export function describeSnapshot(s: BackupSnapshot): string {
-  const t = new Date(s.exportedAt).toLocaleString();
+export function describeSnapshot(s: BackupSnapshot, locale: InterfaceLocale = 'zh-TW'): string {
+  const tStr = new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(s.exportedAt);
   const wiki = s.wikiPages?.length ?? 0;
   const media = s.mediaAssets?.length ?? 0;
   const scenes = s.sceneVisuals?.length ?? 0;
-  return `${s.projects?.length ?? 0} 本書 · ${s.chapters?.length ?? 0} 章節 · ${s.characters?.length ?? 0} 角色 · ${wiki} Wiki 頁 · ${media} 媒體 · ${scenes} 場景 · 匯出於 ${t}`;
+  return t('backup.descStats', {
+    projects: String(s.projects?.length ?? 0),
+    chapters: String(s.chapters?.length ?? 0),
+    characters: String(s.characters?.length ?? 0),
+    wiki: String(wiki),
+    media: String(media),
+    scenes: String(scenes),
+    time: tStr
+  }, locale);
 }

@@ -73,12 +73,14 @@ export function exportSettingsSnapshot(includeApiKeys: boolean): SettingsBackupS
   };
 }
 
-export function importSettingsSnapshot(snapshot: SettingsBackupSnapshot): void {
+import { t, type InterfaceLocale } from './language-policy';
+
+export function importSettingsSnapshot(snapshot: SettingsBackupSnapshot, locale: InterfaceLocale = 'zh-TW'): void {
   if (snapshot?.app !== 'novel-generator' || snapshot.kind !== 'settings') {
-    throw new Error('檔案格式不是 novel-generator 偏好設定備份');
+    throw new Error(t('settingsBackup.invalidFormat', undefined, locale));
   }
   if (snapshot.schema !== SETTINGS_BACKUP_SCHEMA_VERSION) {
-    throw new Error(`不支援的偏好設定備份版本：${snapshot.schema}`);
+    throw new Error(t('settingsBackup.unsupportedVersion', { version: String(snapshot.schema) }, locale));
   }
 
   const settings = snapshot.settings;
@@ -130,18 +132,19 @@ export function importSettingsSnapshot(snapshot: SettingsBackupSnapshot): void {
 }
 
 
-export async function readSettingsSnapshotFromFile(file: File): Promise<SettingsBackupSnapshot> {
+export async function readSettingsSnapshotFromFile(file: File, locale: InterfaceLocale = 'zh-TW'): Promise<SettingsBackupSnapshot> {
   const text = await file.text();
   try {
     return JSON.parse(text) as SettingsBackupSnapshot;
   } catch {
-    throw new Error('JSON 解析失敗，請確認檔案格式');
+    throw new Error(t('settingsBackup.parseError', undefined, locale));
   }
 }
 
-export function describeSettingsSnapshot(snapshot: SettingsBackupSnapshot): string {
-  const t = new Date(snapshot.exportedAt).toLocaleString();
-  return `偏好設定 · ${snapshot.includesApiKeys ? '含 API Key' : '不含 API Key'} · 匯出於 ${t}`;
+export function describeSettingsSnapshot(snapshot: SettingsBackupSnapshot, locale: InterfaceLocale = 'zh-TW'): string {
+  const tStr = new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(snapshot.exportedAt);
+  const apiStatus = snapshot.includesApiKeys ? t('settingsBackup.withApi', undefined, locale) : t('settingsBackup.withoutApi', undefined, locale);
+  return t('settingsBackup.desc', { apiStatus, time: tStr }, locale);
 }
 
 function omitApiKey<T extends { apiKey: string }>(value: T): Omit<T, 'apiKey'> {

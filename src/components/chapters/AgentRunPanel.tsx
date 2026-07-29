@@ -5,12 +5,23 @@ import { Button } from '../common/Button';
 import { deleteGenerationRunRecord } from '../../lib/multi-agent/observability';
 import {
   generationRoleLabel,
+  generationErrorText,
   generationRunTitle,
   generationRunTone,
   normalizedActivity,
 } from '../../lib/multi-agent/presentation';
 import { useGenerationRunStore } from '../../stores/generationRunStore';
 import type { GenerationStep } from '../../types';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
+
+const STEP_STATUS_KEYS: Record<GenerationStep['status'], string> = {
+  pending: 'agent.statusPending',
+  running: 'agent.statusRunning',
+  completed: 'agent.statusCompleted',
+  failed: 'agent.statusFailed',
+  cancelled: 'agent.statusCancelled',
+};
 
 interface AgentRunPanelProps {
   chapterId: string;
@@ -38,6 +49,7 @@ function formatFullStepTime(timestamp: number): string {
 }
 
 export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: AgentRunPanelProps) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   const allRuns = useGenerationRunStore((state) => state.runs);
   const refreshAll = useGenerationRunStore((state) => state.refreshAll);
   const removeRun = useGenerationRunStore((state) => state.remove);
@@ -70,7 +82,7 @@ export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: Ag
   }, [selectedRunId, activeRun?.updatedAt]);
 
   const handleDeleteRun = async () => {
-    if (!activeRun || !confirm('確定刪除此筆 Run 紀錄？正式正文與版本不受影響。')) return;
+    if (!activeRun || !confirm(t('agent.deleteRunConfirm', undefined, locale))) return;
     try {
       await deleteGenerationRunRecord(activeRun.id);
       removeRun(activeRun.id);
@@ -82,37 +94,46 @@ export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: Ag
   return (
     <div className="agent-run-panel">
       <div className="agent-run-selector">
-        <label htmlFor="agent-run-select">生成執行</label>
+        <label htmlFor="agent-run-select">{t('agent.runSelectLabel', undefined, locale)}</label>
         <select
           id="agent-run-select"
           className="form-select"
           value={selectedRunId ?? ''}
           onChange={(event) => setSelectedRunId(event.target.value || null)}
         >
-          {runs.length === 0 && <option value="">尚無生成紀錄</option>}
+          {runs.length === 0 && <option value="">{t('agent.noRunRecords', undefined, locale)}</option>}
           {runs.map((run) => (
             <option key={run.id} value={run.id}>
-              {formatRunTime(run.createdAt)} · {generationRunTitle(run)}
+              {formatRunTime(run.createdAt)} · {generationRunTitle(run, locale)}
             </option>
           ))}
         </select>
-        <Button variant="text" size="sm" onClick={() => void refreshAll()} title="重新載入執行軌跡">
-          重新整理
+        <Button variant="text" size="sm" onClick={() => void refreshAll()} title={t('agent.reloadTrail', undefined, locale)}>
+          {t('agent.refresh', undefined, locale)}
         </Button>
       </div>
 
       {!activeRun ? (
-        <div className="agent-run-empty">尚無高品質生成紀錄</div>
+        <div className="agent-run-empty">{t('agent.noHighQualityRuns', undefined, locale)}</div>
       ) : (
         <div className="agent-run-scroll">
           <div className={`agent-run-summary tone-${generationRunTone(activeRun)}`}>
             <div>
-              <strong>{generationRunTitle(activeRun)}</strong>
-              <span>{normalizedActivity(activeRun).message}</span>
+              <strong>{generationRunTitle(activeRun, locale)}</strong>
+              <span>{normalizedActivity(activeRun, locale).message}</span>
+              {activeRun.snapshot?.writingLanguage && (
+                <div style={{ marginTop: 4, fontSize: 11, opacity: 0.8 }}>
+                  {t('agent.writingLanguage', {
+                    language: activeRun.snapshot.writingLanguage === 'en'
+                      ? t('agent.languageEn', undefined, locale)
+                      : t('agent.languageZhHant', undefined, locale),
+                  }, locale)}
+                </div>
+              )}
             </div>
             {activeRun.status === 'awaiting_input' && onOpenReviewModal && (
               <Button variant="primary" size="sm" onClick={() => onOpenReviewModal(activeRun.id)}>
-                處理下一步
+                {t('agent.nextStep', undefined, locale)}
               </Button>
             )}
             {(activeRun.status === 'completed' || activeRun.status === 'cancelled' || activeRun.status === 'failed') && (
@@ -120,8 +141,8 @@ export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: Ag
                 variant="text"
                 size="sm"
                 onClick={handleDeleteRun}
-                title="刪除執行紀錄"
-                aria-label="刪除執行紀錄"
+                title={t('agent.deleteRun', undefined, locale)}
+                aria-label={t('agent.deleteRun', undefined, locale)}
               >
                 <Trash2 size={14} />
               </Button>
@@ -129,7 +150,7 @@ export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: Ag
           </div>
 
           <div className="agent-step-timeline">
-            {steps.length === 0 && <div className="agent-run-empty">尚未建立 Agent 步驟</div>}
+            {steps.length === 0 && <div className="agent-run-empty">{t('agent.noSteps', undefined, locale)}</div>}
             {steps.map((step) => {
               const expanded = expandedStepId === step.id;
               return (
@@ -143,8 +164,12 @@ export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: Ag
                     {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     <img src={`/assets/agents/${step.role}-64.png`} alt="" />
                     <span>
-                      <strong>{generationRoleLabel(step.role)}</strong>
-                      <small>Attempt #{step.attempt} · {step.status} · {formatFullStepTime(step.createdAt)}</small>
+                      <strong>{generationRoleLabel(step.role, locale)}</strong>
+                      <small>{t('agent.attempt', {
+                        attempt: step.attempt,
+                        status: t(STEP_STATUS_KEYS[step.status], undefined, locale),
+                        time: formatFullStepTime(step.createdAt),
+                      }, locale)}</small>
                     </span>
                     {step.usage?.totalTokens != null && <em>{step.usage.totalTokens} tokens</em>}
                   </button>
@@ -162,7 +187,7 @@ export function AgentRunPanel({ chapterId, focusedRunId, onOpenReviewModal }: Ag
                           <pre>{step.response}</pre>
                         </details>
                       )}
-                      {step.errorText && <p className="agent-step-error">{step.errorText}</p>}
+                      {step.errorText && <p className="agent-step-error">{generationErrorText(step.errorText, locale)}</p>}
                     </div>
                   )}
                 </article>

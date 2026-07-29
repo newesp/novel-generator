@@ -86,6 +86,8 @@ export function canDeleteImageVariant({
   return Boolean(variantAssetId && variantAssetId !== panelAssetId);
 }
 
-export function currentVariantDeleteBlockedMessage(): string {
-  return '目前採用圖不能直接刪除；請先選另一張歷史圖。';
+export function currentVariantDeleteBlockedMessage(locale: 'zh-TW' | 'en' = 'zh-TW'): string {
+  return locale === 'en'
+    ? 'The current image cannot be deleted. Select another image from history first.'
+    : '目前採用圖不能直接刪除；請先選另一張歷史圖。';
 }

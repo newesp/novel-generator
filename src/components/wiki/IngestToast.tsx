@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import { Button } from '../common/Button';
 
 export interface IngestToastProps {
@@ -11,6 +13,7 @@ export interface IngestToastProps {
 }
 
 export function IngestToast({ message, variant, onViewDiff, onUndo, onClose, durationMs = 8000 }: IngestToastProps) {
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   useEffect(() => {
     const t = setTimeout(onClose, durationMs);
     return () => clearTimeout(t);
@@ -29,9 +32,9 @@ export function IngestToast({ message, variant, onViewDiff, onUndo, onClose, dur
     }}>
       <div style={{ marginBottom: 8 }}>{message}</div>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <Button variant="text" size="sm" onClick={onViewDiff}>查看變更</Button>
-        <Button variant="text" size="sm" onClick={onUndo}>↩ 還原</Button>
-        <Button variant="secondary" size="sm" onClick={onClose}>關閉</Button>
+        <Button variant="text" size="sm" onClick={onViewDiff}>{t('wiki.ingestViewDiff', undefined, locale)}</Button>
+        <Button variant="text" size="sm" onClick={onUndo}>{t('wiki.ingestUndo', undefined, locale)}</Button>
+        <Button variant="secondary" size="sm" onClick={onClose}>{t('common.close', undefined, locale)}</Button>
       </div>
     </div>
   );

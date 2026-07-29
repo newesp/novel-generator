@@ -246,6 +246,19 @@ describe('Multi-Agent Storage & Run Manager', () => {
       vi.spyOn(storage.generationRuns, 'get').mockImplementation(memoryStores.generationRuns.get);
       vi.spyOn(storage.generationRuns, 'update').mockImplementation(memoryStores.generationRuns.update);
       vi.spyOn(storage.generationRuns, 'listAll').mockImplementation(memoryStores.generationRuns.listAll);
+      vi.spyOn(storage.projects, 'get').mockImplementation(async (id) => ({
+        id,
+        title: 'Mock Project',
+        createdAt: 0,
+        updatedAt: 0,
+        interfaceLocale: 'zh-TW',
+        writingLanguage: 'zh-Hant',
+        genre: '',
+        style: '',
+        worldSetting: '',
+        mainPlot: '',
+        chapterOutline: '',
+      }));
     });
 
     it('creates, locks chapter, and cancels run correctly', async () => {

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Modal } from '../common/Modal';
 import { Button } from '../common/Button';
 import { useLintStore } from '../../stores/lintStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import type { LintIssue } from '../../lib/lint/types';
 
 interface Props {
@@ -65,6 +67,7 @@ function LintFixPreviewModalContent({
   generateFix: ReturnType<typeof useLintStore.getState>['generateFix'];
   discardSuggestion: ReturnType<typeof useLintStore.getState>['discardSuggestion'];
 }) {
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   const [editedMarkdown, setEditedMarkdown] = useState(suggestion.newMarkdown);
 
   const diff = useMemo(() => {
@@ -72,12 +75,12 @@ function LintFixPreviewModalContent({
   }, [suggestion.originalMarkdown, editedMarkdown]);
 
   return (
-    <Modal open={true} onClose={onClose} title={`✨ 建議修改：${issue.title}`} width={900}>
+    <Modal open={true} onClose={onClose} title={t('lint.previewTitle', { title: issue.title }, locale)} width={900}>
       <div style={{ fontSize: 13, marginBottom: 12, color: 'var(--text-secondary)' }}>
         {issue.detail}
       </div>
       <div style={{ fontSize: 12, marginBottom: 8, color: 'var(--text-secondary)' }}>
-        套用到：<code>{suggestion.targetLabel}</code>
+        {t('lint.previewApplyTo', undefined, locale)}<code>{suggestion.targetLabel}</code>
       </div>
 
       <div style={{
@@ -88,7 +91,7 @@ function LintFixPreviewModalContent({
         fontFamily: 'var(--font-mono, monospace)', fontSize: 12,
       }}>
         <div style={{ borderRight: '1px solid var(--border)', padding: 8 }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>修改前</div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('lint.previewBefore', undefined, locale)}</div>
           {diff.map((d, i) => (
             <pre key={i} style={{
               margin: 0, whiteSpace: 'pre-wrap',
@@ -98,7 +101,7 @@ function LintFixPreviewModalContent({
           ))}
         </div>
         <div style={{ padding: 8, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>修改後</div>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{t('lint.previewAfter', undefined, locale)}</div>
           <textarea
             className="form-textarea"
             value={editedMarkdown}
@@ -123,13 +126,13 @@ function LintFixPreviewModalContent({
 
       <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Button variant="secondary" onClick={() => { discardSuggestion(issue.id); onClose(); }} disabled={busy}>
-          ✗ 取消
+          {t('lint.previewCancelBtn', undefined, locale)}
         </Button>
         <Button variant="secondary" onClick={() => generateFix(issue)} disabled={busy}>
-          🔄 重新生成
+          {t('lint.previewRegenerateBtn', undefined, locale)}
         </Button>
         <Button variant="primary" onClick={async () => { await applyLlmFix(issue, editedMarkdown); onClose(); }} disabled={busy}>
-          ✓ 套用
+          {t('lint.previewApplyBtn', undefined, locale)}
         </Button>
       </div>
     </Modal>

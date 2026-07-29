@@ -4,6 +4,7 @@ import { buildSummaryRebuildPlan, type SummaryRebuildPlanItem } from '../../lib/
 import { rebuildChapterSummary } from '../../lib/wiki-summary-rebuild';
 import { isLLMReady } from '../../lib/llm';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 
@@ -16,16 +17,20 @@ interface Props {
   onChanged: () => Promise<void>;
 }
 
-const REASON_LABEL: Record<string, string> = {
-  'missing-summary': '缺少摘要',
-  'slug-mismatch': 'slug 與章節序不一致',
-  'title-mismatch': '標題與章節不一致',
-  'too-short': '內容過短',
-  'weak-story-signals': '缺少事件/伏筆訊號',
+const getReasonLabel = (reason: string, locale: string): string => {
+  const map: Record<string, string> = {
+    'missing-summary': t('reason.missingSummary', undefined, locale),
+    'slug-mismatch': t('reason.slugMismatch', undefined, locale),
+    'title-mismatch': t('reason.titleMismatch', undefined, locale),
+    'too-short': t('reason.tooShort', undefined, locale),
+    'weak-story-signals': t('reason.weakStorySignals', undefined, locale),
+  };
+  return map[reason] ?? reason;
 };
 
 export function SummaryQualityModal({ open, onClose, chapters, characters, pages, onChanged }: Props) {
-  const { llmConfig } = useSettingsStore();
+  const { llmConfig, generalPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
   const [runningId, setRunningId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const ready = isLLMReady(llmConfig);
@@ -44,7 +49,7 @@ export function SummaryQualityModal({ open, onClose, chapters, characters, pages
     try {
       await rebuildChapterSummary({ chapter: item.chapter, characters });
       await onChanged();
-      setMessage(`已重建 summary/${item.slug}`);
+      setMessage(t('wiki.summaryQualityRebuildSuccessItem', { slug: item.slug }, locale));
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -53,20 +58,20 @@ export function SummaryQualityModal({ open, onClose, chapters, characters, pages
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="摘要品質檢查" width={760}>
+    <Modal open={open} onClose={onClose} title={t('wiki.summaryQualityTitle', undefined, locale)} width={760}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          檢查 Wiki summary/ch-N 是否缺失、過短或與章節標題不一致。重建會更新 Wiki summary page，並寫入 wiki_log。
+          {t('wiki.summaryQualityDesc', undefined, locale)}
         </div>
         {!ready && (
           <div style={{ fontSize: 12, color: 'var(--accent-danger)' }}>
-            重建需要 LLM API 設定；品質檢查可離線使用。
+            {t('wiki.summaryQualityLlmNote', undefined, locale)}
           </div>
         )}
         {message && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{message}</div>}
         {plan.length === 0 ? (
           <div style={{ padding: 16, color: 'var(--text-tertiary)', border: '1px solid var(--border)', borderRadius: 6 }}>
-            目前沒有需要重建的摘要。
+            {t('wiki.summaryQualityAllGood', undefined, locale)}
           </div>
         ) : (
           <div style={{ maxHeight: 420, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
@@ -83,13 +88,13 @@ export function SummaryQualityModal({ open, onClose, chapters, characters, pages
               >
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>
-                    第 {item.chapter.order + 1} 章｜{item.chapter.title}
+                    {t('wiki.chapterLabel', { order: item.chapter.order + 1, title: item.chapter.title }, locale)}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 3 }}>
                     summary/{item.slug} · {item.quality.status}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 5, lineHeight: 1.5 }}>
-                    {item.quality.reasons.map((reason) => REASON_LABEL[reason] ?? reason).join('、')}
+                    {item.quality.reasons.map((reason) => getReasonLabel(reason, locale)).join('、')}
                   </div>
                 </div>
                 <Button
@@ -98,7 +103,7 @@ export function SummaryQualityModal({ open, onClose, chapters, characters, pages
                   onClick={() => rebuild(item)}
                   disabled={!ready || runningId !== null}
                 >
-                  {runningId === item.chapter.id ? '重建中...' : '重建'}
+                  {runningId === item.chapter.id ? t('wiki.summaryQualityRebuildingItem', undefined, locale) : t('wiki.summaryQualityRebuildItem', undefined, locale)}
                 </Button>
               </div>
             ))}

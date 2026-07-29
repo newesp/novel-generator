@@ -428,6 +428,7 @@ export interface GenerationContextSnapshot {
   criticThresholds: MultiAgentPrefs['criticThresholds'];
   maxRevisions: number;
   profilesSnapshot: Record<string, Omit<LLMProfile, 'apiKey'>>;
+  writingLanguage?: string;
   createdAt: number;
 }
 

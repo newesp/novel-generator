@@ -1,4 +1,5 @@
-import type { WikiPage } from '../types';
+import type { WikiPage, WikiPageType } from '../types';
+import type { InterfaceLocale, WritingLanguage } from './language-policy';
 
 const SUMMARY_SLUG_RE = /^ch-(\d+)$/i;
 const SUMMARY_RANGE_SIZE = 50;
@@ -31,12 +32,27 @@ export function compareWikiPagesForList(a: WikiPage, b: WikiPage): number {
   return a.slug.localeCompare(b.slug, 'en');
 }
 
-export function formatSummaryPageLabel(page: WikiPage): string {
+export function formatSummaryPageLabel(page: WikiPage, locale: InterfaceLocale = 'zh-TW'): string {
   const chapterNumber = getSummaryChapterNumber(page);
-  return chapterNumber === null ? page.title : `第 ${chapterNumber} 章｜${page.title}`;
+  if (chapterNumber === null) return page.title;
+  return locale === 'en'
+    ? `Chapter ${chapterNumber} | ${page.title}`
+    : `第 ${chapterNumber} 章｜${page.title}`;
 }
 
-export function buildSummaryRanges(pages: WikiPage[]): SummaryRange[] {
+export function buildBlankWikiPageContent(
+  title: string,
+  type: WikiPageType,
+  writingLanguage: WritingLanguage,
+): string {
+  const overviewHeading = writingLanguage === 'en' ? 'Overview' : '概述';
+  return `# ${title}\n\n> **Type:** ${type}\n\n## ${overviewHeading}\n\n`;
+}
+
+export function buildSummaryRanges(
+  pages: WikiPage[],
+  locale: InterfaceLocale = 'zh-TW',
+): SummaryRange[] {
   const ranges = new Map<number, SummaryRange>();
   for (const page of [...pages].sort(compareWikiPagesForList)) {
     const chapterNumber = getSummaryChapterNumber(page);
@@ -51,7 +67,9 @@ export function buildSummaryRanges(pages: WikiPage[]): SummaryRange[] {
     } else {
       ranges.set(bucket, {
         key: bucket === Number.MAX_SAFE_INTEGER ? 'other' : `${start}-${end}`,
-        label: bucket === Number.MAX_SAFE_INTEGER ? '其他摘要' : `第 ${start}-${end} 章`,
+        label: bucket === Number.MAX_SAFE_INTEGER
+          ? (locale === 'en' ? 'Other Summaries' : '其他摘要')
+          : (locale === 'en' ? `Chapters ${start}-${end}` : `第 ${start}-${end} 章`),
         pages: [page],
         start,
         end,

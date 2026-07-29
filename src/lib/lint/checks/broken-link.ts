@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import type { LintCheck, LintContext, LintIssue } from '../types';
 import type { WikiPage, WikiPageType } from '../../../types';
+import { lintText } from '../messages';
 
 export const brokenLinkCheck: LintCheck = {
   id: 'broken-link',
@@ -22,8 +23,16 @@ export const brokenLinkCheck: LintCheck = {
           checkId: 'broken-link',
           severity: 'warn',
           status: 'open',
-          title: `${page.type}/${page.slug} 的 relatedSlugs 指向不存在的 ${key}`,
-          detail: `頁 ${page.type}/${page.slug}（${page.title}）的 relatedSlugs 引用了 ${key}，但該頁不存在。`,
+          title: lintText(
+            ctx,
+            `${page.type}/${page.slug} 的 relatedSlugs 指向不存在的 ${key}`,
+            `${page.type}/${page.slug} has a relatedSlugs reference to missing page ${key}`,
+          ),
+          detail: lintText(
+            ctx,
+            `頁 ${page.type}/${page.slug}（${page.title}）的 relatedSlugs 引用了 ${key}，但該頁不存在。`,
+            `Page ${page.type}/${page.slug} (${page.title}) references ${key} in relatedSlugs, but that page does not exist.`,
+          ),
           targets: [
             { kind: 'wikiPage', id: page.id, label: `${page.type}/${page.slug}` },
           ],
@@ -40,8 +49,16 @@ export const brokenLinkCheck: LintCheck = {
           checkId: 'broken-link',
           severity: 'warn',
           status: 'open',
-          title: `${page.type}/${page.slug} 的 markdown link 指向不存在的 ${key}`,
-          detail: `頁 ${page.type}/${page.slug}（${page.title}）的 markdown 連結引用了 ${key}，但該頁不存在。`,
+          title: lintText(
+            ctx,
+            `${page.type}/${page.slug} 的 markdown link 指向不存在的 ${key}`,
+            `${page.type}/${page.slug} has a Markdown link to missing page ${key}`,
+          ),
+          detail: lintText(
+            ctx,
+            `頁 ${page.type}/${page.slug}（${page.title}）的 markdown 連結引用了 ${key}，但該頁不存在。`,
+            `Page ${page.type}/${page.slug} (${page.title}) links to ${key} in Markdown, but that page does not exist.`,
+          ),
           targets: [
             { kind: 'wikiPage', id: page.id, label: `${page.type}/${page.slug}` },
             ...(renameCandidate ? [{ kind: 'wikiPage' as const, id: renameCandidate.id, label: `${renameCandidate.type}/${renameCandidate.slug}` }] : []),

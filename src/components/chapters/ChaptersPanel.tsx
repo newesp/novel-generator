@@ -18,15 +18,15 @@ import {
 } from '../../lib/multi-agent/presentation';
 import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
 import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
-import { resolveBeatLabel } from '../../lib/language-policy';
+import { resolveBeatLabel, t } from '../../lib/language-policy';
 
-function WikiBadge({ status }: { status: Chapter['wikiSyncStatus'] }) {
+function WikiBadge({ status, locale }: { status: Chapter['wikiSyncStatus']; locale: string }) {
   if (status === 'synced') return null;
   const map: Record<Exclude<Chapter['wikiSyncStatus'], 'synced'>, { text: string; color: string }> = {
-    unsynced:      { text: '⚠️ 未存 Wiki',         color: 'var(--accent-warning, #d18b00)' },
-    stale:         { text: '⚠️ Wiki 已過時',        color: 'var(--accent-warning, #d18b00)' },
-    partial:       { text: '⚠️ Wiki 部分失敗',      color: 'var(--accent-danger, crimson)'  },
-    partial_stale: { text: '⚠️ 部分失敗 + 已過時',  color: 'var(--accent-danger, crimson)'  },
+    unsynced:      { text: t('chapters.wikiUnsynced', undefined, locale), color: 'var(--accent-warning, #d18b00)' },
+    stale:         { text: t('chapters.wikiStale', undefined, locale), color: 'var(--accent-warning, #d18b00)' },
+    partial:       { text: t('chapters.wikiPartial', undefined, locale), color: 'var(--accent-danger, crimson)'  },
+    partial_stale: { text: t('chapters.wikiPartialStale', undefined, locale), color: 'var(--accent-danger, crimson)'  },
   };
   const m = map[status];
   return <span style={{ fontSize: 10, color: m.color, marginLeft: 6 }}>{m.text}</span>;
@@ -35,13 +35,14 @@ function WikiBadge({ status }: { status: Chapter['wikiSyncStatus'] }) {
 export function ChaptersPanel() {
   const { project, chapters, characters, loadChapters, createChapter, updateChapter, deleteChapter, reorderChapters } = useProjectStore();
   const { selectedChapterId, setSelectedChapterId, openAgentRun } = useUIStore();
-  const { llmConfig } = useSettingsStore();
+  const { llmConfig, generalPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
   const generationRuns = useGenerationRunStore((state) => state.runs);
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiCount, setAiCount] = useState<number | ''>(5);
   const [aiProgress, setAiProgress] = useState<number>(50);
   const [isGenerating, setIsGenerating] = useState(false);
-  const chapterDraftActivity = useLocalAIActivity();
+  const chapterDraftActivity = useLocalAIActivity(locale);
 
   // —— 多選刪除 ——
   const [selectedForDelete, setSelectedForDelete] = useState<Set<string>>(new Set());
@@ -77,7 +78,7 @@ export function ChaptersPanel() {
   if (!project) {
     return (
       <div style={{ padding: 24, color: 'var(--text-secondary)', fontSize: 14 }}>
-        請先建立專案
+        {t('chapters.noProject', undefined, locale)}
       </div>
     );
   }
@@ -87,13 +88,16 @@ export function ChaptersPanel() {
 
   const handleNewChapter = async () => {
     // 編號由 UI 從 order 自動推導，title 只放主題（保留空白讓用戶輸入）
-    const id = await createChapter(project.id, '新章節');
+    const id = await createChapter(
+      project.id,
+      project.writingLanguage === 'en' ? 'New Chapter' : '新章節',
+    );
     setSelectedChapterId(id);
   };
 
   const handleAIGenerate = async () => {
     const signal = chapterDraftActivity.start(
-      `依世界觀與主線規劃章節骨架，目標故事進度 ${aiProgress}%…`,
+      t('chapters.aiDraftActivity', { progress: aiProgress }, locale),
     );
     setIsGenerating(true);
     try {
@@ -108,13 +112,13 @@ export function ChaptersPanel() {
         worldSetting: project.worldSetting,
         mainPlot: project.mainPlot,
         existingChapters,
-        charactersList: formatCharacters(characters),
+        charactersList: formatCharacters(characters, project.writingLanguage),
         targetProgress: aiProgress,
         writingLanguage: project.writingLanguage,
       }, signal);
 
       if (drafts.length === 0) {
-        throw new Error('AI 未產出任何章節，請檢查 LLM 是否回傳預期格式');
+        throw new Error(t('chapters.aiNoResults', undefined, locale));
       }
 
       let firstId: string | undefined;
@@ -124,7 +128,7 @@ export function ChaptersPanel() {
         if (!firstId) firstId = id;
       }
       if (firstId) setSelectedChapterId(firstId);
-      chapterDraftActivity.succeed(`已建立 ${drafts.length} 個章節骨架`);
+      chapterDraftActivity.succeed(t('chapters.aiDraftCreated', { count: drafts.length }, locale));
       setShowAIModal(false);
     } catch (err) {
       chapterDraftActivity.fail(err);
@@ -153,7 +157,7 @@ export function ChaptersPanel() {
 
   const handleDeleteSelected = async () => {
     if (selectedForDelete.size === 0) return;
-    if (!confirm(`刪除選取的 ${selectedForDelete.size} 個章節？\n相關正文與版本歷史將一併移除，此操作不可復原。`)) return;
+    if (!confirm(t('chapters.deleteSelectedConfirm', { count: selectedForDelete.size }, locale))) return;
     for (const id of selectedForDelete) {
       await deleteChapter(id);
       if (selectedChapterId === id) setSelectedChapterId(null);
@@ -259,19 +263,19 @@ export function ChaptersPanel() {
           onClick={() => setShowAIModal(true)}
           disabled={!apiReady || !outlineReady}
           title={
-            !apiReady ? '請先設定 API'
-            : !outlineReady ? '請先在大綱頁填寫世界觀或主線劇情'
+            !apiReady ? t('chapters.apiRequired', undefined, locale)
+            : !outlineReady ? t('chapters.outlineRequired', undefined, locale)
             : ''
           }
         >
-          ✨ AI 生成章節
+          {t('chapters.generateWithAI', undefined, locale)}
         </Button>
         <Button
           variant="secondary"
           style={{ width: '100%', justifyContent: 'center' }}
           onClick={handleNewChapter}
         >
-          ➕ 新增章節
+          {t('chapters.add', undefined, locale)}
         </Button>
       </div>
 
@@ -281,7 +285,7 @@ export function ChaptersPanel() {
           justifyContent: 'space-between', alignItems: 'center', gap: 8, borderRadius: 4, marginBottom: 8,
         }}>
           <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            您有 {nonSynced.length} 個章節 Wiki 未完整同步
+            {t('chapters.wikiIncompleteNotice', { count: nonSynced.length }, locale)}
           </span>
           <Button
             variant="secondary"
@@ -290,28 +294,32 @@ export function ChaptersPanel() {
             onClick={() => void batchProcess(nonSynced)}
             disabled={wikiBusy}
           >
-            批次處理
+            {t('chapters.batchProcess', undefined, locale)}
           </Button>
         </div>
       )}
       {batchProgress && (
         <div style={{ padding: 8, background: 'var(--bg-tertiary, #f5f5f5)', fontSize: 12, marginBottom: 8, borderRadius: 4 }}>
-          處理中 {batchProgress.done}/{batchProgress.total}：{batchProgress.cur}
+          {t('chapters.batchProgress', {
+            done: batchProgress.done,
+            total: batchProgress.total,
+            title: batchProgress.cur,
+          }, locale)}
         </div>
       )}
 
       <div className="section">
         <div className="section-title chapter-list-header">
-          <span>章節列表（{chapters.length}）</span>
+          <span>{t('chapters.list', { count: chapters.length }, locale)}</span>
           {chapters.length > 0 && (
-            <label className="select-all-label" title="全選 / 取消全選">
+            <label className="select-all-label" title={t('chapters.selectAllToggle', undefined, locale)}>
               <input
                 type="checkbox"
                 checked={allSelected}
                 ref={(el) => { if (el) el.indeterminate = someSelected; }}
                 onChange={toggleSelectAll}
               />
-              <span>全選</span>
+              <span>{t('chapters.selectAll', undefined, locale)}</span>
             </label>
           )}
         </div>
@@ -319,7 +327,7 @@ export function ChaptersPanel() {
         {selectedForDelete.size > 0 && (
           <div className="bulk-actions">
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              已選 {selectedForDelete.size} 項
+              {t('chapters.selectedCount', { count: selectedForDelete.size }, locale)}
             </span>
             <div style={{ flex: 1 }} />
             <Button
@@ -327,14 +335,14 @@ export function ChaptersPanel() {
               style={{ height: 26, fontSize: 12, padding: '0 8px' }}
               onClick={() => setSelectedForDelete(new Set())}
             >
-              取消選取
+              {t('chapters.clearSelection', undefined, locale)}
             </Button>
             <Button
               variant="secondary"
               style={{ height: 26, fontSize: 12, padding: '0 10px', color: '#f87171', borderColor: '#7f1d1d' }}
               onClick={handleDeleteSelected}
             >
-              🗑 刪除 {selectedForDelete.size} 項
+              {t('chapters.deleteSelected', { count: selectedForDelete.size }, locale)}
             </Button>
           </div>
         )}
@@ -378,15 +386,17 @@ export function ChaptersPanel() {
                   onChange={() => toggleSelect(ch.id)}
                 />
               </div>
-              <div className="chapter-num" aria-label={`第 ${i + 1} 章`}>
+              <div className="chapter-num" aria-label={t('chapters.chapterAria', { number: i + 1 }, locale)}>
                 {String(i + 1).padStart(2, '0')}
               </div>
               <div className="chapter-item-body">
-                <div className="chapter-item-title">{ch.title || '(未命名)'}</div>
+                <div className="chapter-item-title">{ch.title || t('chapters.untitled', undefined, locale)}</div>
                 <div className="chapter-item-meta">
-                  <span>{ch.content ? `約 ${ch.content.length} 字` : '待生成'}</span>
+                  <span>{ch.content
+                    ? t('chapters.approxCharacters', { count: ch.content.length }, locale)
+                    : t('chapters.awaitingGeneration', undefined, locale)}</span>
                   {ch.beat && <span className="badge badge-gray">{resolveBeatLabel(ch.beat, generalPrefs.interfaceLocale)}</span>}
-                  <WikiBadge status={ch.wikiSyncStatus} />
+                  <WikiBadge status={ch.wikiSyncStatus} locale={locale} />
                   {agentRun && (
                     <button
                       type="button"
@@ -395,9 +405,9 @@ export function ChaptersPanel() {
                         event.stopPropagation();
                         openAgentRun(ch.id, agentRun.id);
                       }}
-                      title="開啟此章的 Agent 執行狀態"
+                      title={t('chapters.openAgentRun', undefined, locale)}
                     >
-                      {generationRunBadge(agentRun)}
+                      {generationRunBadge(agentRun, locale)}
                     </button>
                   )}
                 </div>
@@ -407,7 +417,7 @@ export function ChaptersPanel() {
         })}
         {chapters.length === 0 && (
           <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: '8px 0' }}>
-            尚未建立章節，使用上方按鈕新增或讓 AI 生成
+            {t('chapters.empty', undefined, locale)}
           </div>
         )}
       </div>
@@ -420,17 +430,19 @@ export function ChaptersPanel() {
             chapterDraftActivity.reset();
           }
         }}
-        title="✨ AI 生成章節"
+        title={t('chapters.aiModalTitle', undefined, locale)}
         footer={
           <>
             <Button variant="secondary" onClick={() => {
               setShowAIModal(false);
               chapterDraftActivity.reset();
             }} disabled={isGenerating}>
-              取消
+              {t('common.cancel', undefined, locale)}
             </Button>
             <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || typeof aiCount !== 'number' || aiCount < 1}>
-              {isGenerating ? '生成中...' : `生成 ${aiCount} 章`}
+              {isGenerating
+                ? t('chapters.generating', undefined, locale)
+                : t('chapters.generateCount', { count: aiCount || 1 }, locale)}
             </Button>
           </>
         }
@@ -438,23 +450,26 @@ export function ChaptersPanel() {
         {chapterDraftActivity.activity.phase !== 'idle' && (
           <LocalAIActivityCard
             activity={chapterDraftActivity.activity}
-            title={`AI 助理規劃 ${typeof aiCount === 'number' ? aiCount : 1} 個章節`}
-            message={`依世界觀與主線整理章節骨架，目標故事進度 ${aiProgress}%…`}
+            title={t('chapters.aiAssistantPlansCount', { count: typeof aiCount === 'number' ? aiCount : 1 }, locale)}
+            message={t('chapters.aiDraftActivity', { progress: aiProgress }, locale)}
             onCancel={chapterDraftActivity.cancel}
             onDismiss={chapterDraftActivity.reset}
             compact
           />
         )}
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          AI 將根據目前的世界觀與主線劇情，自動規劃章節並填入：標題、故事節拍、章節要點。
+          {t('chapters.aiExplanation', undefined, locale)}
           {chapters.length > 0 && (
-            <><br /><span style={{ color: 'var(--accent)' }}>✦ 接續模式</span>：已偵測到 {chapters.length} 個現有章節，AI 將從第 {chapters.length + 1} 章起接續生成。</>
+            <><br /><span style={{ color: 'var(--accent)' }}>{t('chapters.continuationMode', undefined, locale)}</span>{' '}{t('chapters.continuationDescription', {
+              count: chapters.length,
+              nextChapter: chapters.length + 1,
+            }, locale)}</>
           )}
           <br />
-          （正文仍需在編輯器中個別點擊「生成本章」）
+          {t('chapters.bodyGenerationHint', undefined, locale)}
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <label style={{ fontSize: 13 }}>章節數量：</label>
+          <label style={{ fontSize: 13 }}>{t('chapters.countLabel', undefined, locale)}</label>
           <input
             type="number"
             className="form-input"
@@ -474,13 +489,13 @@ export function ChaptersPanel() {
             style={{ width: 80 }}
             disabled={isGenerating}
           />
-          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>（建議 3 - 10 章）</span>
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t('chapters.countHint', undefined, locale)}</span>
         </div>
 
         <div style={{ marginTop: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
             <label style={{ fontSize: 13 }}>
-              故事進度 <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>（本批章節寫完時，整個故事的劇情進度）</span>
+              {t('chapters.storyProgress', undefined, locale)} <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{t('chapters.storyProgressHint', undefined, locale)}</span>
             </label>
             <span style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, minWidth: 44, textAlign: 'right' }}>{aiProgress}%</span>
           </div>
@@ -495,10 +510,10 @@ export function ChaptersPanel() {
             style={{ width: '100%', accentColor: 'var(--accent)' }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-            <span>初期（引入）</span>
-            <span>中段（衝突升級）</span>
-            <span>後期（高潮）</span>
-            <span>結局</span>
+            <span>{t('chapters.phaseBeginning', undefined, locale)}</span>
+            <span>{t('chapters.phaseMiddle', undefined, locale)}</span>
+            <span>{t('chapters.phaseLate', undefined, locale)}</span>
+            <span>{t('chapters.phaseEnding', undefined, locale)}</span>
           </div>
         </div>
       </Modal>

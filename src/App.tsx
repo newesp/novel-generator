@@ -24,23 +24,24 @@ import { useProjectStore } from './stores/projectStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { setDocumentLocale, t } from './lib/language-policy';
 import { initializeGenerationOrchestrator } from './lib/multi-agent/orchestrator';
+import { isTauri } from './lib/platform';
 
 type WorkspaceName = 'outline' | 'characters' | 'chapters' | 'wiki' | 'scene' | 'comic' | 'video';
 
 interface NavigationItem {
   key: WorkspaceName;
-  label: string;
+  labelKey: string;
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
 }
 
 const NAVIGATION: NavigationItem[] = [
-  { key: 'outline', label: '大綱', icon: List },
-  { key: 'characters', label: '角色', icon: Users },
-  { key: 'scene', label: '場景', icon: Map },
-  { key: 'chapters', label: '章節', icon: FileText },
-  { key: 'wiki', label: 'Wiki', icon: BookOpen },
-  { key: 'comic', label: '漫畫', icon: Image },
-  { key: 'video', label: '影片', icon: Film },
+  { key: 'outline', labelKey: 'navigation.outline', icon: List },
+  { key: 'characters', labelKey: 'navigation.characters', icon: Users },
+  { key: 'scene', labelKey: 'navigation.scene', icon: Map },
+  { key: 'chapters', labelKey: 'navigation.chapters', icon: FileText },
+  { key: 'wiki', labelKey: 'navigation.wiki', icon: BookOpen },
+  { key: 'comic', labelKey: 'navigation.comic', icon: Image },
+  { key: 'video', labelKey: 'navigation.video', icon: Film },
 ];
 
 export default function App() {
@@ -53,7 +54,13 @@ export default function App() {
   const selectedChapter = chapters.find((chapter) => chapter.id === selectedChapterId) ?? chapters[0] ?? null;
 
   useEffect(() => {
-    setDocumentLocale(generalPrefs.interfaceLocale, t('common.appTitle', undefined, generalPrefs.interfaceLocale));
+    const appTitle = t('common.appTitle', undefined, generalPrefs.interfaceLocale);
+    setDocumentLocale(generalPrefs.interfaceLocale, appTitle);
+    if (isTauri()) {
+      void import('@tauri-apps/api/window')
+        .then(({ getCurrentWindow }) => getCurrentWindow().setTitle(appTitle))
+        .catch((error) => console.warn('[window] failed to localize title', error));
+    }
   }, [generalPrefs.interfaceLocale]);
 
   useEffect(() => {
@@ -89,7 +96,7 @@ export default function App() {
   const editor = project ? (
     <ChapterEditor />
   ) : (
-    <div className="v2-empty-state">請從左側選擇或新增章節</div>
+    <div className="v2-empty-state">{t('app.editorEmptyState', undefined, generalPrefs.interfaceLocale)}</div>
   );
 
   const chapterWorkspace = (
@@ -114,20 +121,21 @@ export default function App() {
           <strong>{t('common.appTitle', undefined, generalPrefs.interfaceLocale)}</strong>
         </div>
 
-        <nav className="v2-navigation" aria-label="主要功能">
+        <nav className="v2-navigation" aria-label={t('app.mainNav', undefined, generalPrefs.interfaceLocale)}>
           {NAVIGATION.map((item) => {
             const Icon = item.icon;
+            const label = t(item.labelKey, undefined, generalPrefs.interfaceLocale);
             return (
               <button
                 key={item.key}
                 type="button"
                 className={workspace === item.key ? 'active' : ''}
                 onClick={() => openWorkspace(item.key)}
-                title={item.label}
-                aria-label={item.label}
+                title={label}
+                aria-label={label}
               >
                 <Icon size={17} strokeWidth={1.8} />
-                <span>{item.label}</span>
+                <span>{label}</span>
               </button>
             );
           })}
@@ -137,11 +145,11 @@ export default function App() {
           type="button"
           className="v2-collapse-button"
           onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-          title={sidebarCollapsed ? '展開側欄' : '收起側欄'}
-          aria-label={sidebarCollapsed ? '展開側欄' : '收起側欄'}
+          title={sidebarCollapsed ? t('app.expandSidebar', undefined, generalPrefs.interfaceLocale) : t('app.collapseSidebar', undefined, generalPrefs.interfaceLocale)}
+          aria-label={sidebarCollapsed ? t('app.expandSidebar', undefined, generalPrefs.interfaceLocale) : t('app.collapseSidebar', undefined, generalPrefs.interfaceLocale)}
         >
           <ChevronLeft size={16} />
-          <span>{sidebarCollapsed ? '展開' : '收起'}</span>
+          <span>{sidebarCollapsed ? t('app.expand', undefined, generalPrefs.interfaceLocale) : t('app.collapse', undefined, generalPrefs.interfaceLocale)}</span>
         </button>
       </aside>
 
@@ -170,7 +178,7 @@ export default function App() {
             />
           )}
           {mediaMode && (!selectedChapter || !project) && (
-            <div className="v2-empty-state">請先建立並選擇章節</div>
+            <div className="v2-empty-state">{t('app.mediaEmptyState', undefined, generalPrefs.interfaceLocale)}</div>
           )}
         </div>
       </main>

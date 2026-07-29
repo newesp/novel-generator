@@ -1,10 +1,8 @@
 import { complete } from './llm';
 import { logPromptToTemp } from './prompt-log';
 import { renderTemplate } from './prompt-template';
-import { useSettingsStore, getPromptPair } from '../stores/settingsStore';
+import { useSettingsStore, getPromptPair, getBuiltInAIPrompts } from '../stores/settingsStore';
 import {
-  resolveGenreLabel,
-  resolveStyleLabel,
   resolveBeatLabel,
   type WritingLanguage,
 } from './language-policy';
@@ -43,14 +41,37 @@ export const VISUAL_NEGATIVE_PROMPT_GUIDANCE = `角色 Negative Prompt 是「生
 - 若外貌是 young / slender / dirty apron，negative 可寫 old, overweight, clean elegant dress，但不要寫 dirty apron，也不要寫 no young。
 - 用英文逗號分隔，避免整句中文敘述。`;
 
+export const VISUAL_NEGATIVE_PROMPT_GUIDANCE_EN = `A character negative prompt lists incorrect visual traits to exclude during image generation; it is not a character description.
+- Do not include positive appearance traits, clothing, props, or qualities that should remain.
+- Derive opposite or commonly mistaken traits from the Appearance field.
+- If the appearance is young / slender / dirty apron, the negative prompt may say old, overweight, clean elegant dress; do not include dirty apron or "no young."
+- Separate terms with English commas instead of writing full sentences.`;
+
 const BEAT_LIST = '引入 (Inciting Incident) / 衝突升級 (Rising Action) / 中點轉折 (Midpoint Twist) / 高潮 (Climax) / 結局 (Resolution) / 鋪墊/過渡';
 
 /**
  * 把 0-100 的故事進度數值，轉成給 AI 看的進度指示。
  * 0 = 故事剛開始；100 = 結局。
  */
-function buildProgressInstruction(progress: number): string {
+function buildProgressInstruction(progress: number, writingLanguage: WritingLanguage): string {
   const p = Math.max(0, Math.min(100, Math.round(progress)));
+  if (writingLanguage === 'en') {
+    let phase: string;
+    if (p <= 15) phase = 'the introduction: the protagonist is entering the central conflict while the world and key characters are established';
+    else if (p <= 35) phase = 'early development: conflict is escalating while relationships and foreshadowing are established';
+    else if (p <= 55) phase = 'the middle: the story is reaching or passing a midpoint turn that changes its direction';
+    else if (p <= 75) phase = 'high tension: plot threads converge and the conflict accelerates toward the climax';
+    else if (p <= 90) phase = 'the climax: the central conflict enters its decisive confrontation';
+    else phase = 'the resolution: the central conflict is ending and planted threads should be resolved';
+
+    return `## Target Story Progress for This Batch
+
+After this batch is complete, the overall story should be approximately **${p}%** finished (0% = the story begins; 100% = the novel ends).
+At the end of the final chapter in this batch, the story should be in **${phase}**.
+
+Plan the beats, conflict intensity, and pacing so the story reaches this point naturally without moving too quickly or too slowly.`;
+  }
+
   let phase: string;
   if (p <= 15)      phase = '故事的「引入期」：主角剛被捲入主要衝突，世界觀與關鍵角色正開始展開';
   else if (p <= 35) phase = '故事的「鋪陳期」：衝突開始升級，角色關係與伏筆逐步建立';
@@ -81,36 +102,43 @@ export async function regenerateChapterPoints(args: {
   referenceChapter?: { title: string; content: string };
   /** 目前的要點（若有，AI 可參考方向但不必沿用） */
   currentPoints?: string;
+  writingLanguage?: WritingLanguage;
 }, signal?: AbortSignal): Promise<string> {
   const {
     worldSetting, mainPlot, charactersList,
-    chapterTitle, beat, referenceChapter, currentPoints,
+    chapterTitle, beat, referenceChapter, currentPoints, writingLanguage = 'zh-Hant',
   } = args;
   const { aiPrompts } = useSettingsStore.getState();
+  const isEn = writingLanguage === 'en';
 
   const refContent = referenceChapter?.content ?? '';
-  const refTail = refContent.length > 1500 ? `（前略...）\n${refContent.slice(-1500)}` : refContent;
+  const refTail = refContent.length > 1500
+    ? `${isEn ? '(Earlier content omitted...)' : '（前略...）'}\n${refContent.slice(-1500)}`
+    : refContent;
 
   const referenceSection = referenceChapter && refContent.trim()
-    ? `\n\n## 參考章節（${referenceChapter.title}）\n${refTail}`
+    ? `\n\n## ${isEn ? `Reference Chapter (${referenceChapter.title})` : `參考章節（${referenceChapter.title}）`}\n${refTail}`
     : referenceChapter
-      ? `\n\n## 參考章節\n${referenceChapter.title}（無正文，僅供參考標題）`
+      ? `\n\n## ${isEn ? 'Reference Chapter' : '參考章節'}\n${referenceChapter.title}${isEn ? ' (no prose; title only)' : '（無正文，僅供參考標題）'}`
       : '';
 
   const charactersSection = charactersList && charactersList.trim()
-    ? `\n\n## 已建立的角色（章節要點只能使用以下角色名字，不可自編新人物）\n${charactersList}`
+    ? `\n\n## ${isEn ? 'Existing Characters (use only these names; do not invent named characters)' : '已建立的角色（章節要點只能使用以下角色名字，不可自編新人物）'}\n${charactersList}`
     : '';
 
   const currentPointsSection = currentPoints && currentPoints.trim()
-    ? `\n\n## 目前的要點（僅供參考，請寫出更貼合節拍/參考章節的新版本）\n${currentPoints}`
+    ? `\n\n## ${isEn ? 'Current Key Points (reference only; create a better version for the beat and reference chapter)' : '目前的要點（僅供參考，請寫出更貼合節拍/參考章節的新版本）'}\n${currentPoints}`
     : '';
 
-  const prompt = renderTemplate(aiPrompts.chapterPointsTemplate, {
-    worldSetting: worldSetting || '(未指定)',
-    mainPlot: mainPlot || '(未指定)',
+  const template = isEn
+    ? getBuiltInAIPrompts('en').chapterPointsTemplate
+    : aiPrompts.chapterPointsTemplate;
+  const prompt = renderTemplate(template, {
+    worldSetting: worldSetting || (isEn ? '(Unspecified)' : '(未指定)'),
+    mainPlot: mainPlot || (isEn ? '(Unspecified)' : '(未指定)'),
     charactersSection,
-    chapterTitle: chapterTitle || '(尚未命名)',
-    beat: beat || '(未指定)',
+    chapterTitle: chapterTitle || (isEn ? '(Untitled)' : '(尚未命名)'),
+    beat: beat || (isEn ? '(Unspecified)' : '(未指定)'),
     referenceSection,
     currentPointsSection,
   });
@@ -122,7 +150,7 @@ export async function regenerateChapterPoints(args: {
     hasCurrentPoints: !!(currentPoints && currentPoints.trim()),
   });
 
-  const result = await complete(prompt, { maxTokens: 1024 }, signal);
+  const result = await complete(prompt, { maxTokens: 1024, writingLanguage }, signal);
   return result.trim();
 }
 
@@ -191,7 +219,9 @@ export async function generateChapterDrafts(args: {
         ? 'Inciting Incident / Rising Action / Midpoint Twist / Climax / Resolution / Setup / Transition'
         : BEAT_LIST);
 
-  const progressText = typeof targetProgress === 'number' ? buildProgressInstruction(targetProgress) : '';
+  const progressText = typeof targetProgress === 'number'
+    ? buildProgressInstruction(targetProgress, writingLanguage)
+    : '';
   const taskIntroBase = isContinuation
     ? (writingLanguage === 'en'
         ? `You are outlining upcoming chapters for an ongoing novel. The story has reached chapter ${existingChapters.length}. Outline chapters ${existingChapters.length + 1} to ${existingChapters.length + count} (${count} new chapters in English).`
@@ -202,7 +232,9 @@ export async function generateChapterDrafts(args: {
 
   const taskIntro = progressText ? `${taskIntroBase}\n\n${progressText}` : taskIntroBase;
 
-  const rulesText = aiPrompts.chapterContinuationRules?.trim() ?? '';
+  const rulesText = writingLanguage === 'en'
+    ? getBuiltInAIPrompts('en').chapterContinuationRules.trim()
+    : aiPrompts.chapterContinuationRules?.trim() ?? '';
   const continuationRulesSection = isContinuation && rulesText
     ? `\n\n# ${writingLanguage === 'en' ? 'Continuation Rules' : '接續規劃的硬性規則'}\n\n${rulesText}`
     : '';
@@ -214,10 +246,13 @@ export async function generateChapterDrafts(args: {
   const promptPair = getPromptPair(aiPrompts, 'chapterDrafts', locale);
   const systemPrompt = promptPair.systemPrompt;
 
-  const userPrompt = renderTemplate(aiPrompts.chapterDraftsTemplate || promptPair.userPromptTemplate, {
+  const chapterDraftsTemplate = writingLanguage === 'en'
+    ? getBuiltInAIPrompts('en').chapterDraftsTemplate
+    : aiPrompts.chapterDraftsTemplate;
+  const userPrompt = renderTemplate(chapterDraftsTemplate, {
     taskIntro,
-    worldSetting: worldSetting || '(未指定)',
-    mainPlot: mainPlot || '(未指定)',
+    worldSetting: worldSetting || (writingLanguage === 'en' ? '(Unspecified)' : '(未指定)'),
+    mainPlot: mainPlot || (writingLanguage === 'en' ? '(Unspecified)' : '(未指定)'),
     charactersSection,
     existingChaptersSection,
     continuationRulesSection,
@@ -349,21 +384,23 @@ export async function completeCharacterFields(args: {
   worldSetting: string;
   mainPlot: string;
   otherCharacters?: { name: string; personality?: string; background?: string }[];
+  writingLanguage?: WritingLanguage;
 }, signal?: AbortSignal): Promise<Partial<AICharacterDraft>> {
-  const { current, worldSetting, mainPlot, otherCharacters } = args;
+  const { current, worldSetting, mainPlot, otherCharacters, writingLanguage = 'zh-Hant' } = args;
+  const isEn = writingLanguage === 'en';
 
   const FIELD_LABELS: Record<keyof AICharacterDraft, string> = {
-    name: '姓名',
-    gender: '性別',
-    age: '年齡',
-    race: '種族',
-    personality: '性格',
-    background: '背景',
-    appearance: '外貌',
-    abilities: '能力',
-    relations: '關係',
-    arc: '成長弧線',
-    visualNegativePrompt: '角色 Negative Prompt',
+    name: isEn ? 'Name' : '姓名',
+    gender: isEn ? 'Gender' : '性別',
+    age: isEn ? 'Age' : '年齡',
+    race: isEn ? 'Species' : '種族',
+    personality: isEn ? 'Personality' : '性格',
+    background: isEn ? 'Background' : '背景',
+    appearance: isEn ? 'Appearance' : '外貌',
+    abilities: isEn ? 'Abilities' : '能力',
+    relations: isEn ? 'Relationships' : '關係',
+    arc: isEn ? 'Character Arc' : '成長弧線',
+    visualNegativePrompt: 'Character Negative Prompt',
   };
   const KEYS: (keyof AICharacterDraft)[] = [
     'name','gender','age','race','personality','background','appearance','abilities','relations','arc','visualNegativePrompt',
@@ -373,16 +410,40 @@ export async function completeCharacterFields(args: {
   const empty = KEYS.filter((k) => (current[k] ?? '').trim().length === 0);
   if (empty.length === 0) return {};
 
-  const filledPart = filled.map((k) => `- ${FIELD_LABELS[k]}：${current[k]}`).join('\n');
-  const emptyKeys = empty.map((k) => `${k.toUpperCase()}（${FIELD_LABELS[k]}）`).join('、');
+  const filledPart = filled.map((k) => `- ${FIELD_LABELS[k]}: ${current[k]}`).join('\n');
+  const emptyKeys = empty.map((k) => `${k.toUpperCase()} (${FIELD_LABELS[k]})`).join(', ');
 
   const othersPart = otherCharacters && otherCharacters.length
-    ? `\n\n## 故事中其他角色（可作為「關係」欄位參考）\n${otherCharacters.map((c) => `- ${c.name}${c.personality ? `：${c.personality}` : ''}`).join('\n')}`
+    ? `\n\n## ${isEn ? 'Other Characters (for relationship references)' : '故事中其他角色（可作為「關係」欄位參考）'}\n${otherCharacters.map((c) => `- ${c.name}${c.personality ? `: ${c.personality}` : ''}`).join('\n')}`
     : '';
 
-  const outputLines = empty.map((k) => `${k.toUpperCase()}: <對應內容>`).join('\n');
+  const outputLines = empty.map((k) => `${k.toUpperCase()}: <${isEn ? 'content' : '對應內容'}>`).join('\n');
 
-  const prompt = `你是中文小說角色設定師。下方是「一個角色」已填寫的欄位，請依此推斷並補完「未填欄位」，要與已填內容、世界觀、主線劇情邏輯一致。
+  const prompt = isEn
+    ? `You are an English-language fiction character designer. Complete only the empty fields for the character below. The additions must be consistent with the completed fields, world setting, and main plot.
+
+## World Setting
+${worldSetting || '(Unspecified)'}
+
+## Main Plot
+${mainPlot || '(Unspecified)'}${othersPart}
+
+## Completed Fields
+${filledPart || '(All fields are empty. Invent a character who belongs in this world.)'}
+
+# Rules
+1. Output only these empty fields: ${emptyKeys}. Do not output completed fields.
+2. Do not contradict any completed field.
+3. Personality: 1–2 sentences; Background: 2–3 sentences; Appearance, Abilities, and Relationships: 1–2 sentences each. The Character Arc may be longer and should track the main plot for a protagonist.
+4. The Character Negative Prompt must follow:
+${VISUAL_NEGATIVE_PROMPT_GUIDANCE_EN}
+5. When other characters are available, refer to them by name in Relationships.
+
+# Output Format (exactly; no preface or closing text)
+##FIELDS_START##
+${outputLines}
+##FIELDS_END##`
+    : `你是繁體中文小說角色設定師。下方是「一個角色」已填寫的欄位，請依此推斷並補完「未填欄位」，要與已填內容、世界觀、主線劇情邏輯一致。
 
 ## 世界觀
 ${worldSetting || '(未指定)'}
@@ -406,7 +467,7 @@ ${VISUAL_NEGATIVE_PROMPT_GUIDANCE}
 ${outputLines}
 ##FIELDS_END##`;
 
-  const result = await complete(prompt, { maxTokens: 2048 }, signal);
+  const result = await complete(prompt, { maxTokens: 2048, writingLanguage }, signal);
   const block = result.match(/##FIELDS_START##([\s\S]*?)##FIELDS_END##/)?.[1] ?? result;
 
   const out: Partial<AICharacterDraft> = {};

@@ -69,4 +69,21 @@ describe('broken link check', () => {
       newSlug: 'ai-li-ya',
     });
   });
+
+  it('presents issue text in English for the English interface', async () => {
+    const pages = [
+      page({
+        id: 'source',
+        slug: 'source',
+        title: 'Source',
+        relatedSlugs: [{ type: 'entity', slug: 'missing' }],
+      }),
+    ];
+    const result = await brokenLinkCheck.run({ ...ctx(pages), interfaceLocale: 'en' });
+
+    expect(result.issues[0].title).toBe(
+      'entity/source has a relatedSlugs reference to missing page entity/missing',
+    );
+    expect(result.issues[0].detail).not.toMatch(/[\u3400-\u9fff]/);
+  });
 });

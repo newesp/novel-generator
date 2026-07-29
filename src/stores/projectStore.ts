@@ -25,7 +25,7 @@ interface ProjectState {
 
   loadAllBooks: () => Promise<void>;
   loadProject: (id: string) => Promise<void>;
-  createProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> & { writingLanguage?: WritingLanguage }) => Promise<string>;
+  createProject: (p: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'writingLanguage'> & { writingLanguage?: WritingLanguage }) => Promise<string>;
   updateProject: (id: string, data: Partial<Project>) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
 

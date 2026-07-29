@@ -1,4 +1,5 @@
 import type { ComicPanelMotionEffect } from '../../../types';
+import type { InterfaceLocale } from '../../language-policy';
 
 export interface ComicVideoMotionEffectOption {
   id: ComicPanelMotionEffect;
@@ -26,6 +27,39 @@ export const COMIC_VIDEO_MOTION_EFFECTS: ComicVideoMotionEffectOption[] = [
   { id: 'fade_in', label: 'Fade in', description: 'Fades the panel in from black.' },
   { id: 'fade_out', label: 'Fade out', description: 'Fades the panel out to black.' },
 ];
+
+const ZH_HANT_MOTION_EFFECTS: Record<ComicPanelMotionEffect, { label: string; description: string }> = {
+  none: { label: '無', description: '使用靜態畫面，不套用鏡頭移動。' },
+  slow_zoom_in: { label: '緩慢推近', description: '鏡頭緩慢向畫面中央推近。' },
+  slow_zoom_out: { label: '緩慢拉遠', description: '從較近的畫面開始，逐步顯示更多內容。' },
+  pan_left: { label: '向左平移', description: '鏡頭由右向左緩慢掃過。' },
+  pan_right: { label: '向右平移', description: '鏡頭由左向右緩慢掃過。' },
+  pan_up: { label: '向上平移', description: '鏡頭緩慢向上掃過。' },
+  pan_down: { label: '向下平移', description: '鏡頭緩慢向下掃過。' },
+  ken_burns_in_left: { label: 'Ken Burns 推近左側', description: '推近畫面並偏重左側。' },
+  ken_burns_in_right: { label: 'Ken Burns 推近右側', description: '推近畫面並偏重右側。' },
+  ken_burns_in_top: { label: 'Ken Burns 推近上方', description: '推近畫面並偏重上方。' },
+  ken_burns_in_bottom: { label: 'Ken Burns 推近下方', description: '推近畫面並偏重下方。' },
+  pulse_zoom: { label: '脈衝縮放', description: '加入輕微、如心跳般的縮放脈衝。' },
+  crash_zoom_in: { label: '快速推近', description: '鏡頭快速推近後停住。' },
+  subtle_shake: { label: '輕微震動', description: '加入輕微的衝擊震動。' },
+  fade_in: { label: '淡入', description: '畫面由黑色逐漸顯現。' },
+  fade_out: { label: '淡出', description: '畫面逐漸轉為黑色。' },
+};
+
+export function comicMotionEffectLabel(
+  effect: ComicVideoMotionEffectOption,
+  locale: InterfaceLocale,
+): string {
+  return locale === 'en' ? effect.label : ZH_HANT_MOTION_EFFECTS[effect.id].label;
+}
+
+export function comicMotionEffectDescription(
+  effect: ComicVideoMotionEffectOption,
+  locale: InterfaceLocale,
+): string {
+  return locale === 'en' ? effect.description : ZH_HANT_MOTION_EFFECTS[effect.id].description;
+}
 
 const COMIC_VIDEO_MOTION_EFFECT_IDS = new Set<string>(
   COMIC_VIDEO_MOTION_EFFECTS.map((effect) => effect.id),

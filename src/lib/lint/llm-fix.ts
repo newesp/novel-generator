@@ -6,7 +6,8 @@ import { updateWikiPageWithIntegrity } from '../wiki-mutations';
 import type { WikiPage, WikiLogEntry, WikiPageSnapshot, WikiPageType } from '../../types';
 import type { AIPromptPrefs } from '../../stores/settingsStore';
 import type { LintIssue } from './types';
-import type { WritingLanguage } from '../language-policy';
+import type { InterfaceLocale, WritingLanguage } from '../language-policy';
+import { lintText } from './messages';
 
 export interface LlmFixSuggestion {
   /** LLM 產出的完整新 markdown */
@@ -27,12 +28,21 @@ export async function generateFixSuggestion(
   preferredTargetPageId?: string,
   signal?: AbortSignal,
   writingLanguage: WritingLanguage = 'zh-Hant',
+  interfaceLocale: InterfaceLocale = 'zh-TW',
 ): Promise<LlmFixSuggestion> {
   const wikiTargets = issue.targets.filter((t) => t.kind === 'wikiPage');
   const wikiTarget = wikiTargets.find((t) => t.id === preferredTargetPageId) ?? wikiTargets[0];
-  if (!wikiTarget) throw new Error('Issue 沒有 wikiPage target，無法產生修改建議');
+  if (!wikiTarget) throw new Error(lintText(
+    interfaceLocale,
+    'Issue 沒有 Wiki 頁面目標，無法產生修改建議',
+    'The issue has no Wiki page target, so a fix suggestion cannot be generated',
+  ));
   const page = pages.find((p) => p.id === wikiTarget.id);
-  if (!page) throw new Error(`找不到對應 wiki page id=${wikiTarget.id}`);
+  if (!page) throw new Error(lintText(
+    interfaceLocale,
+    `找不到對應 Wiki 頁面 id=${wikiTarget.id}`,
+    `Matching Wiki page not found: id=${wikiTarget.id}`,
+  ));
 
   const isEn = writingLanguage === 'en';
   const systemPrompt = isEn
@@ -95,8 +105,9 @@ export async function applyRemoveRelatedSlug(args: {
   page: WikiPage;
   removeTarget: { type: WikiPageType; slug: string };
   lintBatchId: string;
+  interfaceLocale?: InterfaceLocale;
 }): Promise<{ status: 'ok' | 'failed'; error?: string }> {
-  const { bookId, page, removeTarget, lintBatchId } = args;
+  const { bookId, page, removeTarget, lintBatchId, interfaceLocale = 'zh-TW' } = args;
   const now = Date.now();
   const logId = uuid();
 
@@ -124,7 +135,14 @@ export async function applyRemoveRelatedSlug(args: {
   try {
     await storage.wikiLog.add(okLog);
   } catch (e) {
-    return { status: 'failed', error: `wiki_log insert 失敗：${(e as Error).message}` };
+    return {
+      status: 'failed',
+      error: lintText(
+        interfaceLocale,
+        `wiki_log 寫入失敗：${(e as Error).message}`,
+        `Failed to insert wiki_log entry: ${(e as Error).message}`,
+      ),
+    };
   }
 
   try {

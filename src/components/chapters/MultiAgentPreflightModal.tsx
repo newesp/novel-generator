@@ -5,6 +5,7 @@ import { useSettingsStore } from '../../stores/settingsStore';
 import { calculatePreflightEstimate } from '../../lib/multi-agent/run-manager';
 import { LLM_PROVIDER_LABELS } from '../../lib/llm-provider-defaults';
 import type { LLMProvider } from '../../types';
+import { t } from '../../lib/language-policy';
 
 interface MultiAgentPreflightModalProps {
   open: boolean;
@@ -27,36 +28,37 @@ export function MultiAgentPreflightModal({
   storyTitle,
   isStarting = false,
 }: MultiAgentPreflightModalProps) {
-  const { multiAgentPrefs, llmProfiles } = useSettingsStore();
+  const { multiAgentPrefs, llmProfiles, generalPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
 
   const estimate = useMemo(() => {
     return calculatePreflightEstimate(targetWordCount || 2000, multiAgentPrefs, llmProfiles);
   }, [targetWordCount, multiAgentPrefs, llmProfiles]);
 
   const roleTitleMap: Record<string, string> = {
-    planner: '大綱規劃 (Planner)',
-    writer: '初稿寫作 (Writer)',
-    critic: '審核評分 (Critic)',
-    editor: '草稿修訂 (Editor)',
+    planner: t('agentRole.planner', undefined, locale),
+    writer: t('agentRole.writer', undefined, locale),
+    critic: t('agentRole.critic', undefined, locale),
+    editor: t('agentRole.editor', undefined, locale),
   };
 
   return (
     <Modal
       open={open}
       onClose={() => !isStarting && onClose()}
-      title="🤖 高品質 Multi-Agent 章節生成預檢"
+      title={t('preflight.title', undefined, locale)}
       width={680}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={isStarting}>
-            取消
+            {t('common.cancel', undefined, locale)}
           </Button>
           <Button
             variant="primary"
             onClick={onConfirmStart}
             disabled={isStarting}
           >
-            {isStarting ? '🚀 啟動中...' : '✨ 確認開始高品質生成'}
+            {isStarting ? t('preflight.starting', undefined, locale) : t('preflight.confirmStart', undefined, locale)}
           </Button>
         </>
       }
@@ -66,18 +68,20 @@ export function MultiAgentPreflightModal({
         <div style={{ background: 'var(--bg-tertiary, #1f2937)', padding: '12px 16px', borderRadius: 8 }}>
           <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>
             {storyTitle ? `${storyTitle} — ` : ''}
-            {chapterNumber ? `第 ${chapterNumber} 章 ` : ''}
-            {chapterTitle || '未命名章節'}
+            {chapterNumber ? `${t('preflight.chapterNumber', { number: chapterNumber }, locale)} ` : ''}
+            {chapterTitle || t('preflight.untitled', undefined, locale)}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
-            目標字數：{targetWordCount ? `${targetWordCount} 字` : '預設 (2000 字)'}
+            {targetWordCount
+              ? t('preflight.targetLength', { count: targetWordCount }, locale)
+              : t('preflight.defaultTargetLength', undefined, locale)}
           </div>
         </div>
 
         {/* Agent 角色與模型對應 */}
         <div>
           <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
-            👥 Agent 角色與 Connection Profiles
+            {t('preflight.rolesAndProfiles', undefined, locale)}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {estimate.rolesSummary.map((r) => (
@@ -95,7 +99,7 @@ export function MultiAgentPreflightModal({
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 500, marginTop: 2 }}>{r.profileName}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                  [{LLM_PROVIDER_LABELS[r.provider as LLMProvider] || r.provider}] {r.model || '內建預設模型'}
+                  [{LLM_PROVIDER_LABELS[r.provider as LLMProvider] || r.provider}] {r.model || t('preflight.defaultModel', undefined, locale)}
                 </div>
               </div>
             ))}
@@ -105,7 +109,7 @@ export function MultiAgentPreflightModal({
         {/* 流程與步驟預估 */}
         <div>
           <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
-            ⚙️ 流程步驟與評分門檻
+            {t('preflight.stepsAndThresholds', undefined, locale)}
           </div>
           <div
             style={{
@@ -119,21 +123,21 @@ export function MultiAgentPreflightModal({
             }}
           >
             <div>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>預估步驟上限</div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('preflight.maxSteps', undefined, locale)}</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent-color, #60a5fa)', marginTop: 2 }}>
-                {estimate.maxStepsCount} 步
+                {t('preflight.steps', { count: estimate.maxStepsCount }, locale)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Editor 修訂上限</div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('preflight.maxRevisions', undefined, locale)}</div>
               <div style={{ fontSize: 18, fontWeight: 700, marginTop: 2 }}>
-                {estimate.maxRevisions} 次
+                {t('preflight.revisions', { count: estimate.maxRevisions }, locale)}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Critic 通過門檻</div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{t('preflight.passThreshold', undefined, locale)}</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#4ade80', marginTop: 2 }}>
-                {multiAgentPrefs.criticThresholds.passScore} 分
+                {t('preflight.points', { count: multiAgentPrefs.criticThresholds.passScore }, locale)}
               </div>
             </div>
           </div>
@@ -143,7 +147,7 @@ export function MultiAgentPreflightModal({
         {estimate.showTokenAndCost && (
           <div>
             <div style={{ fontWeight: 600, marginBottom: 8, color: 'var(--text-primary)' }}>
-              💰 Token 與費用估算 (基於設定單價)
+              {t('preflight.costEstimate', undefined, locale)}
             </div>
             <div
               style={{
@@ -157,10 +161,10 @@ export function MultiAgentPreflightModal({
               }}
             >
               <div>
-                <span style={{ color: 'var(--text-secondary)' }}>預估輸入 Token: </span>
+                <span style={{ color: 'var(--text-secondary)' }}>{t('preflight.inputTokens', undefined, locale)} </span>
                 <strong>~{estimate.estimatedInputTokens.toLocaleString()}</strong>
                 <span style={{ margin: '0 8px', color: 'var(--text-tertiary)' }}>|</span>
-                <span style={{ color: 'var(--text-secondary)' }}>預估輸出 Token: </span>
+                <span style={{ color: 'var(--text-secondary)' }}>{t('preflight.outputTokens', undefined, locale)} </span>
                 <strong>~{estimate.estimatedOutputTokens.toLocaleString()}</strong>
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#60a5fa' }}>
@@ -181,7 +185,7 @@ export function MultiAgentPreflightModal({
             lineHeight: 1.5,
           }}
         >
-          💡 <strong>提示：</strong>確認開始後將建立持久化 Run 殼層並進排隊。執行過程中可隨時取消或中途插手審核。Provider 仍可能對中途取消或逾時請求計費。
+          {t('preflight.notice', undefined, locale)}
         </div>
       </div>
     </Modal>

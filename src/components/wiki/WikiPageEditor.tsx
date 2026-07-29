@@ -2,6 +2,8 @@ import { useState, useEffect, type CSSProperties } from 'react';
 import { Modal as MantineModal, TextInput } from '@mantine/core';
 import type { WikiPage } from '../../types';
 import { useWikiStore } from '../../stores/wikiStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import { Button } from '../common/Button';
 
 const ACTION_BUTTON_STYLE: CSSProperties = {
@@ -17,6 +19,7 @@ export function WikiPageEditor({ page }: { page: WikiPage }) {
 
 function WikiPageEditorContent({ page }: { page: WikiPage }) {
   const { savePage, deletePage, renamePageSlug } = useWikiStore();
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   const [draftTitle, setDraftTitle] = useState(page.title);
   const [draftAliases, setDraftAliases] = useState(page.aliases.join('、'));
   const [draftContent, setDraftContent] = useState(page.contentMd);
@@ -47,13 +50,13 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
   };
 
   const onDelete = async () => {
-    if (!confirm(`刪除 wiki 頁「${page.title}」？此動作不可還原（不會進 undo log）。`)) return;
+    if (!confirm(t('wiki.pageEditorDeleteConfirm', { title: page.title }, locale))) return;
     await deletePage(page.id);
   };
 
   const openRenameSlug = () => {
     if (dirty) {
-      alert('請先儲存目前編輯內容，再重命名 slug。');
+      alert(t('wiki.pageEditorRenameSlugAlert', undefined, locale));
       return;
     }
 
@@ -65,7 +68,7 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
   const onRenameSlug = async () => {
     const newSlug = renameDraft.trim().toLowerCase();
     if (!/^[a-z0-9][a-z0-9-]*$/.test(newSlug)) {
-      setRenameError('請使用小寫英數字與連字號，且不能以連字號開頭。');
+      setRenameError(t('wiki.pageEditorRenameSlugError', undefined, locale));
       return;
     }
     if (newSlug === page.slug) {
@@ -113,18 +116,18 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 fontFamily: 'var(--font-mono, monospace)',
               }}
-              title="slug 可透過重命名同步更新所有 Wiki 內部引用。"
+              title={t('wiki.pageEditorSlugHelp', undefined, locale)}
             >
               {page.type} / {page.slug}
             </div>
           </div>
           {fullscreen ? (
-            <Button variant="secondary" onClick={() => setFullscreen(false)}>✕ 收起 (Esc)</Button>
+            <Button variant="secondary" onClick={() => setFullscreen(false)}>{t('wiki.pageEditorExitFullscreen', undefined, locale)}</Button>
           ) : (
             <button
               type="button"
               onClick={() => setFullscreen(true)}
-              title="展開全螢幕編輯"
+              title={t('wiki.pageEditorFullscreen', undefined, locale)}
               style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 14, padding: 2, flex: '0 0 auto' }}
             >⛶</button>
           )}
@@ -136,7 +139,7 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
           className="form-input"
           value={draftTitle}
           onChange={(e) => { setDraftTitle(e.target.value); setDirty(true); }}
-          placeholder="標題（顯示用，可中文）"
+          placeholder={t('wiki.pageEditorTitlePlaceholder', undefined, locale)}
           style={{
             width: '100%', padding: '4px 8px', fontSize: 14, fontWeight: 600,
             border: '1px solid var(--border)', borderRadius: 3,
@@ -150,7 +153,7 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
           className="form-input"
           value={draftAliases}
           onChange={(e) => { setDraftAliases(e.target.value); setDirty(true); }}
-          placeholder="別名（用、逗號或 / 分隔，可留空）"
+          placeholder={t('wiki.pageEditorAliasesPlaceholder', undefined, locale)}
           style={{
             width: '100%', padding: '3px 8px', fontSize: 12,
             border: '1px solid var(--border)', borderRadius: 3,
@@ -185,19 +188,19 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
           variant="secondary"
           onClick={openRenameSlug}
           disabled={renamingSlug}
-          title="重新命名 slug，並同步更新所有 Wiki 內部引用"
+          title={t('wiki.pageEditorRenameSlugTooltip', undefined, locale)}
           style={ACTION_BUTTON_STYLE}
         >
-          ✏️ {renamingSlug ? '改名中' : '改 slug'}
+          {renamingSlug ? t('wiki.pageEditorRenameSlugBtnRenaming', undefined, locale) : t('wiki.pageEditorRenameSlugBtnIdle', undefined, locale)}
         </Button>
-        <Button variant="secondary" onClick={onDelete} style={ACTION_BUTTON_STYLE}>🗑 刪除</Button>
-        <Button variant="primary" onClick={onSave} disabled={!dirty} style={ACTION_BUTTON_STYLE}>💾 儲存</Button>
+        <Button variant="secondary" onClick={onDelete} style={ACTION_BUTTON_STYLE}>{t('wiki.pageEditorDelete', undefined, locale)}</Button>
+        <Button variant="primary" onClick={onSave} disabled={!dirty} style={ACTION_BUTTON_STYLE}>{t('wiki.pageEditorSave', undefined, locale)}</Button>
       </div>
 
       <MantineModal
         opened={renameOpen}
         onClose={() => !renamingSlug && setRenameOpen(false)}
-        title={`重命名 ${page.type}/${page.slug}`}
+        title={t('wiki.pageEditorRenameSlugTitle', { type: page.type, slug: page.slug }, locale)}
         centered
         size="sm"
         closeOnClickOutside={!renamingSlug}
@@ -205,7 +208,7 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
       >
         <TextInput
           label="Slug"
-          description={`儲存後會同步更新所有指向 ${page.type}/${page.slug} 的 Wiki 內部引用。`}
+          description={t('wiki.pageEditorRenameSlugDesc', { type: page.type, slug: page.slug }, locale)}
           value={renameDraft}
           onChange={(event) => {
             setRenameDraft(event.currentTarget.value.toLowerCase());
@@ -221,10 +224,10 @@ function WikiPageEditorContent({ page }: { page: WikiPage }) {
         />
         <div className="wiki-rename-actions">
           <Button variant="secondary" onClick={() => setRenameOpen(false)} disabled={renamingSlug}>
-            取消
+            {t('common.cancel', undefined, locale)}
           </Button>
           <Button variant="primary" onClick={() => void onRenameSlug()} disabled={renamingSlug || !renameDraft.trim()}>
-            {renamingSlug ? '更新中…' : '確定'}
+            {renamingSlug ? t('wiki.pageEditorRenameSlugSyncing', undefined, locale) : t('common.confirm', undefined, locale)}
           </Button>
         </div>
       </MantineModal>

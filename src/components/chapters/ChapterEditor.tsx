@@ -25,6 +25,7 @@ import { WikiPartialModal } from '../wiki/WikiPartialModal';
 import { MultiAgentPreflightModal } from './MultiAgentPreflightModal';
 import { cancelRun, continueRun, startRun } from '../../lib/multi-agent/orchestrator';
 import {
+  generationErrorText,
   generationRunTitle,
   generationRunTone,
   isOpenGenerationRun,
@@ -44,6 +45,7 @@ import {
   BEAT_PRESETS,
   normalizeBeat,
   resolveBeatLabel,
+  t,
 } from '../../lib/language-policy';
 
 interface InlineEditTarget {
@@ -56,7 +58,8 @@ export function ChapterEditor() {
   const { selectedChapterId, setSelectedChapterId } = useUIStore();
   const openAgentRun = useUIStore((state) => state.openAgentRun);
   const openSettings = useUIStore((state) => state.openSettings);
-  const { llmConfig, wikiPrefs } = useSettingsStore();
+  const { llmConfig, wikiPrefs, generalPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
   const generationRuns = useGenerationRunStore((state) => state.runs);
 
   const chapter = chapters.find((c) => c.id === selectedChapterId);
@@ -79,10 +82,10 @@ export function ChapterEditor() {
   const [showPointsModal, setShowPointsModal] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRegeneratingPoints, setIsRegeneratingPoints] = useState(false);
-  const quickGenerationActivity = useLocalAIActivity();
-  const pointsActivity = useLocalAIActivity();
+  const quickGenerationActivity = useLocalAIActivity(locale);
+  const pointsActivity = useLocalAIActivity(locale);
   const [contentViewMode, setContentViewMode] = useState<EditPreviewMode>('edit');
-  const [saveLabel, setSaveLabel] = useState('💾 儲存');
+  const [justSaved, setJustSaved] = useState(false);
 
   // Inline-edit (右鍵 → 調整內容) 相關狀態
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -98,6 +101,7 @@ export function ChapterEditor() {
 
   // —— Multi-Agent 高品質生成 相關狀態 ——
   const [showPreflightModal, setShowPreflightModal] = useState(false);
+  const [dismissedRunIds, setDismissedRunIds] = useState<Set<string>>(new Set());
   const [isStartingRun, setIsStartingRun] = useState(false);
   const [showSplitMenu, setShowSplitMenu] = useState(false);
   const [reviewRunId, setReviewRunId] = useState<string | null>(null);
@@ -119,7 +123,7 @@ export function ChapterEditor() {
       });
       setShowPreflightModal(false);
     } catch (err) {
-      alert((err as Error).message);
+      alert(generationErrorText((err as Error).message, locale));
     } finally {
       setIsStartingRun(false);
     }
@@ -139,13 +143,13 @@ export function ChapterEditor() {
     if (chapter) {
       setTitle(chapter.title);
       setContent(chapter.content);
-      setBeat(chapter.beat);
+      setBeat(resolveBeatLabel(chapter.beat, generalPrefs.interfaceLocale));
       setTargetWords(chapter.targetWords?.toString() ?? '');
       setPoints(chapter.points);
       setReferenceChapterId(chapter.referenceChapterId ?? '');
       loadVersions(chapter.id);
     }
-  }, [chapter?.id, chapter?.updatedAt]);
+  }, [chapter?.id, chapter?.updatedAt, generalPrefs.interfaceLocale]);
 
   useEffect(() => {
     const current = latestRun ? { id: latestRun.id, status: latestRun.status } : null;
@@ -170,7 +174,7 @@ export function ChapterEditor() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         height: '100%', color: 'var(--text-tertiary)', fontSize: 14,
       }}>
-        請從左側選擇或新增章節
+        {t('chapterEditor.noChapterSelected', undefined, locale)}
       </div>
     );
   }
@@ -181,19 +185,19 @@ export function ChapterEditor() {
   const handleSave = async () => {
     try {
       await updateChapter(chapter.id, {
-        title, content, beat, points,
-        targetWords: targetWords ? parseInt(targetWords) : null,
+        title, content, beat: normalizeBeat(beat), points,
+        targetWords: targetWords ? parseInt(targetWords, 10) : undefined,
         referenceChapterId: referenceChapterId || null,
       });
-      setSaveLabel('✅ 已儲存');
-      setTimeout(() => setSaveLabel('💾 儲存'), 1500);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 1500);
     } catch (err) {
-      alert(`儲存失敗：${(err as Error).message}`);
+      alert(t('chapterEditor.saveFailed', { message: (err as Error).message }, locale));
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`刪除章節「${chapter.title}」？`)) return;
+    if (!confirm(t('chapterEditor.deleteConfirm', { title: chapter.title }, locale))) return;
     await deleteChapter(chapter.id);
     setSelectedChapterId(null);
   };
@@ -239,7 +243,7 @@ export function ChapterEditor() {
     const allocation = allocateBudget({
       worldSetting: project?.worldSetting ?? '',
       mainPlot: project?.mainPlot ?? '',
-      characters: formatCharacters(characters),
+      characters: formatCharacters(characters, project?.writingLanguage ?? 'zh-Hant'),
       beat,
       chapterPoints: points,
       referenceChapterTitle: refChapter?.title ?? '',
@@ -252,20 +256,22 @@ export function ChapterEditor() {
       allocation,
       title,
       targetWords ? parseInt(targetWords) : null,
+      '',
+      project?.writingLanguage ?? 'zh-Hant',
     );
   };
 
   const runGeneration = async () => {
     if (!apiReady) {
-      alert('請先在「⚙️ 偏好設定」中設定 LLM endpoint 與 API Key');
+      alert(t('chapterEditor.apiRequired', undefined, locale));
       return;
     }
     if (!worldReady) {
-      alert('請先在「大綱」分頁設定世界觀，AI 才能依據設定生成內容');
+      alert(t('chapterEditor.worldRequired', undefined, locale));
       return;
     }
     const signal = quickGenerationActivity.start(
-      '依章節設定、參考內容與 Wiki 組裝正文；完成前不會覆寫目前正文…',
+      t('chapterEditor.quickGenerationActivity', undefined, locale),
     );
     setIsGenerating(true);
     try {
@@ -279,15 +285,15 @@ export function ChapterEditor() {
         chapterId: chapter.id,
         chapterTitle: title,
         beat,
-        targetWords: targetWords || '(未指定)',
-        referenceChapterId: referenceChapterId || '(無)',
+        targetWords: targetWords || t('chapterEditor.unspecified', undefined, locale),
+        referenceChapterId: referenceChapterId || t('chapterEditor.none', undefined, locale),
         provider: llmConfig.provider,
         model: llmConfig.model,
       });
-      const result = await complete(prompt, undefined, signal);
+      const result = await complete(prompt, { writingLanguage: project?.writingLanguage }, signal);
       setContent(result);
       await updateChapter(chapter.id, { content: result });
-      quickGenerationActivity.succeed('快速生成正文已完成並儲存');
+      quickGenerationActivity.succeed(t('chapterEditor.quickGenerationDone', undefined, locale));
     } catch (err) {
       quickGenerationActivity.fail(err);
     } finally {
@@ -297,31 +303,32 @@ export function ChapterEditor() {
 
   const handleRegeneratePoints = async () => {
     if (!apiReady) {
-      alert('請先在「⚙️ 偏好設定」中設定 LLM endpoint 與 API Key');
+      alert(t('chapterEditor.apiRequired', undefined, locale));
       return;
     }
     const refChapter = referenceChapterId
       ? chapters.find((c) => c.id === referenceChapterId)
       : undefined;
-    const signal = pointsActivity.start('保留目前要點，依章節語氣與參考章節產生新版本…');
+    const signal = pointsActivity.start(t('chapterEditor.regeneratePointsActivity', undefined, locale));
     setIsRegeneratingPoints(true);
     try {
       const newPoints = await regenerateChapterPoints({
         worldSetting: project?.worldSetting ?? '',
         mainPlot: project?.mainPlot ?? '',
-        charactersList: formatCharacters(characters),
+        charactersList: formatCharacters(characters, project?.writingLanguage ?? 'zh-Hant'),
         chapterTitle: title,
         beat,
         referenceChapter: refChapter
           ? { title: refChapter.title, content: refChapter.content }
           : undefined,
         currentPoints: points,
+        writingLanguage: project?.writingLanguage,
       }, signal);
       if (newPoints) {
         setPoints(newPoints);
-        pointsActivity.succeed('已產生新要點；按儲存後才會寫入章節');
+        pointsActivity.succeed(t('chapterEditor.pointsGenerated', undefined, locale));
       } else {
-        throw new Error('AI 未產出章節要點');
+        throw new Error(t('chapterEditor.pointsNoResult', undefined, locale));
       }
     } catch (err) {
       pointsActivity.fail(err);
@@ -373,18 +380,12 @@ export function ChapterEditor() {
       setReviewRunId(run.id);
       setReviewContext(context);
     } catch (error) {
-      alert((error as Error).message);
+      alert(generationErrorText((error as Error).message, locale));
     }
   };
 
   const handleCancelGenerationRun = async (runId: string) => {
-    const confirmed = confirm(
-      '停止高品質生成並解鎖正文？\n\n'
-      + '• 正在進行的請求會嘗試立即停止，但 provider 可能已經計費。\n'
-      + '• 候選草稿不會寫入正式正文。\n'
-      + '• 執行軌跡會保留。\n'
-      + '• 已明確採用的 Planner 節拍與要點不會回滾。',
-    );
+    const confirmed = confirm(t('chapterEditor.cancelRunConfirm', undefined, locale));
     if (!confirmed) return;
     setIsCancellingRun(true);
     try {
@@ -392,7 +393,7 @@ export function ChapterEditor() {
       setReviewContext(null);
       setReviewRunId(null);
     } catch (error) {
-      alert((error as Error).message);
+      alert(generationErrorText((error as Error).message, locale));
     } finally {
       setIsCancellingRun(false);
     }
@@ -406,7 +407,7 @@ export function ChapterEditor() {
       setReviewRunId(null);
       if (reloadChapter && project) await loadChapters(project.id);
     } catch (error) {
-      alert((error as Error).message);
+      alert(generationErrorText((error as Error).message, locale));
     } finally {
       setIsReviewSubmitting(false);
     }
@@ -426,7 +427,7 @@ export function ChapterEditor() {
       try {
         await continueRun(visibleRun.id, { type: 'retry' });
       } catch (error) {
-        alert((error as Error).message);
+        alert(generationErrorText((error as Error).message, locale));
       }
       return;
     }
@@ -437,34 +438,32 @@ export function ChapterEditor() {
     openAgentRun(visibleRun.chapterId, visibleRun.id);
   };
 
-  const [dismissedRunIds, setDismissedRunIds] = useState<Set<string>>(new Set());
-
   const otherChapters = chapters.filter((c) => c.id !== chapter.id);
-  const visibleActivity = visibleRun ? normalizedActivity(visibleRun) : null;
+  const visibleActivity = visibleRun ? normalizedActivity(visibleRun, locale) : null;
   const runPrimaryLabel =
     visibleRun?.status === 'completed' || visibleRun?.status === 'cancelled'
-      ? '查看紀錄'
+      ? t('chapterEditor.viewHistory', undefined, locale)
       : visibleRun?.status === 'failed'
-        ? '查看錯誤'
+        ? t('chapterEditor.viewError', undefined, locale)
         : visibleActivity && isReviewPause(visibleActivity.pauseReason)
-          ? '立即審核'
+          ? t('chapterEditor.reviewNow', undefined, locale)
           : visibleActivity?.pauseReason === 'configuration_blocked'
-            ? '修復設定'
+            ? t('chapterEditor.fixSettings', undefined, locale)
             : visibleActivity?.pauseReason === 'interrupted'
               || visibleActivity?.pauseReason === 'format_repair_failed'
-              ? '重試此步驟'
-              : '查看執行';
+              ? t('chapterEditor.retryStep', undefined, locale)
+              : t('chapterEditor.viewRun', undefined, locale);
 
   return (
     <>
       <div className="editor-header">
-        <span className="toolbar-label" style={{ fontSize: 13 }}>章節標題</span>
+        <span className="toolbar-label" style={{ fontSize: 13 }}>{t('chapterEditor.chapterTitle', undefined, locale)}</span>
         <div className="editor-title">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => !isChapterLocked && handleSave()}
-            placeholder="輸入章節標題..."
+            placeholder={t('chapterEditor.titlePlaceholder', undefined, locale)}
             readOnly={isChapterLocked}
             aria-readonly={isChapterLocked}
           />
@@ -475,7 +474,7 @@ export function ChapterEditor() {
           disabled={isChapterLocked}
           style={{ color: 'var(--text-tertiary)' }}
         >
-          🗑 刪除
+          {t('chapterEditor.delete', undefined, locale)}
         </Button>
       </div>
 
@@ -486,11 +485,13 @@ export function ChapterEditor() {
           onClick={() => setShowPointsModal(true)}
           disabled={isChapterLocked}
         >
-          章節設定
+          {t('chapterEditor.settings', undefined, locale)}
         </Button>
         <span className="chapter-settings-summary">
-          {beat || '未設定語氣'} · {targetWords ? `${targetWords} 字` : '未設定字數'}
-          {points ? ` · 要點 ${points.length} 字` : ''}
+          {beat || t('chapterEditor.noBeat', undefined, locale)} · {targetWords
+            ? t('common.words', { count: targetWords }, locale)
+            : t('chapterEditor.noTargetLength', undefined, locale)}
+          {points ? ` · ${t('chapterEditor.pointsSummary', { count: points.length }, locale)}` : ''}
         </span>
         <div className="toolbar-spacer" />
       </div>
@@ -499,7 +500,7 @@ export function ChapterEditor() {
         <div className="chapter-ai-activity">
           <AIActivityCard
             role={visibleActivity.currentRole}
-            title={generationRunTitle(visibleRun)}
+            title={generationRunTitle(visibleRun, locale)}
             message={visibleActivity.message}
             errorMessage={visibleActivity.errorMessage}
             startedAt={visibleActivity.startedAt ?? visibleRun.createdAt}
@@ -507,7 +508,7 @@ export function ChapterEditor() {
             running={visibleRun.status === 'running' || visibleRun.status === 'pending'}
             onDismiss={() => setDismissedRunIds((prev) => new Set(prev).add(visibleRun.id))}
             steps={
-              <div className="agent-phase-steps" aria-label="Agent 流程">
+              <div className="agent-phase-steps" aria-label={t('chapterEditor.agentFlow', undefined, locale)}>
                 {(['planner', 'writer', 'critic', 'editor'] as const).map((role) => (
                   <span key={role} className={visibleActivity.currentRole === role ? 'active' : ''}>
                     {role[0].toUpperCase() + role.slice(1)}
@@ -521,7 +522,9 @@ export function ChapterEditor() {
               disabled: isCancellingRun,
             }}
             secondaryAction={isOpenGenerationRun(visibleRun) ? {
-              label: isCancellingRun ? '停止中…' : '停止並解鎖',
+              label: isCancellingRun
+                ? t('chapterEditor.stopping', undefined, locale)
+                : t('chapterEditor.stopAndUnlock', undefined, locale),
               onClick: () => void handleCancelGenerationRun(visibleRun.id),
               disabled: isCancellingRun,
               danger: true,
@@ -534,8 +537,8 @@ export function ChapterEditor() {
         <div className="chapter-ai-activity">
           <LocalAIActivityCard
             activity={quickGenerationActivity.activity}
-            title="AI 助理快速生成正文"
-            message="依章節設定、參考內容與 Wiki 組裝正文…"
+            title={t('chapterEditor.quickGenerationTitle', undefined, locale)}
+            message={t('chapterEditor.quickGenerationActivity', undefined, locale)}
             onCancel={quickGenerationActivity.cancel}
             onDismiss={quickGenerationActivity.reset}
             compact
@@ -548,7 +551,7 @@ export function ChapterEditor() {
           <EditPreviewTabs
             mode={contentViewMode}
             onChange={setContentViewMode}
-            extra={<span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{content.length} 字</span>}
+            extra={<span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t('chapterEditor.contentCharacters', { count: content.length }, locale)}</span>}
           />
           {contentViewMode === 'edit' ? (
             <textarea
@@ -562,12 +565,12 @@ export function ChapterEditor() {
               onContextMenu={handleTextareaContextMenu}
               placeholder={
                 isChapterLocked
-                  ? '此章節正由 Multi-Agent 進行高品質生成中，正文編輯已鎖定...'
-                  : '在此輸入章節正文，或點擊「生成」讓 AI 為您創作（選取段落 → 右鍵可局部調整）...'
+                  ? t('chapterEditor.lockedPlaceholder', undefined, locale)
+                  : t('chapterEditor.bodyPlaceholder', undefined, locale)
               }
             />
           ) : (
-            <div className="editor-preview" onDoubleClick={() => setContentViewMode('edit')} title="雙擊回到編輯模式">
+            <div className="editor-preview" onDoubleClick={() => setContentViewMode('edit')} title={t('chapterEditor.previewDoubleClick', undefined, locale)}>
               <MarkdownView source={content} />
             </div>
           )}
@@ -587,16 +590,16 @@ export function ChapterEditor() {
 
       <div className="action-bar">
         <Button variant="secondary" onClick={handleSaveVersion} disabled={!content.trim() || isChapterLocked}>
-          💾 存入版本
+          {t('chapterEditor.saveVersion', undefined, locale)}
         </Button>
         {(() => {
           const s = chapter.wikiSyncStatus;
           const label =
-            s === 'unsynced'      ? '📚 存入 Wiki' :
-            s === 'synced'        ? '🔄 重新存入 Wiki' :
-            s === 'stale'         ? '⚠️ Wiki 已過時，重新存入' :
-            s === 'partial'       ? `⚠️ Wiki 部分失敗 (${failedCount})` :
-                                    '⚠️ 部分失敗 + 已過時';
+            s === 'unsynced'      ? t('chapterEditor.saveToWiki', undefined, locale) :
+            s === 'synced'        ? t('chapterEditor.resaveToWiki', undefined, locale) :
+            s === 'stale'         ? t('chapterEditor.wikiStale', undefined, locale) :
+            s === 'partial'       ? t('chapterEditor.wikiPartial', { count: failedCount }, locale) :
+                                    t('chapterEditor.wikiPartialStale', undefined, locale);
           const onWikiClick = async () => {
             if (wikiBusy || isChapterLocked) return;
             if (s === 'partial' || s === 'partial_stale') { setShowPartial(true); return; }
@@ -605,23 +608,29 @@ export function ChapterEditor() {
               const r = await ingestChapter(chapter);
               const createN = r.plan.operations.filter((o) => o.action === 'create').length;
               const updateN = r.plan.operations.filter((o) => o.action === 'update').length;
-              const msg = `Wiki 已更新：新增 ${createN} 頁、修改 ${updateN} 頁` +
-                          (r.failedCount > 0 ? `（${r.failedCount} 個失敗）` : '');
+              const failedSuffix = r.failedCount > 0
+                ? t('chapterEditor.wikiFailedSuffix', { count: r.failedCount }, locale)
+                : '';
+              const msg = t('chapterEditor.wikiUpdated', {
+                created: createN,
+                updated: updateN,
+                failedSuffix,
+              }, locale);
               setToast({ msg, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
               if (project) await loadChapters(project.id);
             } catch (e) {
-              setToast({ msg: `Ingest 失敗：${(e as Error).message}`, variant: 'danger', batchId: '' });
+              setToast({ msg: t('chapterEditor.ingestFailed', { message: (e as Error).message }, locale), variant: 'danger', batchId: '' });
             } finally {
               setWikiBusy(false);
             }
           };
           const noContent = !content.trim();
           const tooltip = isChapterLocked
-            ? '此章節有未結束的高品質生成 Run，已鎖定'
+            ? t('chapterEditor.lockedWikiTooltip', undefined, locale)
             : noContent
-            ? '請先撰寫章節內容'
+            ? t('chapterEditor.noContentTooltip', undefined, locale)
             : s === 'synced'
-              ? '點擊以重新讓 AI 整理 Wiki（既有頁會被合併更新）'
+              ? t('chapterEditor.resyncWikiTooltip', undefined, locale)
               : undefined;
           return (
             <Button
@@ -630,12 +639,14 @@ export function ChapterEditor() {
               disabled={wikiBusy || noContent || isChapterLocked}
               title={tooltip}
             >
-              {wikiBusy ? '存入中…' : label}
+              {wikiBusy ? t('chapterEditor.savingToWiki', undefined, locale) : label}
             </Button>
           );
         })()}
         <div className="toolbar-spacer" />
-        <Button variant="secondary" onClick={handleSave} disabled={isChapterLocked}>{saveLabel}</Button>
+        <Button variant="secondary" onClick={handleSave} disabled={isChapterLocked}>
+          {justSaved ? t('chapterEditor.saved', undefined, locale) : t('chapterEditor.save', undefined, locale)}
+        </Button>
         
         {/* Split action button */}
         <div style={{ display: 'inline-flex', position: 'relative' }}>
@@ -645,20 +656,22 @@ export function ChapterEditor() {
             disabled={isGenerating || !apiReady || !worldReady || isChapterLocked}
             style={{ borderRadius: '6px 0 0 6px' }}
             title={
-              isChapterLocked ? '此章節有未結束的高品質生成執行，正文編輯已鎖定'
-              : !apiReady ? '請先設定 API'
-              : !worldReady ? '請先在大綱頁設定世界觀'
+              isChapterLocked ? t('chapterEditor.lockedGenerationTooltip', undefined, locale)
+              : !apiReady ? t('chapters.apiRequired', undefined, locale)
+              : !worldReady ? t('chapters.outlineRequired', undefined, locale)
               : ''
             }
           >
-            {isGenerating ? '✨ 快速生成中...' : '⚡ 快速生成本章'}
+            {isGenerating
+              ? t('chapterEditor.quickGenerating', undefined, locale)
+              : t('chapterEditor.quickGenerate', undefined, locale)}
           </Button>
           <Button
             variant="primary"
             disabled={isGenerating || !apiReady || !worldReady || isChapterLocked}
             onClick={() => setShowSplitMenu((v) => !v)}
             style={{ borderRadius: '0 6px 6px 0', borderLeft: '1px solid rgba(255, 255, 255, 0.2)', padding: '0 8px' }}
-            title="選擇生成模式"
+            title={t('chapterEditor.chooseGenerationMode', undefined, locale)}
           >
             ▾
           </Button>
@@ -700,7 +713,7 @@ export function ChapterEditor() {
                   setShowPreflightModal(true);
                 }}
               >
-                🤖 高品質生成 (Multi-Agent)...
+                {t('chapterEditor.highQualityGeneration', undefined, locale)}
               </button>
             </div>
           )}
@@ -759,6 +772,7 @@ export function ChapterEditor() {
           criticFeedback={reviewContext.feedback}
           isMaxRevisionsReached={reviewContext.isMaxRevisionsReached}
           isSubmitting={isReviewSubmitting}
+          writingLanguage={generationRuns.find((r) => r.id === reviewRunId)?.snapshot?.writingLanguage}
           onDirectAdopt={() => submitReview(
             () => continueRun(reviewRunId, { type: 'human_adopt' }),
             true,
@@ -780,20 +794,20 @@ export function ChapterEditor() {
       <Modal
         open={showPointsModal}
         onClose={() => !isRegeneratingPoints && setShowPointsModal(false)}
-        title="章節設定"
+        title={t('chapterEditor.settingsTitle', undefined, locale)}
         width={620}
         footer={
           <>
-            <Button variant="secondary" onClick={() => setShowPointsModal(false)} disabled={isRegeneratingPoints}>取消</Button>
+            <Button variant="secondary" onClick={() => setShowPointsModal(false)} disabled={isRegeneratingPoints}>{t('common.cancel', undefined, locale)}</Button>
             <Button variant="primary" disabled={isRegeneratingPoints} onClick={async () => {
               await updateChapter(chapter.id, {
                 referenceChapterId: referenceChapterId || null,
-                beat,
-                targetWords: targetWords ? parseInt(targetWords, 10) : null,
+                beat: normalizeBeat(beat),
+                targetWords: targetWords ? parseInt(targetWords, 10) : undefined,
                 points,
               });
               setShowPointsModal(false);
-            }}>儲存</Button>
+            }}>{t('common.save', undefined, locale)}</Button>
           </>
         }
       >
@@ -801,88 +815,93 @@ export function ChapterEditor() {
           {pointsActivity.activity.phase !== 'idle' && (
             <LocalAIActivityCard
               activity={pointsActivity.activity}
-              title="AI 助理整理章節要點"
-              message="保留目前內容，依章節語氣與參考章節產生新版本…"
+              title={t('chapterEditor.pointsActivityTitle', undefined, locale)}
+              message={t('chapterEditor.regeneratePointsActivity', undefined, locale)}
               onCancel={pointsActivity.cancel}
               onDismiss={pointsActivity.reset}
               compact
             />
           )}
           <label className="form-group">
-            <span className="form-label">參考章節</span>
+            <span className="form-label">{t('chapterEditor.referenceChapter', undefined, locale)}</span>
             <select
               className="form-select"
               value={referenceChapterId}
               onChange={(event) => setReferenceChapterId(event.target.value)}
               disabled={isRegeneratingPoints}
             >
-              <option value="">無</option>
+              <option value="">{t('chapterEditor.noReference', undefined, locale)}</option>
               {otherChapters.map((item) => (
                 <option key={item.id} value={item.id}>
-                  {item.title}{item.content ? '' : '（無內容）'}
+                  {item.title}{item.content ? '' : t('chapterEditor.referenceNoContent', undefined, locale)}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="form-group">
-            <span className="form-label">目標字數</span>
+            <span className="form-label">{t('chapterEditor.targetLength', undefined, locale)}</span>
             <input
               type="number"
               className="form-input"
               value={targetWords}
               onChange={(event) => setTargetWords(event.target.value)}
-              placeholder="留空讓 AI 自行決定"
+              placeholder={t('chapterEditor.targetLengthPlaceholder', undefined, locale)}
               disabled={isRegeneratingPoints}
             />
           </label>
 
           <label className="form-group">
-            <span className="form-label">章節語氣</span>
+            <span className="form-label">{t('chapterEditor.chapterBeat', undefined, locale)}</span>
             <input
               className="form-input"
               list="beat-list"
               value={beat}
               onChange={(event) => setBeat(event.target.value)}
-              placeholder="選擇或輸入自訂語氣"
+              placeholder={t('chapterEditor.beatPlaceholder', undefined, locale)}
               disabled={isRegeneratingPoints}
             />
             <datalist id="beat-list">
               {BEAT_PRESETS.map((item) => (
-                <option key={item.code} value={item.code}>
-                  {item.labelZh} ({item.labelEn})
-                </option>
+                <option key={item.code} value={generalPrefs.interfaceLocale === 'en' ? item.labelEn : item.labelZh} />
               ))}
             </datalist>
           </label>
 
           <div className="form-group">
             <div className="chapter-points-label">
-              <span className="form-label">章節要點</span>
+              <span className="form-label">{t('chapterEditor.keyPoints', undefined, locale)}</span>
               <Button
                 variant="secondary"
                 size="sm"
                 onClick={handleRegeneratePoints}
                 disabled={isRegeneratingPoints || !apiReady}
-                title={!apiReady ? '請先設定 API' : !beat ? '建議先設定章節語氣' : ''}
+                title={!apiReady
+                  ? t('chapterEditor.setApiFirst', undefined, locale)
+                  : !beat ? t('chapterEditor.setBeatFirst', undefined, locale) : ''}
               >
-                {isRegeneratingPoints ? '生成中…' : 'AI 重新整理'}
+                {isRegeneratingPoints
+                  ? t('chapterEditor.generating', undefined, locale)
+                  : t('chapterEditor.aiReorganize', undefined, locale)}
               </Button>
             </div>
             <textarea
               className="form-textarea"
               value={points}
               onChange={(event) => setPoints(event.target.value)}
-              placeholder="輸入整章的情節、語氣或方向提示"
+              placeholder={t('chapterEditor.pointsPlaceholder', undefined, locale)}
               style={{ minHeight: 160 }}
               disabled={isRegeneratingPoints}
             />
             <p className="form-hint">
-              AI 重新整理會依章節語氣
-              {referenceChapterId
-                ? `與參考章節「${chapters.find((item) => item.id === referenceChapterId)?.title || '未知'}」`
-                : '（未設定參考章節）'}
-              產生要點。
+              {t('chapterEditor.pointsReferenceHint', {
+                reference: referenceChapterId
+                  ? t('chapterEditor.referenceNamed', {
+                    title: chapters.find((item) => item.id === referenceChapterId)?.title
+                      || t('common.unknown', undefined, locale),
+                  }, locale)
+                  : t('chapterEditor.referenceNotSet', undefined, locale),
+              }, locale)}
             </p>
           </div>
         </div>
@@ -895,7 +914,7 @@ export function ChapterEditor() {
           y={contextMenuPos.y}
           items={[
             {
-              label: '調整內容',
+              label: t('chapterEditor.adjustContent', undefined, locale),
               icon: '✨',
               onClick: openInlineEditModal,
               disabled: !apiReady || isChapterLocked,
@@ -949,53 +968,53 @@ export function ChapterEditor() {
           onClose={() => setShowPartial(false)}
           actions={
             chapter.wikiSyncStatus === 'partial' ? [
-              { label: '重試剩餘', onClick: async () => {
+              { label: t('chapterEditor.retryRemaining', undefined, locale), onClick: async () => {
                   setShowPartial(false); setWikiBusy(true);
                   try {
                     const b = await findLatestIngestBatch(chapter);
                     if (!b) { setWikiBusy(false); return; }
                     const r = await retryRemaining(chapter, b);
-                    setToast({ msg: `重試完成：${r.okCount} 成功、${r.failedCount} 仍失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+                    setToast({ msg: t('chapterEditor.retryCompleted', { ok: r.okCount, failed: r.failedCount }, locale), variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
                   } finally { if (project) await loadChapters(project.id); setWikiBusy(false); }
               }},
-              { label: '還原', onClick: async () => {
+              { label: t('chapterEditor.undo', undefined, locale), onClick: async () => {
                   setShowPartial(false);
                   const b = await findLatestIngestBatch(chapter);
                   if (b) await undoBatch(chapter, b);
                   if (project) await loadChapters(project.id);
               }},
-              { label: '完整重跑', onClick: async () => {
+              { label: t('chapterEditor.rerunAll', undefined, locale), onClick: async () => {
                   setShowPartial(false); setWikiBusy(true);
                   try {
                     const b = await findLatestIngestBatch(chapter);
                     if (b) await undoBatch(chapter, b);
                     const r = await ingestChapter(chapter);
-                    setToast({ msg: `完整重跑完成：${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+                    setToast({ msg: t('chapterEditor.rerunCompleted', { ok: r.okCount, failed: r.failedCount }, locale), variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
                   } finally { if (project) await loadChapters(project.id); setWikiBusy(false); }
               }},
             ] : [
-              { label: '還原後重新 ingest', onClick: async () => {
+              { label: t('chapterEditor.undoAndReingest', undefined, locale), onClick: async () => {
                   setShowPartial(false); setWikiBusy(true);
                   try {
                     const b = await findLatestIngestBatch(chapter);
                     if (b) await undoBatch(chapter, b);
                     const r = await ingestChapter(chapter);
-                    setToast({ msg: `已重新 ingest:${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+                    setToast({ msg: t('chapterEditor.reingestCompleted', { ok: r.okCount, failed: r.failedCount }, locale), variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
                   } finally { if (project) await loadChapters(project.id); setWikiBusy(false); }
               }},
-              { label: '僅還原', onClick: async () => {
+              { label: t('chapterEditor.undoOnly', undefined, locale), onClick: async () => {
                   setShowPartial(false);
                   const b = await findLatestIngestBatch(chapter);
                   if (b) await undoBatch(chapter, b);
                   if (project) await loadChapters(project.id);
               }},
-              { label: '完整重跑', onClick: async () => {
+              { label: t('chapterEditor.rerunAll', undefined, locale), onClick: async () => {
                   setShowPartial(false); setWikiBusy(true);
                   try {
                     const b = await findLatestIngestBatch(chapter);
                     if (b) await undoBatch(chapter, b);
                     const r = await ingestChapter(chapter);
-                    setToast({ msg: `完整重跑完成：${r.okCount} 成功、${r.failedCount} 失敗`, variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
+                    setToast({ msg: t('chapterEditor.rerunCompleted', { ok: r.okCount, failed: r.failedCount }, locale), variant: r.failedCount ? 'warn' : 'success', batchId: r.batchId });
                   } finally { if (project) await loadChapters(project.id); setWikiBusy(false); }
               }},
             ]

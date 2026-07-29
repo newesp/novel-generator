@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import type { LintCheck, LintContext, LintIssue } from '../types';
+import { lintText } from '../messages';
 
 /**
  * 過濾佔位字串 — wiki ingest 偶爾把「Aliases: (無)」這種 markdown 佔位符
@@ -44,8 +45,16 @@ export const aliasDupCheck: LintCheck = {
         checkId: 'alias-dup',
         severity: 'error',
         status: 'open',
-        title: `「${name}」同時是 ${labels.join('、')} 的別名或標題`,
-        detail: `${labels.length} 個 wiki 頁共用名稱「${name}」。Wiki ingest 與 relevance filter 會無法正確區分；請人工合併或調整其中一頁的別名。`,
+        title: lintText(
+          ctx,
+          `「${name}」同時是 ${labels.join('、')} 的別名或標題`,
+          `"${name}" is a title or alias on ${labels.join(', ')}`,
+        ),
+        detail: lintText(
+          ctx,
+          `${labels.length} 個 wiki 頁共用名稱「${name}」。Wiki ingest 與 relevance filter 會無法正確區分；請人工合併或調整其中一頁的別名。`,
+          `${labels.length} Wiki pages share the name "${name}". Wiki ingest and the relevance filter cannot distinguish them reliably; merge the pages or adjust an alias manually.`,
+        ),
         targets: [...uniquePages.entries()].map(([pageId, label]) => ({
           kind: 'wikiPage' as const, id: pageId, label,
         })),

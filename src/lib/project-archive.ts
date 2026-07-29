@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
-import { describeSnapshot, exportSnapshot, importSnapshot, type BackupSnapshot } from './backup';
+import { exportSnapshot, importSnapshot, type BackupSnapshot } from './backup';
 import { isTauri } from './platform';
+import { t, type InterfaceLocale } from './language-policy';
 
 export interface ProjectArchiveMissingFile {
   assetId: string;
@@ -12,7 +13,7 @@ export interface ProjectArchiveResult {
   path?: string;
   mediaFileCount: number;
   missingFiles: ProjectArchiveMissingFile[];
-  snapshotDescription: string;
+  snapshot: BackupSnapshot;
 }
 
 interface ExportProjectArchiveTauriResult {
@@ -37,9 +38,9 @@ interface ImportProjectArchiveArgs {
   title: string;
 }
 
-export async function exportProjectArchive(): Promise<ProjectArchiveResult | null> {
+export async function exportProjectArchive(locale: InterfaceLocale = 'zh-TW'): Promise<ProjectArchiveResult | null> {
   if (!isTauri()) {
-    throw new Error('完整專案 ZIP 匯出目前只支援 Tauri 桌面版');
+    throw new Error(t('backup.zipExportDesktopOnly', undefined, locale));
   }
 
   const snapshot = await exportSnapshot();
@@ -48,7 +49,7 @@ export async function exportProjectArchive(): Promise<ProjectArchiveResult | nul
     args: {
       filename: `novel-generator-project-${timestamp}.zip`,
       snapshotJson: JSON.stringify(snapshot, null, 2),
-      title: '選擇完整專案 ZIP 匯出位置',
+      title: t('backup.zipExportPickerTitle', undefined, locale),
     } satisfies ExportProjectArchiveArgs,
   });
   if (!result) return null;
@@ -57,27 +58,27 @@ export async function exportProjectArchive(): Promise<ProjectArchiveResult | nul
     path: result.path,
     mediaFileCount: result.mediaFileCount,
     missingFiles: result.missingFiles,
-    snapshotDescription: describeSnapshot(snapshot),
+    snapshot,
   };
 }
 
-export async function importProjectArchive(): Promise<ProjectArchiveResult | null> {
+export async function importProjectArchive(locale: InterfaceLocale = 'zh-TW'): Promise<ProjectArchiveResult | null> {
   if (!isTauri()) {
-    throw new Error('完整專案 ZIP 匯入目前只支援 Tauri 桌面版');
+    throw new Error(t('backup.zipImportDesktopOnly', undefined, locale));
   }
 
   const result = await invoke<ImportProjectArchiveTauriResult | null>('import_project_archive_from_picked_file', {
     args: {
-      title: '選擇完整專案 ZIP',
+      title: t('backup.zipImportPickerTitle', undefined, locale),
     } satisfies ImportProjectArchiveArgs,
   });
   if (!result) return null;
 
   const snapshot = JSON.parse(result.snapshotJson) as BackupSnapshot;
-  await importSnapshot(snapshot, 'replace');
+  await importSnapshot(snapshot, 'replace', locale);
   return {
     mediaFileCount: result.mediaFileCount,
     missingFiles: result.missingFiles,
-    snapshotDescription: describeSnapshot(snapshot),
+    snapshot,
   };
 }

@@ -43,6 +43,17 @@ export const COMIC_VIDEO_VOICE_GROUPS: ComicVideoVoiceGroup[] = [
       { id: 'zh-HK-WanLungNeural', label: 'zh-HK-WanLungNeural' },
     ],
   },
+  {
+    label: 'English (US)',
+    voices: [
+      { id: 'en-US-AriaNeural', label: 'en-US-AriaNeural' },
+      { id: 'en-US-GuyNeural', label: 'en-US-GuyNeural' },
+      { id: 'en-US-JennyNeural', label: 'en-US-JennyNeural' },
+      { id: 'en-US-ChristopherNeural', label: 'en-US-ChristopherNeural' },
+      { id: 'en-US-EricNeural', label: 'en-US-EricNeural' },
+      { id: 'en-US-MichelleNeural', label: 'en-US-MichelleNeural' },
+    ],
+  },
 ];
 
 export const COMIC_VIDEO_VOICES: ComicVideoVoice[] = COMIC_VIDEO_VOICE_GROUPS.flatMap(

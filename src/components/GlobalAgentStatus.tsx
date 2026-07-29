@@ -7,8 +7,11 @@ import {
   isOpenGenerationRun,
   normalizedActivity,
 } from '../lib/multi-agent/presentation';
+import { useSettingsStore } from '../stores/settingsStore';
+import { t } from '../lib/language-policy';
 
 export function GlobalAgentStatus() {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   const runs = useGenerationRunStore((state) => state.runs);
   const openAgentRun = useUIStore((state) => state.openAgentRun);
   const openRuns = runs.filter(isOpenGenerationRun);
@@ -19,19 +22,21 @@ export function GlobalAgentStatus() {
     ?? openRuns.find((run) => run.status === 'awaiting_input');
 
   if (!current) return null;
-  const activity = normalizedActivity(current);
+  const activity = normalizedActivity(current, locale);
   const queuedCount = openRuns.filter((run) => run.id !== current.id && run.status === 'pending').length;
-  const chapterTitle = current.snapshot.chapterTitle || `第 ${current.snapshot.chapterNumber ?? '?'} 章`;
+  const chapterTitle = current.snapshot.chapterTitle || t('agent.chapterFallbackTitle', {
+    number: current.snapshot.chapterNumber ?? '?',
+  }, locale);
   const message = current.status === 'awaiting_input'
     ? activity.message
-    : `${chapterTitle}${queuedCount > 0 ? ` · 另有 ${queuedCount} 個任務排隊` : ''}`;
+    : `${chapterTitle}${queuedCount > 0 ? t('agent.additionalQueued', { count: queuedCount }, locale) : ''}`;
 
   return (
     <div
       className="global-agent-status"
       role="button"
       tabIndex={0}
-      title="前往目前的 Agent 執行"
+      title={t('agent.openCurrentRun', undefined, locale)}
       onClick={() => openAgentRun(current.chapterId, current.id)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -42,7 +47,7 @@ export function GlobalAgentStatus() {
     >
       <AIActivityCard
         role={activity.currentRole}
-        title={generationRunTitle(current)}
+        title={generationRunTitle(current, locale)}
         message={message}
         startedAt={activity.startedAt ?? current.createdAt}
         tone={generationRunTone(current)}

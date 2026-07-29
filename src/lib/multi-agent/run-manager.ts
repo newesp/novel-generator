@@ -92,6 +92,9 @@ export async function createGenerationRun(
     sanitizeProfiles[p.id] = safeP;
   }
 
+  const project = await storage.projects.get(bookId);
+  const writingLanguage = project?.writingLanguage ?? 'zh-Hant';
+
   const snapshot: GenerationContextSnapshot = {
     storyTitle,
     chapterNumber,
@@ -102,6 +105,7 @@ export async function createGenerationRun(
     criticThresholds: multiAgentPrefs.criticThresholds,
     maxRevisions: multiAgentPrefs.maxRevisions,
     profilesSnapshot: sanitizeProfiles,
+    writingLanguage,
     createdAt: Date.now(),
   };
 

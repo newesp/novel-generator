@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Bot, X } from 'lucide-react';
 import type { GenerationStepRole } from '../../types';
 import type { ActivityTone } from '../../lib/multi-agent/presentation';
+import { t } from '../../lib/language-policy';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { Button } from './Button';
 
 type ActivityRole = GenerationStepRole | 'assistant';
@@ -55,6 +57,7 @@ export function AIActivityCard({
   onDismiss,
   onClose,
 }: AIActivityCardProps) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   const [, setClock] = useState(0);
   const handleDismiss = onDismiss || onClose;
 
@@ -83,8 +86,8 @@ export function AIActivityCard({
       <div className="ai-activity-main">
         <div className="ai-activity-heading">
           <strong>{title}</strong>
-          {running && <span className="ai-activity-pulse">執行中</span>}
-          {elapsed && <time>已經過 {elapsed}</time>}
+          {running && <span className="ai-activity-pulse">{t('activity.running', undefined, locale)}</span>}
+          {elapsed && <time>{t('activity.elapsed', { elapsed }, locale)}</time>}
         </div>
         {message && <div className="ai-activity-message">{message}</div>}
         {errorMessage && <div className="ai-activity-error">{errorMessage}</div>}
@@ -118,8 +121,8 @@ export function AIActivityCard({
           type="button"
           className="ai-activity-close-btn"
           onClick={handleDismiss}
-          title="關閉"
-          aria-label="關閉"
+          title={t('common.close', undefined, locale)}
+          aria-label={t('common.close', undefined, locale)}
         >
           <X size={16} />
         </button>

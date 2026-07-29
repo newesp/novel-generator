@@ -3,6 +3,8 @@ import { Button } from '../common/Button';
 import { useLintStore } from '../../stores/lintStore';
 import { useWikiStore } from '../../stores/wikiStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import { LintFixPreviewModal } from './LintFixPreviewModal';
 import type { LintIssue, IssueTarget } from '../../lib/lint/types';
 import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
@@ -23,9 +25,10 @@ export function LintIssueRow({ issue }: Props) {
     busyIssueIds, fixSuggestions,
     applyAutoFix, generateFix, dismiss,
   } = useLintStore();
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
 
   const [expanded, setExpanded] = useState(false);
-  const fixActivity = useLocalAIActivity();
+  const fixActivity = useLocalAIActivity(locale);
 
   const busy = busyIssueIds.has(issue.id);
   const direction = userDirections[issue.id] ?? '';
@@ -39,10 +42,10 @@ export function LintIssueRow({ issue }: Props) {
 
   const handleGenerateFix = async () => {
     const target = wikiTargets.find((item) => item.id === selectedFixTargetId) ?? wikiTargets[0];
-    const signal = fixActivity.start(`正在分析 ${target?.label ?? '目標 Wiki 頁'} 並產生完整修改預覽…`);
+    const signal = fixActivity.start(t('lint.aiAnalyzing', { target: target?.label ?? 'Wiki' }, locale));
     try {
       await generateFix(issue, signal);
-      fixActivity.succeed('修改建議已完成；套用前可先比較差異');
+      fixActivity.succeed(t('lint.aiSuccess', undefined, locale));
     } catch (error) {
       fixActivity.fail(error);
     }
@@ -59,7 +62,7 @@ export function LintIssueRow({ issue }: Props) {
         <span style={{ width: 20, flex: '0 0 20px' }}>{SEVERITY_ICON[issue.severity]}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 500 }}>
-            {isApplied && '[已修復] '}{isDismissed && '[已忽略] '}{issue.title}
+            {isApplied && t('lint.rowApplied', undefined, locale)}{isDismissed && t('lint.rowDismissed', undefined, locale)}{issue.title}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
             {issue.detail}
@@ -73,22 +76,22 @@ export function LintIssueRow({ issue }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {!isStruck && issue.fix?.kind === 'removeRelatedSlug' && (
             <Button variant="secondary" size="sm" onClick={() => applyAutoFix(issue)} disabled={busy}>
-              🔧 一鍵移除
+              {t('lint.actionRemove', undefined, locale)}
             </Button>
           )}
           {!isStruck && issue.fix?.kind === 'renameWikiSlug' && (
             <Button variant="secondary" size="sm" onClick={() => applyAutoFix(issue)} disabled={busy}>
-              重命名 slug
+              {t('lint.actionRename', undefined, locale)}
             </Button>
           )}
           {!isStruck && issue.fix?.kind === 'llm' && (
             <Button variant="secondary" size="sm" onClick={() => setExpanded((v) => !v)}>
-              ✏️ 修改 {expanded ? '▴' : '▾'}
+              {t('lint.actionLlm', undefined, locale)} {expanded ? '▴' : '▾'}
             </Button>
           )}
           {!isStruck && issue.checkId === 'unrecorded' && (
             <Button variant="secondary" size="sm" onClick={() => dismiss(issue.id)}>
-              — 維持現狀
+              {t('lint.actionDismiss', undefined, locale)}
             </Button>
           )}
         </div>
@@ -100,8 +103,8 @@ export function LintIssueRow({ issue }: Props) {
             <div style={{ marginBottom: 8 }}>
               <LocalAIActivityCard
                 activity={fixActivity.activity}
-                title="AI 助理產生 Lint 修改建議"
-                message={`正在分析 ${wikiTargets.find((item) => item.id === selectedFixTargetId)?.label ?? '目標 Wiki 頁'}…`}
+                title={t('lint.aiTitle', undefined, locale)}
+                message={t('lint.aiAnalyzing', { target: wikiTargets.find((item) => item.id === selectedFixTargetId)?.label ?? 'Wiki' }, locale)}
                 onCancel={fixActivity.cancel}
                 onDismiss={fixActivity.reset}
                 compact
@@ -109,11 +112,11 @@ export function LintIssueRow({ issue }: Props) {
             </div>
           )}
           <div style={{ fontSize: 12, marginBottom: 4 }}>
-            修改方向（可留白，留白則由 AI 自行判斷）：
+            {t('lint.llmDirection', undefined, locale)}
           </div>
           {wikiTargets.length > 1 && (
             <label style={{ display: 'block', fontSize: 12, marginBottom: 6 }}>
-              套用到
+              {t('lint.llmTarget', undefined, locale)}
               <select
                 className="form-input"
                 value={selectedFixTargetId}
@@ -138,7 +141,7 @@ export function LintIssueRow({ issue }: Props) {
             className="form-textarea"
             value={direction}
             onChange={(e) => setUserDirection(issue.id, e.target.value)}
-            placeholder="例如：依 ch-3「王大三十五」為準"
+            placeholder={t('lint.llmPlaceholder', undefined, locale)}
             style={{
               width: '100%', minHeight: 60,
               padding: 6, fontFamily: 'inherit', fontSize: 12,
@@ -146,9 +149,9 @@ export function LintIssueRow({ issue }: Props) {
             }}
           />
           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 6 }}>
-            <Button variant="secondary" size="sm" onClick={() => setExpanded(false)} disabled={busy}>取消</Button>
+            <Button variant="secondary" size="sm" onClick={() => setExpanded(false)} disabled={busy}>{t('common.cancel', undefined, locale)}</Button>
             <Button variant="primary" size="sm" onClick={() => void handleGenerateFix()} disabled={busy}>
-              {busy ? '生成中…' : '✨ 生成建議修改'}
+              {busy ? t('lint.llmGenerating', undefined, locale) : t('lint.llmGenerate', undefined, locale)}
             </Button>
           </div>
         </div>

@@ -1,33 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ImageProviderId, LLMConfig, LLMProfile, MultiAgentPrefs } from '../types';
-
-import {
-  DEFAULT_CHAPTER_DRAFTS_TEMPLATE,
-  DEFAULT_CHAPTER_CONTINUATION_RULES,
-  DEFAULT_CHAPTER_CONTENT_TEMPLATE,
-  DEFAULT_CHAPTER_POINTS_TEMPLATE,
-  DEFAULT_CHARACTER_DRAFTS_TEMPLATE,
-  DEFAULT_INLINE_ADJUST_TEMPLATE,
-  DEFAULT_COMIC_STORYBOARD_TEMPLATE,
-  DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
-  DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
-  DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
-  DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
-  DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE,
-  DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE,
-  DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE,
-  DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
-} from '../lib/prompt-defaults';
-import { DEFAULT_LINT_PREFS, type LintPrefs } from '../lib/lint/types';
 import {
   detectInitialLocale,
   mapLocaleToDefaultWritingLanguage,
+  t,
   type GeneralPrefs,
+  type InterfaceLocale,
 } from '../lib/language-policy';
+import { DEFAULT_LINT_PREFS, type LintPrefs } from '../lib/lint/types';
+import { getBuiltInPrompts } from '../lib/prompt-defaults';
 
-// 為了相容舊 import 路徑，re-export
-export { DEFAULT_CHAPTER_CONTINUATION_RULES };
+export const DEFAULT_CHAPTER_CONTINUATION_RULES = getBuiltInPrompts('zh-TW').DEFAULT_CHAPTER_CONTINUATION_RULES;
 
 export type InlineEditContextMode = 'window' | 'full';
 
@@ -238,19 +222,69 @@ export const DEFAULT_MULTI_AGENT_PREFS: MultiAgentPrefs = {
   },
 };
 
-export function validateCriticThresholds(floor: number, pass: number): { valid: boolean; message?: string } {
-  if (floor < 0 || floor > 100) return { valid: false, message: '人工審核門檻 (humanReviewFloor) 必須介於 0–100' };
-  if (pass < 0 || pass > 100) return { valid: false, message: '自動通過門檻 (passScore) 必須介於 0–100' };
-  if (floor >= pass) return { valid: false, message: '人工審核門檻必須小於自動通過門檻 (humanReviewFloor < passScore)' };
+export function getBuiltInMultiAgentPrefs(locale: 'zh-TW' | 'en'): MultiAgentPrefs {
+  const isEn = locale === 'en';
+  return {
+    ...DEFAULT_MULTI_AGENT_PREFS,
+    agents: {
+      planner: {
+        profileId: null,
+        roleGuidance: isEn
+          ? 'Generate a detailed chapter outline based on chapter beats, points, context, and knowledge data.'
+          : '根據章節節拍、要點、上下文與知識資料產生章節細綱。',
+      },
+      writer: {
+        profileId: null,
+        roleGuidance: isEn
+          ? 'Write the chapter content based on the approved detailed outline and context.'
+          : '依核准的生成細綱與上下文寫作章節正文。',
+      },
+      critic: {
+        profileId: null,
+        roleGuidance: isEn
+          ? 'Evaluate the draft quality based on standard scoring dimensions, point out major flaws, and provide revision suggestions.'
+          : '依標準評分維度評估草稿品質，指出重大缺陷並給出修訂建議。',
+      },
+      editor: {
+        profileId: null,
+        roleGuidance: isEn
+          ? 'Revise the chapter content based on the Critic\'s review suggestions.'
+          : '依 Critic 審核建議修訂章節正文。',
+      },
+    },
+  };
+}
+
+export function validateCriticThresholds(
+  floor: number,
+  pass: number,
+  interfaceLocale: InterfaceLocale = 'zh-TW',
+): { valid: boolean; message?: string } {
+  if (floor < 0 || floor > 100) {
+    return { valid: false, message: t('prefsAgent.humanReviewFloorOutOfRange', undefined, interfaceLocale) };
+  }
+  if (pass < 0 || pass > 100) {
+    return { valid: false, message: t('prefsAgent.passScoreOutOfRange', undefined, interfaceLocale) };
+  }
+  if (floor >= pass) {
+    return { valid: false, message: t('prefsAgent.thresholdOrderInvalid', undefined, interfaceLocale) };
+  }
   return { valid: true };
 }
 
-export function validateCriticWeights(weights: MultiAgentPrefs['criticRubricWeights']): { valid: boolean; total: number; message?: string } {
+export function validateCriticWeights(
+  weights: MultiAgentPrefs['criticRubricWeights'],
+  interfaceLocale: InterfaceLocale = 'zh-TW',
+): { valid: boolean; total: number; message?: string } {
   const values = Object.values(weights);
   const hasNegative = values.some((v) => typeof v !== 'number' || v < 0);
   const total = values.reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0);
-  if (hasNegative) return { valid: false, total, message: '所有維度權重必須為非負數' };
-  if (total !== 100) return { valid: false, total, message: `六維度配分總和必須為 100（目前為 ${total}）` };
+  if (hasNegative) {
+    return { valid: false, total, message: t('prefsAgent.rubricNegative', undefined, interfaceLocale) };
+  }
+  if (total !== 100) {
+    return { valid: false, total, message: t('prefsAgent.rubricTotalInvalid', { total }, interfaceLocale) };
+  }
   return { valid: true, total };
 }
 
@@ -305,22 +339,52 @@ const DEFAULT_AI_PROMPTS: AIPromptPrefs = {
   summaryGeneration: DEFAULT_PROMPT_PAIRS_ZH.summaryGeneration,
   wikiIngest: DEFAULT_PROMPT_PAIRS_ZH.wikiIngest,
 
-  chapterDraftsTemplate: DEFAULT_CHAPTER_DRAFTS_TEMPLATE,
-  chapterContinuationRules: DEFAULT_CHAPTER_CONTINUATION_RULES,
-  chapterContentTemplate: DEFAULT_CHAPTER_CONTENT_TEMPLATE,
-  chapterPointsTemplate: DEFAULT_CHAPTER_POINTS_TEMPLATE,
-  characterDraftsTemplate: DEFAULT_CHARACTER_DRAFTS_TEMPLATE,
-  inlineAdjustTemplate: DEFAULT_INLINE_ADJUST_TEMPLATE,
-  comicStoryboardTemplate: DEFAULT_COMIC_STORYBOARD_TEMPLATE,
-  wikiIngestPlanTemplate: DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
-  wikiIngestCreateTemplate: DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
-  wikiIngestUpdateTemplate: DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
-  wikiQueryAnswerTemplate: DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
-  lintUnrecordedVerifyTemplate: DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE,
-  lintWikiContradictTemplate: DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE,
-  lintWikiVsChapterTemplate: DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE,
-  lintFixSuggestTemplate: DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
+  chapterDraftsTemplate: getBuiltInPrompts('zh-TW').DEFAULT_CHAPTER_DRAFTS_TEMPLATE,
+  chapterContinuationRules: getBuiltInPrompts('zh-TW').DEFAULT_CHAPTER_CONTINUATION_RULES,
+  chapterContentTemplate: getBuiltInPrompts('zh-TW').DEFAULT_CHAPTER_CONTENT_TEMPLATE,
+  chapterPointsTemplate: getBuiltInPrompts('zh-TW').DEFAULT_CHAPTER_POINTS_TEMPLATE,
+  characterDraftsTemplate: getBuiltInPrompts('zh-TW').DEFAULT_CHARACTER_DRAFTS_TEMPLATE,
+  inlineAdjustTemplate: getBuiltInPrompts('zh-TW').DEFAULT_INLINE_ADJUST_TEMPLATE,
+  comicStoryboardTemplate: getBuiltInPrompts('zh-TW').DEFAULT_COMIC_STORYBOARD_TEMPLATE,
+  wikiIngestPlanTemplate: getBuiltInPrompts('zh-TW').DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
+  wikiIngestCreateTemplate: getBuiltInPrompts('zh-TW').DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
+  wikiIngestUpdateTemplate: getBuiltInPrompts('zh-TW').DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
+  wikiQueryAnswerTemplate: getBuiltInPrompts('zh-TW').DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
+  lintUnrecordedVerifyTemplate: getBuiltInPrompts('zh-TW').DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE,
+  lintWikiContradictTemplate: getBuiltInPrompts('zh-TW').DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE,
+  lintWikiVsChapterTemplate: getBuiltInPrompts('zh-TW').DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE,
+  lintFixSuggestTemplate: getBuiltInPrompts('zh-TW').DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
 };
+
+export function getBuiltInAIPrompts(locale: 'zh-TW' | 'en'): AIPromptPrefs {
+  const pairs = locale === 'en' ? DEFAULT_PROMPT_PAIRS_EN : DEFAULT_PROMPT_PAIRS_ZH;
+  const strings = getBuiltInPrompts(locale);
+  return {
+    chapterDrafts: pairs.chapterDrafts,
+    chapterOutline: pairs.chapterOutline,
+    characterProfile: pairs.characterProfile,
+    expandContent: pairs.expandContent,
+    polishContent: pairs.polishContent,
+    summaryGeneration: pairs.summaryGeneration,
+    wikiIngest: pairs.wikiIngest,
+
+    chapterDraftsTemplate: strings.DEFAULT_CHAPTER_DRAFTS_TEMPLATE,
+    chapterContinuationRules: strings.DEFAULT_CHAPTER_CONTINUATION_RULES,
+    chapterContentTemplate: strings.DEFAULT_CHAPTER_CONTENT_TEMPLATE,
+    chapterPointsTemplate: strings.DEFAULT_CHAPTER_POINTS_TEMPLATE,
+    characterDraftsTemplate: strings.DEFAULT_CHARACTER_DRAFTS_TEMPLATE,
+    inlineAdjustTemplate: strings.DEFAULT_INLINE_ADJUST_TEMPLATE,
+    comicStoryboardTemplate: strings.DEFAULT_COMIC_STORYBOARD_TEMPLATE,
+    wikiIngestPlanTemplate: strings.DEFAULT_WIKI_INGEST_PLAN_TEMPLATE,
+    wikiIngestCreateTemplate: strings.DEFAULT_WIKI_INGEST_CREATE_TEMPLATE,
+    wikiIngestUpdateTemplate: strings.DEFAULT_WIKI_INGEST_UPDATE_TEMPLATE,
+    wikiQueryAnswerTemplate: strings.DEFAULT_WIKI_QUERY_ANSWER_TEMPLATE,
+    lintUnrecordedVerifyTemplate: strings.DEFAULT_LINT_UNRECORDED_VERIFY_TEMPLATE,
+    lintWikiContradictTemplate: strings.DEFAULT_LINT_WIKI_CONTRADICT_TEMPLATE,
+    lintWikiVsChapterTemplate: strings.DEFAULT_LINT_WIKI_VS_CHAPTER_TEMPLATE,
+    lintFixSuggestTemplate: strings.DEFAULT_LINT_FIX_SUGGEST_TEMPLATE,
+  };
+}
 
 function deepMergeLintPrefs(base: LintPrefs, patch: DeepPartial<LintPrefs>): LintPrefs {
   return {
@@ -386,7 +450,69 @@ export const useSettingsStore = create<SettingsState>()(
       lintPrefs: { ...DEFAULT_LINT_PREFS },
       multiAgentPrefs: { ...DEFAULT_MULTI_AGENT_PREFS },
       setGeneralPrefs: (prefs) =>
-        set((state) => ({ generalPrefs: { ...state.generalPrefs, ...prefs } })),
+        set((state) => {
+          const nextGeneralPrefs = { ...state.generalPrefs, ...prefs };
+          if (prefs.interfaceLocale && prefs.interfaceLocale !== state.generalPrefs.interfaceLocale) {
+            const currentPrompts = state.aiPrompts;
+            const nextPrompts = { ...currentPrompts };
+            const currentBuiltIn = getBuiltInAIPrompts(state.generalPrefs.interfaceLocale);
+            const nextBuiltIn = getBuiltInAIPrompts(prefs.interfaceLocale);
+            const defaultZH = getBuiltInAIPrompts('zh-TW');
+
+            const pairKeys: (keyof AIPromptPrefs)[] = [
+              'chapterDrafts', 'chapterOutline', 'characterProfile', 'expandContent',
+              'polishContent', 'summaryGeneration', 'wikiIngest'
+            ];
+            for (const key of pairKeys) {
+              const val = currentPrompts[key] as PromptPair;
+              const builtinVal = currentBuiltIn[key] as PromptPair;
+              const zhVal = defaultZH[key] as PromptPair;
+              if (val && builtinVal && zhVal && (val.systemPrompt === builtinVal.systemPrompt || val.systemPrompt === zhVal.systemPrompt)) {
+                (nextPrompts as any)[key] = nextBuiltIn[key];
+              }
+            }
+
+            const templateKeys: (keyof AIPromptPrefs)[] = [
+              'chapterDraftsTemplate', 'chapterContinuationRules', 'chapterContentTemplate',
+              'chapterPointsTemplate', 'characterDraftsTemplate', 'inlineAdjustTemplate',
+              'comicStoryboardTemplate', 'wikiIngestPlanTemplate', 'wikiIngestCreateTemplate',
+              'wikiIngestUpdateTemplate', 'wikiQueryAnswerTemplate', 'lintUnrecordedVerifyTemplate',
+              'lintWikiContradictTemplate', 'lintWikiVsChapterTemplate', 'lintFixSuggestTemplate'
+            ];
+            for (const key of templateKeys) {
+              const val = currentPrompts[key] as string;
+              const builtinVal = (currentBuiltIn as any)[key] as string;
+              const zhVal = (defaultZH as any)[key] as string;
+              if (val === builtinVal || val === zhVal) {
+                (nextPrompts as any)[key] = (nextBuiltIn as any)[key];
+              }
+            }
+
+            const currentMultiAgent = state.multiAgentPrefs;
+            const nextMultiAgent = {
+              ...currentMultiAgent,
+              agents: { ...currentMultiAgent.agents },
+            };
+            const currentBuiltInMA = getBuiltInMultiAgentPrefs(state.generalPrefs.interfaceLocale);
+            const nextBuiltInMA = getBuiltInMultiAgentPrefs(prefs.interfaceLocale);
+            const defaultZHMA = getBuiltInMultiAgentPrefs('zh-TW');
+
+            for (const agentKey of ['planner', 'writer', 'critic', 'editor'] as const) {
+              const val = currentMultiAgent.agents[agentKey].roleGuidance;
+              const builtinVal = currentBuiltInMA.agents[agentKey].roleGuidance;
+              const zhVal = defaultZHMA.agents[agentKey].roleGuidance;
+              if (val === builtinVal || val === zhVal) {
+                nextMultiAgent.agents[agentKey] = {
+                  ...nextMultiAgent.agents[agentKey],
+                  roleGuidance: nextBuiltInMA.agents[agentKey].roleGuidance,
+                };
+              }
+            }
+
+            return { generalPrefs: nextGeneralPrefs, aiPrompts: nextPrompts, multiAgentPrefs: nextMultiAgent };
+          }
+          return { generalPrefs: nextGeneralPrefs };
+        }),
       setLlmProfiles: (profiles, activeId) =>
         set((state) => {
           const validProfiles = profiles.length > 0 ? profiles : [DEFAULT_LLM_PROFILE];

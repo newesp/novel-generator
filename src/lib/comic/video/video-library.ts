@@ -19,10 +19,12 @@ export function buildComicVideoLibrary({
   comic,
   panels,
   assets,
+  locale = 'zh-TW',
 }: {
   comic: ChapterComic | null;
   panels: ComicPanel[];
   assets: MediaAsset[];
+  locale?: 'zh-TW' | 'en';
 }): ComicVideoLibraryItem[] {
   if (!comic) return [];
   const assetById = new Map(
@@ -36,7 +38,7 @@ export function buildComicVideoLibrary({
     items.push(videoItem({
       id: `chapter:${comic.id}`,
       kind: 'chapter',
-      label: '整章 MP4',
+      label: locale === 'en' ? 'Chapter MP4' : '整章 MP4',
       assetId: comic.videoAssetId,
       asset: assetById.get(comic.videoAssetId),
     }));
@@ -46,7 +48,7 @@ export function buildComicVideoLibrary({
     items.push(videoItem({
       id: `subtitle:${comic.id}`,
       kind: 'subtitle',
-      label: '整章字幕 SRT',
+      label: locale === 'en' ? 'Chapter Subtitles SRT' : '整章字幕 SRT',
       assetId: comic.subtitleAssetId,
       asset: assetById.get(comic.subtitleAssetId),
     }));

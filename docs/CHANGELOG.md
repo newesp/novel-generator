@@ -1,5 +1,37 @@
 # 開發日誌
 
+## 2026-07-29 - 完成全站中英介面覆蓋與動態語言邊界
+
+- 將首頁、導覽、Toolbar、偏好設定、大綱、角色、章節、編輯器、Wiki、Lint、搜尋、備份、漫畫、場景、影片及 Multi-Agent 工作區全面接入 `zh-TW` / `en` locale catalog。
+- 新增 production JSX 在地化回歸測試，阻止可見中文字串再次以硬編碼形式進入元件。
+- 將介面語言與書本創作語言徹底分離：AI 正文、章節、角色、Wiki、Lint 修復、漫畫分鏡及 TTS 依書本 `writingLanguage`；按鈕、狀態、驗證、錯誤及原生檔案選擇器依 `interfaceLocale`。
+- 英文書籍預設使用英文 TTS voice，單格與整章影片輸出都會驗證 voice 與創作語言相符；試聽文字也依書本創作語言。
+- 補齊圖片 provider、LLM profile、Multi-Agent、Wiki/Lint、備份與同步等底層動態訊息的英文呈現，避免英文介面仍透出中文錯誤。
+- Tauri 視窗標題會隨介面語言即時更新；初始標題改為中性的 `Novel Generator`。
+
+**Verification**
+- `npm.cmd exec tsc -- -b --pretty false` 通過。
+- `npm.cmd exec vitest -- run --maxWorkers=1 --fileParallelism=false`：82 files、313 tests 全數通過。
+- `src/lib/language-policy/ui-localization.test.ts` 通過，production JSX 無硬編碼可見漢字。
+
+## 2026-07-28 - 建立 Interface Locale 切換閉環與 Language Policy seam (Issue #16)
+
+- 實作全站通用翻譯介面 `t()`，從 `app`, `navigation`, `home`, `toolbar` namespace 切入，取代硬編碼中文。
+- 檢視並修復 `detectInitialLocale`，讓 `en` / `zh-TW` 的 Interface Locale 切換正確寫入並生效。
+- 確認 `<html lang>`、日期、字數與成本格式化受 Interface Locale 驅動。
+
+## 2026-07-28 - 建立不可變的書籍 Writing Language (Issue #17)
+
+- 新增書本表單提供繁體中文／English Writing Language 選項，並預設帶入全域偏好設定。
+- 書籍建立後 `writingLanguage` 永久保存為唯讀，並於章節編輯器工具列以 Badge 標示。
+- 載入或匯入時，確保缺少 `writingLanguage` 的舊書籍／舊備份一律正規化為 `zh-Hant`。
+
+## 2026-07-28 - 以穩定代碼在地化題材、風格與章節節拍 (Issue #18)
+
+- 實作 `GENRE_PRESETS`, `STYLE_PRESETS`, `BEAT_PRESETS`，讓內建題材、風格與節拍以穩定代碼 (code) 保存。
+- 在 `NewBookModal`, `OutlinePanel`, `ChapterEditor` 中實作端到端的 localized preset 流程，UI 依 Interface Locale 顯示對應中英文名稱，儲存時自動正規化為 code。
+- 確保舊中文與既有中英混合內建值可冪等正規化，無法辨識的值成為 Custom 保留原文。
+
 ## 2026-07-28 - 完成 i18n & Writing Language 功能 (Ticket #16 ~ #25)
 
 - **Ticket #16**: 實作 Interface Locale 切換閉環與 Language Policy seam（支援 `zh-TW` / `en` 切換、自動偵測與預設寫入）。
@@ -9,9 +41,9 @@
 - **Ticket #20**: 實作大綱與章節草稿 (Outline / Drafts) LLM 語意邊界與 Prompt 語系隔離。
 - **Ticket #21**: 實作章節正文與段落擴充／潤色 LLM 語意邊界。
 - **Ticket #22**: 實作角色草稿、摘要提煉與角色卡雙語系 LLM 語意邊界。
-- **Ticket #23**: 實作 Multi-Agent (Planner / Critic / Editor) LLM 語意邊界與雙語系評審系統提示詞。
-- **Ticket #24**: 實作摘要與 Wiki Ingest / Query LLM 語意邊界（雙語系標題、實體抽取與 Index JSON 格式化）。
-- **Ticket #25**: 實作 Lint 診斷與修復建議 LLM 語意邊界。
+- **Ticket #23**: 讓漫畫與場景區分 Story Content／Technical Prompt，實作介面雙語化。
+- **Ticket #24**: 加入英文 TTS 語音，並實作影片語言驗證預檢與介面雙語化。
+- **Ticket #25**: 收斂 legacy 相容層並完成全站雙語驗收，通過 `tsc -b` 與 `vitest`。
 
 **Verification**
 - 執行 `npx vitest run` 所有 150+ 個單元測試全數通過（含新增之 `policy.test.ts`, `presets.test.ts`, `ai-tasks.drafts-language.test.ts`, `content-generation-language.test.ts`, `character-language.test.ts`, `agents-language.test.ts`, `wiki-language.test.ts`, `llm-fix-language.test.ts`）。

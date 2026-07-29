@@ -300,6 +300,27 @@ describe('complete and completeNormalized', () => {
       expect(result.message).not.toContain(secretKey);
       expect(result.message).toContain('***');
     });
+
+    it('uses the interface locale for profile verification messages', async () => {
+      const incompleteProfile: LLMProfile = {
+        id: 'prof-incomplete',
+        name: 'Incomplete',
+        provider: 'custom',
+        baseUrl: '',
+        apiKey: '',
+        model: 'gpt-4o',
+        temperature: 0.7,
+        maxTokens: 100,
+        timeoutSec: 30,
+      };
+
+      const englishResult = await verifyLLMProfile(incompleteProfile, 'en');
+      const chineseResult = await verifyLLMProfile(incompleteProfile, 'zh-TW');
+
+      expect(englishResult.message).toContain('Verification failed');
+      expect(englishResult.message).not.toMatch(/\p{Script=Han}/u);
+      expect(chineseResult.message).toContain('驗證失敗');
+    });
   });
 
   describe('Settings Migration & Profile Backups', () => {

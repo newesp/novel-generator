@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { Project } from '../../types';
 
 import { useSettingsStore } from '../../stores/settingsStore';
-import { resolveGenreLabel } from '../../lib/language-policy';
+import { resolveGenreLabel, t, formatDate, formatWordCount } from '../../lib/language-policy';
 
 // genre → hue for colour placeholder
 const GENRE_COLORS: Record<string, string> = {
@@ -24,10 +24,7 @@ function genreBg(genre: string): string {
   return GENRE_COLORS[genre] ?? '#4b5563';
 }
 
-function formatDate(ts: number): string {
-  const d = new Date(ts);
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-}
+// Removed local formatDate
 
 interface Props {
   book: Project;
@@ -70,17 +67,19 @@ export function BookCard({ book, wordCount, onOpen, onRename, onDelete }: Props)
 
       {/* Info */}
       <div className="book-info">
-        <div className="book-title">{book.title || '（無書名）'}</div>
+        <div className="book-title">{book.title || t('home.untitled', undefined, locale)}</div>
         <div className="book-meta">
           <span style={{ fontSize: 11, padding: '1px 5px', borderRadius: 4, background: 'rgba(255, 255, 255, 0.1)', color: 'var(--text-secondary)' }}>
-            {book.writingLanguage === 'en' ? 'EN' : '繁中'}
+            {book.writingLanguage === 'en'
+              ? t('toolbar.languageEnShort', undefined, locale)
+              : t('toolbar.languageZhShort', undefined, locale)}
           </span>
           <span>·</span>
           {genreLabel && <span>{genreLabel}</span>}
           {genreLabel && <span>·</span>}
-          <span>{wordCount.toLocaleString()} 字</span>
+          <span>{formatWordCount(wordCount, locale)}</span>
         </div>
-        <div className="book-date">更新 {formatDate(book.updatedAt)}</div>
+        <div className="book-date">{t('home.updatedAt', undefined, locale)} {formatDate(book.updatedAt, locale)}</div>
       </div>
 
       {/* ⋯ menu button */}
@@ -96,13 +95,13 @@ export function BookCard({ book, wordCount, onOpen, onRename, onDelete }: Props)
               className="book-menu-item"
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onRename(); }}
             >
-              ✏️ 重命名
+              ✏️ {t('common.rename', undefined, locale)}
             </div>
             <div
               className="book-menu-item danger"
               onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(); }}
             >
-              🗑 刪除
+              🗑 {t('common.delete', undefined, locale)}
             </div>
           </div>
         )}

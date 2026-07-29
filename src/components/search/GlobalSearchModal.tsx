@@ -5,6 +5,8 @@ import type { SearchHit, SearchScope } from '../../lib/search/types';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
 import { useWikiStore } from '../../stores/wikiStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import { Input } from '../common/Input';
 import { Modal } from '../common/Modal';
 
@@ -13,14 +15,11 @@ interface Props {
   onClose: () => void;
 }
 
-const SCOPE_TABS: { value: SearchScope; label: string }[] = [
-  { value: 'both', label: '全部' },
-  { value: 'chapter', label: '章節' },
-  { value: 'wikiPage', label: 'Wiki' },
-];
+
 
 export function GlobalSearchModal({ open, onClose }: Props) {
   const project = useProjectStore((s) => s.project);
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   const setSelectedChapterId = useUIStore((s) => s.setSelectedChapterId);
   const setActiveTab = useUIStore((s) => s.setActiveTab);
   const selectPage = useWikiStore((s) => s.selectPage);
@@ -65,12 +64,12 @@ export function GlobalSearchModal({ open, onClose }: Props) {
   }, [canSearch, open, project, scope, trimmedQuery]);
 
   const statusText = useMemo(() => {
-    if (!canSearch) return '目前平台未啟用全文搜尋';
-    if (!trimmedQuery) return '輸入關鍵字搜尋章節與 Wiki';
-    if (isLoading) return '搜尋中...';
-    if (error) return `搜尋失敗：${error}`;
-    return `${visibleResults.length} 筆結果`;
-  }, [canSearch, error, isLoading, visibleResults.length, trimmedQuery]);
+    if (!canSearch) return t('search.statusDisabled', undefined, locale);
+    if (!trimmedQuery) return t('search.statusEmpty', undefined, locale);
+    if (isLoading) return t('search.statusLoading', undefined, locale);
+    if (error) return t('search.statusFailed', { error }, locale);
+    return t('search.statusFound', { count: String(visibleResults.length) }, locale);
+  }, [canSearch, error, isLoading, visibleResults.length, trimmedQuery, locale]);
 
   const openHit = (hit: SearchHit) => {
     if (hit.scope === 'chapter') {
@@ -84,11 +83,11 @@ export function GlobalSearchModal({ open, onClose }: Props) {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="全文搜尋" width={760}>
+    <Modal open={open} onClose={onClose} title={t('search.title', undefined, locale)} width={760}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Input
           autoFocus
-          placeholder="搜尋人物、地點、設定、伏筆..."
+          placeholder={t('search.placeholder', undefined, locale)}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -103,24 +102,26 @@ export function GlobalSearchModal({ open, onClose }: Props) {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-            {SCOPE_TABS.map((tab) => (
+            {(['both', 'chapter', 'wikiPage'] as const).map((tab) => {
+              const tabLabel = tab === 'both' ? t('search.scopeBoth', undefined, locale) : tab === 'chapter' ? t('search.scopeChapter', undefined, locale) : t('search.scopeWiki', undefined, locale);
+              return (
               <button
-                key={tab.value}
+                key={tab}
                 type="button"
-                onClick={() => setScope(tab.value)}
+                onClick={() => setScope(tab)}
                 style={{
                   height: 28,
                   padding: '0 12px',
                   border: 0,
-                  borderLeft: tab.value === 'both' ? 0 : '1px solid var(--border)',
-                  background: scope === tab.value ? 'var(--accent)' : 'transparent',
-                  color: scope === tab.value ? '#fff' : 'var(--text-secondary)',
+                  borderLeft: tab === 'both' ? 0 : '1px solid var(--border)',
+                  background: scope === tab ? 'var(--accent)' : 'transparent',
+                  color: scope === tab ? '#fff' : 'var(--text-secondary)',
                   cursor: 'pointer',
                 }}
               >
-                {tab.label}
+                {tabLabel}
               </button>
-            ))}
+            )})}
           </div>
           <span style={{ fontSize: 12, color: error ? 'var(--warn)' : 'var(--text-tertiary)' }}>
             {statusText}
@@ -130,11 +131,11 @@ export function GlobalSearchModal({ open, onClose }: Props) {
         <div style={{ minHeight: 320, maxHeight: 460, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
           {visibleResults.length === 0 ? (
             <div style={{ padding: 24, color: 'var(--text-tertiary)', textAlign: 'center' }}>
-              {trimmedQuery ? '沒有符合的結果' : '開始輸入後會顯示搜尋結果'}
+              {trimmedQuery ? t('search.noResultsText', undefined, locale) : t('search.initialText', undefined, locale)}
             </div>
           ) : (
             visibleResults.map((hit) => (
-              <SearchResultRow key={`${hit.scope}:${hit.id}`} hit={hit} onOpen={() => openHit(hit)} />
+              <SearchResultRow key={`${hit.scope}:${hit.id}`} hit={hit} onOpen={() => openHit(hit)} locale={locale} />
             ))
           )}
         </div>
@@ -143,10 +144,10 @@ export function GlobalSearchModal({ open, onClose }: Props) {
   );
 }
 
-function SearchResultRow({ hit, onOpen }: { hit: SearchHit; onOpen: () => void }) {
+function SearchResultRow({ hit, onOpen, locale }: { hit: SearchHit; onOpen: () => void; locale: string }) {
   const label = hit.scope === 'chapter'
-    ? `章節${typeof hit.chapterOrder === 'number' ? ` #${hit.chapterOrder + 1}` : ''}`
-    : 'Wiki';
+    ? typeof hit.chapterOrder === 'number' ? t('search.labelChapterOrder', { order: String(hit.chapterOrder + 1) }, locale) : t('search.labelChapter', undefined, locale)
+    : t('search.labelWiki', undefined, locale);
 
   return (
     <button

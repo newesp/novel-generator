@@ -8,6 +8,7 @@ describe('comic video voices', () => {
       '中國普通話',
       '中國方言',
       '香港粵語',
+      'English (US)',
     ]);
 
     expect(COMIC_VIDEO_VOICES.map((voice) => voice.id)).toEqual([
@@ -25,6 +26,12 @@ describe('comic video voices', () => {
       'zh-HK-HiuGaaiNeural',
       'zh-HK-HiuMaanNeural',
       'zh-HK-WanLungNeural',
+      'en-US-AriaNeural',
+      'en-US-GuyNeural',
+      'en-US-JennyNeural',
+      'en-US-ChristopherNeural',
+      'en-US-EricNeural',
+      'en-US-MichelleNeural',
     ]);
   });
 

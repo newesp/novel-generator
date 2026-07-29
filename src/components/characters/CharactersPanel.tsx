@@ -13,6 +13,7 @@ import { isLLMReady } from '../../lib/llm';
 import type { Character, MediaAsset } from '../../types';
 import { useLocalAIActivity } from '../../hooks/useLocalAIActivity';
 import { LocalAIActivityCard } from '../common/LocalAIActivityCard';
+import { t } from '../../lib/language-policy';
 
 const EMPTY_CHARACTER = (projectId: string): Character => ({
   id: '',
@@ -34,12 +35,13 @@ const EMPTY_CHARACTER = (projectId: string): Character => ({
 
 export function CharactersPanel() {
   const { project, characters, loadCharacters, createCharacter, updateCharacter, deleteCharacter } = useProjectStore();
-  const { llmConfig } = useSettingsStore();
+  const { llmConfig, generalPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
   const [editing, setEditing] = useState<Character | null>(null);
   const [showAIModal, setShowAIModal] = useState(false);
   const [aiCount, setAiCount] = useState<number | ''>(3);
   const [isGenerating, setIsGenerating] = useState(false);
-  const characterDraftActivity = useLocalAIActivity();
+  const characterDraftActivity = useLocalAIActivity(locale);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'list' | 'graph'>('list');
   const [search, setSearch] = useState('');
@@ -79,7 +81,7 @@ export function CharactersPanel() {
 
   const handleDeleteSelected = async () => {
     if (selectedCharacterIds.size === 0) return;
-    if (!confirm(`刪除已勾選的 ${selectedCharacterIds.size} 個角色？此操作無法復原。`)) return;
+    if (!confirm(t('characters.deleteSelectedConfirm', { count: selectedCharacterIds.size }, locale))) return;
     for (const id of selectedCharacterIds) {
       await deleteCharacter(id);
     }
@@ -89,7 +91,7 @@ export function CharactersPanel() {
   if (!project) {
     return (
       <div style={{ padding: 24, color: 'var(--text-secondary)', fontSize: 14 }}>
-        請先建立專案
+        {t('characters.noProject', undefined, locale)}
       </div>
     );
   }
@@ -106,7 +108,7 @@ export function CharactersPanel() {
 
   const handleDelete = async () => {
     if (!editing?.id) return;
-    if (!confirm(`刪除角色「${editing.name}」？`)) return;
+    if (!confirm(t('characters.deleteOneConfirm', { name: editing.name }, locale))) return;
     await deleteCharacter(editing.id);
     setEditing(null);
   };
@@ -117,7 +119,7 @@ export function CharactersPanel() {
   const handleAIGenerate = async () => {
     const requestedCount = typeof aiCount === 'number' ? aiCount : 1;
     const signal = characterDraftActivity.start(
-      `依世界觀與主線設計至少 ${requestedCount} 位角色，既有角色會用來避免重複…`,
+      t('characters.designActivityMessage', undefined, locale),
     );
     setIsGenerating(true);
     try {
@@ -130,18 +132,18 @@ export function CharactersPanel() {
       }, signal);
 
       if (drafts.length === 0) {
-        throw new Error('AI 未產出任何角色，請檢查 LLM 是否回傳預期格式');
+        throw new Error(t('characters.generatedEmpty', undefined, locale));
       }
 
       const newDrafts = filterNewCharacterDrafts(drafts, characters.map((c) => c.name));
       if (newDrafts.length === 0) {
-        throw new Error('AI 產出的角色都已存在，沒有新增角色');
+        throw new Error(t('characters.generatedDuplicate', undefined, locale));
       }
 
       for (const draft of newDrafts) {
         await createCharacter(project.id, draft);
       }
-      characterDraftActivity.succeed(`已新增 ${newDrafts.length} 位角色`);
+      characterDraftActivity.succeed(t('characters.generatedSuccess', { count: newDrafts.length }, locale));
       setShowAIModal(false);
     } catch (err) {
       characterDraftActivity.fail(err);
@@ -155,13 +157,13 @@ export function CharactersPanel() {
       <aside className="character-browser">
         <header className="character-browser-header">
           <div>
-            <h2>角色</h2>
-            <span>{characters.length} 位角色</span>
+            <h2>{t('characters.title', undefined, locale)}</h2>
+            <span>{t('characters.count', { count: characters.length }, locale)}</span>
           </div>
-          <div className="character-view-toggle" aria-label="角色檢視模式">
+          <div className="character-view-toggle" aria-label={t('characters.viewMode', undefined, locale)}>
             {([
-              ['list', '列表'],
-              ['graph', '關係圖'],
+              ['list', t('characters.list', undefined, locale)],
+              ['graph', t('characters.graph', undefined, locale)],
             ] as const).map(([mode, label]) => (
               <button
                 key={mode}
@@ -181,12 +183,12 @@ export function CharactersPanel() {
             onClick={() => setShowAIModal(true)}
             disabled={!apiReady || !outlineReady}
             title={
-              !apiReady ? '請先設定 API'
-              : !outlineReady ? '請先在大綱頁填寫世界觀或主線劇情'
+              !apiReady ? t('characters.apiRequired', undefined, locale)
+              : !outlineReady ? t('characters.outlineRequired', undefined, locale)
               : ''
             }
           >
-            ✨ AI 生成
+            {t('characters.aiGenerate', undefined, locale)}
           </Button>
           <Button
             variant="secondary"
@@ -195,7 +197,7 @@ export function CharactersPanel() {
               setEditing(EMPTY_CHARACTER(project.id));
             }}
           >
-            ＋ 新增角色
+            {t('characters.add', undefined, locale)}
           </Button>
         </div>
 
@@ -203,7 +205,7 @@ export function CharactersPanel() {
           className="form-input character-search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="搜尋姓名、種族或性格"
+          placeholder={t('characters.searchPlaceholder', undefined, locale)}
         />
 
         {characters.length > 0 && (
@@ -215,15 +217,15 @@ export function CharactersPanel() {
                 ref={(el) => { if (el) el.indeterminate = someChecked; }}
                 onChange={toggleAll}
               />
-              全選
+              {t('characters.selectAll', undefined, locale)}
             </label>
-            <span>已選 {selectedCharacterIds.size}</span>
+            <span>{t('characters.selected', { count: selectedCharacterIds.size }, locale)}</span>
             <button
               type="button"
               onClick={handleDeleteSelected}
               disabled={selectedCharacterIds.size === 0}
             >
-              刪除
+              {t('common.delete', undefined, locale)}
             </button>
           </div>
         )}
@@ -245,20 +247,20 @@ export function CharactersPanel() {
                 onChange={() => toggleOne(char.id)}
               />
               <div>
-                <div className="char-item-name">{char.name || '(未命名)'}</div>
+                <div className="char-item-name">{char.name || t('characters.unnamed', undefined, locale)}</div>
                 <div className="char-item-meta">
-                  {[char.gender, char.age && `${char.age}歲`, char.race && `種族：${char.race}`]
+                  {[char.gender, char.age && t('characters.age', { age: char.age }, locale), char.race && t('characters.race', { race: char.race }, locale)]
                     .filter(Boolean)
-                    .join(' · ') || '尚無基本資料'}
+                    .join(' · ') || t('characters.noBasicInfo', undefined, locale)}
                 </div>
               </div>
             </div>
           ))}
           {characters.length === 0 && (
-            <div className="character-list-empty">尚未建立角色</div>
+            <div className="character-list-empty">{t('characters.empty', undefined, locale)}</div>
           )}
           {characters.length > 0 && filteredCharacters.length === 0 && (
-            <div className="character-list-empty">找不到符合的角色</div>
+            <div className="character-list-empty">{t('characters.noMatch', undefined, locale)}</div>
           )}
         </div>
       </aside>
@@ -288,8 +290,8 @@ export function CharactersPanel() {
           />
         ) : (
           <div className="character-detail-empty">
-            <strong>選擇角色開始編輯</strong>
-            <span>也可以新增角色，或切換到關係圖檢視。</span>
+            <strong>{t('characters.selectToEdit', undefined, locale)}</strong>
+            <span>{t('characters.selectToEditHelp', undefined, locale)}</span>
           </div>
         )}
       </section>
@@ -302,17 +304,19 @@ export function CharactersPanel() {
             characterDraftActivity.reset();
           }
         }}
-        title="✨ AI 生成角色"
+        title={t('characters.generateTitle', undefined, locale)}
         footer={
           <>
             <Button variant="secondary" onClick={() => {
               setShowAIModal(false);
               characterDraftActivity.reset();
             }} disabled={isGenerating}>
-              取消
+              {t('common.cancel', undefined, locale)}
             </Button>
             <Button variant="primary" onClick={handleAIGenerate} disabled={isGenerating || typeof aiCount !== 'number' || aiCount < 1}>
-              {isGenerating ? '生成中...' : `生成 ${aiCount} 個角色`}
+              {isGenerating
+                ? t('characters.generateBusy', undefined, locale)
+                : t('characters.generateCount', { count: aiCount || 1 }, locale)}
             </Button>
           </>
         }
@@ -320,26 +324,25 @@ export function CharactersPanel() {
         {characterDraftActivity.activity.phase !== 'idle' && (
           <LocalAIActivityCard
             activity={characterDraftActivity.activity}
-            title={`AI 助理設計 ${typeof aiCount === 'number' ? aiCount : 1} 位角色`}
-            message="依世界觀與主線補齊性格、背景、能力、關係與成長弧線…"
+            title={t('characters.designActivityTitle', { count: typeof aiCount === 'number' ? aiCount : 1 }, locale)}
+            message={t('characters.designActivityMessage', undefined, locale)}
             onCancel={characterDraftActivity.cancel}
             onDismiss={characterDraftActivity.reset}
             compact
           />
         )}
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          AI 將根據世界觀與主線劇情，自動產生角色設定（含姓名、性格、背景、能力、關係、<strong>成長弧線</strong>等）。
+          {t('characters.generationIntro', undefined, locale)}
           <br />
           <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>
-            ⓘ 主線劇情中出現的所有角色名字皆會被建立；主角的成長弧線會與主線劇情相呼應。
-            最終生成數量可能超過下方設定（為了不遺漏主線中提到的人物）。
+            {t('characters.generationDetail', undefined, locale)}
           </span>
           {characters.length > 0 && (
-            <><br /><span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>已存在的角色會作為上下文，避免重複。</span></>
+            <><br /><span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{t('characters.existingContext', undefined, locale)}</span></>
           )}
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <label style={{ fontSize: 13 }}>角色數量（最少）：</label>
+          <label style={{ fontSize: 13 }}>{t('characters.minimumCount', undefined, locale)}</label>
           <input
             type="number"
             className="form-input"
@@ -359,7 +362,7 @@ export function CharactersPanel() {
             style={{ width: 80 }}
             disabled={isGenerating}
           />
-          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>（建議 2 - 5 個）</span>
+          <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t('characters.countRecommendation', undefined, locale)}</span>
         </div>
       </Modal>
     </div>
@@ -378,8 +381,10 @@ interface ModalProps {
 }
 
 function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, mainPlot, otherCharacters, llmReady }: ModalProps) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
+  const writingLanguage = useProjectStore((state) => state.project?.writingLanguage ?? 'zh-Hant');
   const [aiFilling, setAiFilling] = useState(false);
-  const fillActivity = useLocalAIActivity();
+  const fillActivity = useLocalAIActivity(locale);
   const [activeTab, setActiveTab] = useState<'basic' | 'story' | 'visual'>('basic');
   const [form, setForm] = useState({
     name: character.name,
@@ -425,7 +430,7 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
     const uploaded: MediaAsset[] = [];
     for (const file of Array.from(files)) {
       if (!file.type.startsWith('image/')) continue;
-      const url = await readFileAsDataUrl(file);
+      const url = await readFileAsDataUrl(file, t('characters.imageReadFailed', undefined, locale));
       const asset: MediaAsset = {
         id: uuid(),
         projectId: character.projectId,
@@ -455,7 +460,7 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
   };
 
   const handleAIFill = async () => {
-    const signal = fillActivity.start('只補目前仍為空白的欄位，既有內容不會覆寫…');
+    const signal = fillActivity.start(t('characters.aiFillActivityMessage', undefined, locale));
     setAiFilling(true);
     try {
       const filled = await completeCharacterFields({
@@ -463,9 +468,10 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
         worldSetting,
         mainPlot,
         otherCharacters,
+        writingLanguage,
       }, signal);
       if (Object.keys(filled).length === 0) {
-        throw new Error('AI 沒有回傳任何欄位內容，請檢查 LLM 設定或回應格式');
+        throw new Error(t('characters.aiFillEmpty', undefined, locale));
       }
       setForm((f) => {
         const next = { ...f };
@@ -478,7 +484,7 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
         }
         return next;
       });
-      fillActivity.succeed('空白角色欄位已補齊，請檢查後儲存');
+      fillActivity.succeed(t('characters.aiFillSuccess', undefined, locale));
     } catch (e) {
       fillActivity.fail(e);
     } finally {
@@ -490,33 +496,35 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
     <div className="character-editor">
       <header className="character-editor-header">
         <div>
-          <h2>{character.id ? (form.name || '未命名角色') : '新增角色'}</h2>
-          <span>{character.id ? '編輯角色設定' : '填寫基本資料後儲存角色'}</span>
+          <h2>{character.id ? (form.name || t('characters.unnamed', undefined, locale)) : t('characters.newCharacter', undefined, locale)}</h2>
+          <span>{character.id ? t('characters.editSubtitle', undefined, locale) : t('characters.newSubtitle', undefined, locale)}</span>
         </div>
         <div className="character-editor-actions">
           {onDelete && (
             <Button variant="ghost" onClick={onDelete} style={{ color: 'var(--danger, #e03131)' }}>
-              刪除
+              {t('common.delete', undefined, locale)}
             </Button>
           )}
           <Button
             variant="ghost"
             onClick={handleAIFill}
             disabled={aiFilling || !llmReady}
-            title={!llmReady ? '請先到偏好設定填寫 LLM provider 與 API Key' : '根據已填寫的欄位，AI 補完其餘空白欄位'}
+            title={!llmReady
+              ? t('characters.aiFillRequired', undefined, locale)
+              : t('characters.aiFillHelp', undefined, locale)}
           >
-            {aiFilling ? '生成中...' : '✨ AI 填寫內容'}
+            {aiFilling ? t('characters.aiFillBusy', undefined, locale) : t('characters.aiFill', undefined, locale)}
           </Button>
-          <Button variant="secondary" onClick={onClose} disabled={aiFilling}>取消</Button>
-          <Button variant="primary" onClick={() => onSave(form)} disabled={aiFilling}>儲存</Button>
+          <Button variant="secondary" onClick={onClose} disabled={aiFilling}>{t('common.cancel', undefined, locale)}</Button>
+          <Button variant="primary" onClick={() => onSave(form)} disabled={aiFilling}>{t('common.save', undefined, locale)}</Button>
         </div>
       </header>
 
-      <nav className="character-editor-tabs" aria-label="角色設定分類">
+      <nav className="character-editor-tabs" aria-label={t('characters.tabsLabel', undefined, locale)}>
         {([
-          ['basic', '基本資料'],
-          ['story', '故事設定'],
-          ['visual', '漫畫視覺'],
+          ['basic', t('characters.tabBasic', undefined, locale)],
+          ['story', t('characters.tabStory', undefined, locale)],
+          ['visual', t('characters.tabVisual', undefined, locale)],
         ] as const).map(([tab, label]) => (
           <button
             key={tab}
@@ -533,8 +541,8 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
         {fillActivity.activity.phase !== 'idle' && (
           <LocalAIActivityCard
             activity={fillActivity.activity}
-            title="AI 助理補完角色欄位"
-            message="只補目前仍為空白的欄位，既有內容不會覆寫…"
+            title={t('characters.aiFillActivityTitle', undefined, locale)}
+            message={t('characters.aiFillActivityMessage', undefined, locale)}
             onCancel={fillActivity.cancel}
             onDismiss={fillActivity.reset}
             compact
@@ -543,26 +551,26 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
 
         {activeTab === 'basic' && (
           <div className="character-form-grid character-basic-form">
-            <Input label="姓名" value={form.name} onChange={(e) => update('name', e.target.value)} />
-            <Input label="種族" value={form.race} onChange={(e) => update('race', e.target.value)} />
-            <Input label="性別" value={form.gender} onChange={(e) => update('gender', e.target.value)} />
-            <Input label="年齡" value={form.age} onChange={(e) => update('age', e.target.value)} />
+            <Input label={t('characters.name', undefined, locale)} value={form.name} onChange={(e) => update('name', e.target.value)} />
+            <Input label={t('characters.raceLabel', undefined, locale)} value={form.race} onChange={(e) => update('race', e.target.value)} />
+            <Input label={t('characters.gender', undefined, locale)} value={form.gender} onChange={(e) => update('gender', e.target.value)} />
+            <Input label={t('characters.ageLabel', undefined, locale)} value={form.age} onChange={(e) => update('age', e.target.value)} />
             <div className="character-form-wide">
-              <Textarea label="性格" value={form.personality} onChange={(e) => update('personality', e.target.value)} />
+              <Textarea label={t('characters.personality', undefined, locale)} value={form.personality} onChange={(e) => update('personality', e.target.value)} />
             </div>
           </div>
         )}
 
         {activeTab === 'story' && (
           <div className="character-form-grid character-story-form">
-            <Textarea label="背景" value={form.background} onChange={(e) => update('background', e.target.value)} />
-            <Textarea label="能力" value={form.abilities} onChange={(e) => update('abilities', e.target.value)} />
-            <Textarea label="關係" value={form.relations} onChange={(e) => update('relations', e.target.value)} />
+            <Textarea label={t('characters.background', undefined, locale)} value={form.background} onChange={(e) => update('background', e.target.value)} />
+            <Textarea label={t('characters.abilities', undefined, locale)} value={form.abilities} onChange={(e) => update('abilities', e.target.value)} />
+            <Textarea label={t('characters.relations', undefined, locale)} value={form.relations} onChange={(e) => update('relations', e.target.value)} />
             <Textarea
-              label="成長弧線"
+              label={t('characters.arc', undefined, locale)}
               value={form.arc}
               onChange={(e) => update('arc', e.target.value)}
-              placeholder="從故事開頭到結局，此角色的內在轉變（與主線劇情相呼應）..."
+              placeholder={t('characters.arcPlaceholder', undefined, locale)}
             />
           </div>
         )}
@@ -571,23 +579,23 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
           <div className="character-visual-layout">
             <section className="character-visual-fields">
               <Textarea
-                label="外貌"
+                label={t('characters.appearance', undefined, locale)}
                 value={form.appearance}
                 onChange={(e) => update('appearance', e.target.value)}
-                placeholder="固定髮型、臉部特徵、體型、服裝與標誌物..."
+                placeholder={t('characters.appearancePlaceholder', undefined, locale)}
               />
               <Textarea
-                label="角色 Negative Prompt"
+                label={t('characters.negativePrompt', undefined, locale)}
                 value={form.visualNegativePrompt}
                 onChange={(e) => update('visualNegativePrompt', e.target.value)}
-                placeholder="只填要排除的錯誤外觀..."
+                placeholder={t('characters.negativePromptPlaceholder', undefined, locale)}
               />
-              <p className="character-visual-note">故事生成與漫畫生圖都會使用外貌欄位；漫畫生圖會將它作為角色視覺 prompt。</p>
+              <p className="character-visual-note">{t('characters.visualNote', undefined, locale)}</p>
             </section>
             <section className="character-reference-panel">
               <div>
-                <strong>角色參考圖</strong>
-                <span>{referenceAssets.length} 張圖片</span>
+                <strong>{t('characters.references', undefined, locale)}</strong>
+                <span>{t('characters.referenceCount', { count: referenceAssets.length }, locale)}</span>
               </div>
               {character.id ? (
                 <>
@@ -601,20 +609,25 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
                   <div className="character-reference-grid">
                     {referenceAssets.map((asset, index) => (
                       <figure className="character-reference-card" key={asset.id}>
-                        {asset.url && <img src={asset.url} alt={`${form.name || '角色'}參考圖 ${index + 1}`} />}
+                        {asset.url && <img src={asset.url} alt={t('characters.referenceAlt', {
+                          name: form.name || t('characters.title', undefined, locale),
+                          index: index + 1,
+                        }, locale)} />}
                         <figcaption>
-                          <span>{index === 0 ? '主參考' : `參考 ${index + 1}`}</span>
-                          <button type="button" onClick={() => removeReferenceAsset(asset.id)}>移除</button>
+                          <span>{index === 0
+                            ? t('characters.primaryReference', undefined, locale)
+                            : t('characters.reference', { index: index + 1 }, locale)}</span>
+                          <button type="button" onClick={() => removeReferenceAsset(asset.id)}>{t('characters.remove', undefined, locale)}</button>
                         </figcaption>
                       </figure>
                     ))}
                   </div>
                   {referenceAssets.length === 0 && (
-                    <div className="character-reference-empty">尚未加入角色參考圖</div>
+                    <div className="character-reference-empty">{t('characters.noReferences', undefined, locale)}</div>
                   )}
                 </>
               ) : (
-                <div className="character-reference-empty">先儲存新角色，再加入參考圖。</div>
+                <div className="character-reference-empty">{t('characters.saveBeforeReferences', undefined, locale)}</div>
               )}
             </section>
           </div>
@@ -624,11 +637,11 @@ function CharacterEditor({ character, onClose, onSave, onDelete, worldSetting, m
   );
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
+function readFileAsDataUrl(file: File, errorMessage: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(reader.error ?? new Error('讀取圖片失敗'));
+    reader.onerror = () => reject(reader.error ?? new Error(errorMessage));
     reader.readAsDataURL(file);
   });
 }

@@ -212,7 +212,7 @@ describe('Editor Revision Loop & maxRevisions Limit', () => {
     expect(result.nextDraftVersion).toBe(2);
     expect(result.revisedDraft).toBe('修訂後的第二版精采正文...');
 
-    await executeCriticStep('run_ed_success', result.revisedDraft, result.nextDraftVersion);
+    await executeCriticStep('run_ed_success');
 
     // Chapter.content is updated to revised draft v2 upon Critic adoption
     expect(chaptersMap.get('c1').content).toBe('修訂後的第二版精采正文...');

@@ -6,6 +6,7 @@ export interface BookExportInput {
   project: Project;
   chapters: Chapter[];
   exportedAt?: Date;
+  locale?: string;
 }
 
 export interface BookExportArtifact {
@@ -63,22 +64,29 @@ export async function buildBookExportArtifact(
 
 export function buildTxtExport(input: BookExportInput & { exportedAt?: Date }): string {
   const exportedAt = input.exportedAt ?? new Date();
+  const locale = input.locale ?? 'zh-TW';
+  const tocTitle = locale === 'zh-TW' ? '目錄' : 'Table of Contents';
+  const chapterPrefix = locale === 'zh-TW' ? '第 ' : 'Chapter ';
+  const chapterSuffix = locale === 'zh-TW' ? ' 章' : '';
+  const unnamedChapter = locale === 'zh-TW' ? '未命名章節' : 'Unnamed Chapter';
+  const emptyContent = locale === 'zh-TW' ? '（本章尚無正文）' : '(No content yet)';
+
   const lines = [
     input.project.title,
     '',
-    ...formatProjectMetadata(input.project, exportedAt),
+    ...formatProjectMetadata(input.project, exportedAt, locale),
     '',
-    '目錄',
-    ...sortChapters(input.chapters).map((chapter, index) => `${index + 1}. ${chapter.title || `第 ${index + 1} 章`}`),
+    tocTitle,
+    ...sortChapters(input.chapters).map((chapter, index) => `${index + 1}. ${chapter.title || `${chapterPrefix}${index + 1}${chapterSuffix}`}`),
     '',
   ];
 
   for (const [index, chapter] of sortChapters(input.chapters).entries()) {
     lines.push(
       '',
-      `第 ${index + 1} 章\u3000${chapter.title || '未命名章節'}`,
+      `${chapterPrefix}${index + 1}${chapterSuffix}\u3000${chapter.title || unnamedChapter}`,
       '',
-      chapter.content.trim() || '（本章尚無正文）',
+      chapter.content.trim() || emptyContent,
       '',
     );
   }
@@ -88,24 +96,33 @@ export function buildTxtExport(input: BookExportInput & { exportedAt?: Date }): 
 
 export function buildHtmlExport(input: BookExportInput & { exportedAt?: Date }): string {
   const exportedAt = input.exportedAt ?? new Date();
+  const locale = input.locale ?? 'zh-TW';
   const chapters = sortChapters(input.chapters);
-  const metadata = formatProjectMetadata(input.project, exportedAt);
+  const metadata = formatProjectMetadata(input.project, exportedAt, locale);
+  const tocTitle = locale === 'zh-TW' ? '目錄' : 'Table of Contents';
+  const chapterPrefix = locale === 'zh-TW' ? '第 ' : 'Chapter ';
+  const chapterSuffix = locale === 'zh-TW' ? ' 章' : '';
+  const unnamedChapter = locale === 'zh-TW' ? '未命名章節' : 'Unnamed Chapter';
+  const emptyContent = locale === 'zh-TW' ? '（本章尚無正文）' : '(No content yet)';
+
   const toc = chapters
-    .map((chapter, index) => `<li><a href="#chapter-${index + 1}">${escapeHtml(chapter.title || `第 ${index + 1} 章`)}</a></li>`)
+    .map((chapter, index) => `<li><a href="#chapter-${index + 1}">${escapeHtml(chapter.title || `${chapterPrefix}${index + 1}${chapterSuffix}`)}</a></li>`)
     .join('\n');
   const chapterHtml = chapters
     .map((chapter, index) => {
-      const title = escapeHtml(chapter.title || '未命名章節');
-      const body = paragraphsToHtml(chapter.content.trim() || '（本章尚無正文）');
+      const title = escapeHtml(chapter.title || unnamedChapter);
+      const body = paragraphsToHtml(chapter.content.trim() || emptyContent);
       return `<section id="chapter-${index + 1}" class="chapter">
-  <h2>第 ${index + 1} 章\u3000${title}</h2>
+  <h2>${chapterPrefix}${index + 1}${chapterSuffix}\u3000${title}</h2>
 ${body}
 </section>`;
     })
     .join('\n\n');
 
+  const langAttr = input.project.writingLanguage === 'zh-Hant' ? 'zh-Hant' : 'en';
+
   return `<!doctype html>
-<html lang="zh-Hant">
+<html lang="${langAttr}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -136,8 +153,8 @@ ${body}
   <div class="meta">
 ${metadata.map((line) => `    <div>${escapeHtml(line)}</div>`).join('\n')}
   </div>
-  <nav aria-label="目錄">
-    <h2>目錄</h2>
+  <nav aria-label="${escapeHtml(tocTitle)}">
+    <h2>${escapeHtml(tocTitle)}</h2>
     <ol class="toc">
 ${toc}
     </ol>
@@ -150,24 +167,33 @@ ${chapterHtml}
 
 export function buildEpubExport(input: BookExportInput & { exportedAt?: Date }): Uint8Array {
   const exportedAt = input.exportedAt ?? new Date();
+  const locale = input.locale ?? 'zh-TW';
   const chapters = sortChapters(input.chapters);
   const bookId = `urn:uuid:${input.project.id}`;
   const modified = exportedAt.toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const title = input.project.title || '未命名小說';
+
+  const title = input.project.title || (locale === 'zh-TW' ? '未命名小說' : 'Unnamed Novel');
+  const chapterPrefix = locale === 'zh-TW' ? '第 ' : 'Chapter ';
+  const chapterSuffix = locale === 'zh-TW' ? ' 章' : '';
+  const unnamedChapter = locale === 'zh-TW' ? '未命名章節' : 'Unnamed Chapter';
+  const emptyContent = locale === 'zh-TW' ? '（本章尚無正文）' : '(No content yet)';
+  const tocTitle = locale === 'zh-TW' ? '目錄' : 'Table of Contents';
+
+  const langAttr = input.project.writingLanguage === 'zh-Hant' ? 'zh-Hant' : 'en';
 
   const chapterEntries = chapters.map((chapter, index) => ({
     href: `chapters/chapter-${index + 1}.xhtml`,
-    title: chapter.title || `第 ${index + 1} 章`,
-    content: chapterToXhtml(chapter, index),
+    title: chapter.title || `${chapterPrefix}${index + 1}${chapterSuffix}`,
+    content: chapterToXhtml(chapter, index, langAttr, chapterPrefix, chapterSuffix, unnamedChapter, emptyContent),
   }));
 
   const entries: EpubEntry[] = [
     { path: 'mimetype', content: textEncoder.encode('application/epub+zip'), mimeType: 'application/epub+zip' },
     { path: 'META-INF/container.xml', content: encodeXml(containerXml()) },
     { path: 'OEBPS/styles.css', content: textEncoder.encode(epubCss()) },
-    { path: 'OEBPS/nav.xhtml', content: encodeXml(navXhtml(title, chapterEntries)) },
+    { path: 'OEBPS/nav.xhtml', content: encodeXml(navXhtml(title, chapterEntries, langAttr, tocTitle)) },
     { path: 'OEBPS/toc.ncx', content: encodeXml(tocNcx(bookId, title, chapterEntries)) },
-    { path: 'OEBPS/content.opf', content: encodeXml(contentOpf(bookId, title, modified, chapterEntries)) },
+    { path: 'OEBPS/content.opf', content: encodeXml(contentOpf(bookId, title, modified, chapterEntries, langAttr)) },
     ...chapterEntries.map((entry) => ({
       path: `OEBPS/${entry.href}`,
       content: encodeXml(entry.content),
@@ -193,11 +219,16 @@ function sortChapters(chapters: Chapter[]): Chapter[] {
   return [...chapters].sort((a, b) => a.order - b.order || a.createdAt - b.createdAt || a.id.localeCompare(b.id));
 }
 
-function formatProjectMetadata(project: Project, exportedAt: Date): string[] {
+function formatProjectMetadata(project: Project, exportedAt: Date, locale: string): string[] {
+  const tStr = new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' }).format(exportedAt);
+  const genreLabel = locale === 'zh-TW' ? '類型：' : 'Genre: ';
+  const styleLabel = locale === 'zh-TW' ? '風格：' : 'Style: ';
+  const exportLabel = locale === 'zh-TW' ? '匯出時間：' : 'Exported at: ';
+
   return [
-    project.genre ? `類型：${project.genre}` : '',
-    project.style ? `風格：${project.style}` : '',
-    `匯出時間：${exportedAt.toLocaleString()}`,
+    project.genre ? `${genreLabel}${project.genre}` : '',
+    project.style ? `${styleLabel}${project.style}` : '',
+    `${exportLabel}${tStr}`,
   ].filter(Boolean);
 }
 
@@ -210,19 +241,19 @@ function paragraphsToHtml(text: string): string {
     .join('\n');
 }
 
-function chapterToXhtml(chapter: Chapter, index: number): string {
-  const title = chapter.title || '未命名章節';
-  const body = paragraphsToHtml(chapter.content.trim() || '（本章尚無正文）');
+function chapterToXhtml(chapter: Chapter, index: number, langAttr: string, chapterPrefix: string, chapterSuffix: string, unnamedChapter: string, emptyContent: string): string {
+  const title = chapter.title || unnamedChapter;
+  const body = paragraphsToHtml(chapter.content.trim() || emptyContent);
   return `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh-Hant" xml:lang="zh-Hant">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${langAttr}" xml:lang="${langAttr}">
 <head>
   <title>${escapeHtml(title)}</title>
   <link rel="stylesheet" type="text/css" href="../styles.css" />
 </head>
 <body>
   <section epub:type="chapter">
-    <h1>第 ${index + 1} 章\u3000${escapeHtml(title)}</h1>
+    <h1>${chapterPrefix}${index + 1}${chapterSuffix}\u3000${escapeHtml(title)}</h1>
 ${body}
   </section>
 </body>
@@ -238,20 +269,20 @@ function containerXml(): string {
 </container>`;
 }
 
-function navXhtml(title: string, chapters: Array<{ href: string; title: string }>): string {
+function navXhtml(title: string, chapters: Array<{ href: string; title: string }>, langAttr: string, tocTitle: string): string {
   const items = chapters
     .map((chapter) => `      <li><a href="${escapeXml(chapter.href)}">${escapeHtml(chapter.title)}</a></li>`)
     .join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="zh-Hant" xml:lang="zh-Hant">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="${langAttr}" xml:lang="${langAttr}">
 <head>
   <title>${escapeHtml(title)}</title>
   <link rel="stylesheet" type="text/css" href="styles.css" />
 </head>
 <body>
   <nav epub:type="toc" id="toc">
-    <h1>目錄</h1>
+    <h1>${escapeHtml(tocTitle)}</h1>
     <ol>
 ${items}
     </ol>
@@ -287,6 +318,7 @@ function contentOpf(
   title: string,
   modified: string,
   chapters: Array<{ href: string; title: string }>,
+  langAttr: string,
 ): string {
   const chapterManifest = chapters
     .map((chapter, index) => `    <item id="chapter-${index + 1}" href="${escapeXml(chapter.href)}" media-type="application/xhtml+xml" />`)
@@ -299,7 +331,7 @@ function contentOpf(
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="book-id">${escapeXml(bookId)}</dc:identifier>
     <dc:title>${escapeXml(title)}</dc:title>
-    <dc:language>zh-Hant</dc:language>
+    <dc:language>${langAttr}</dc:language>
     <dc:creator>Novel Generator</dc:creator>
     <meta property="dcterms:modified">${escapeXml(modified)}</meta>
   </metadata>

@@ -1,6 +1,6 @@
 import { complete } from './llm';
 import { renderTemplate } from './prompt-template';
-import { useSettingsStore, getPromptPair } from '../stores/settingsStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import type { Chapter } from '../types';
 import type { InlineEditContextMode } from '../stores/settingsStore';
 import { resolveBeatLabel, type WritingLanguage } from './language-policy';

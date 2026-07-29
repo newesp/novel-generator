@@ -4,6 +4,8 @@ import { storage } from '../lib/storage';
 import type { WikiPage, WikiPageType, WikiLogEntry } from '../types';
 import { renameWikiSlugInPages } from '../lib/wiki-slug-rename';
 import { deleteWikiPageCascade, updateWikiPageWithIntegrity } from '../lib/wiki-mutations';
+import type { WritingLanguage } from '../lib/language-policy';
+import { buildBlankWikiPageContent } from '../lib/wiki-list';
 
 interface WikiState {
   pages: WikiPage[];
@@ -13,7 +15,13 @@ interface WikiState {
 
   loadForBook: (bookId: string) => Promise<void>;
   selectPage: (id: string | null) => void;
-  createPageBlank: (bookId: string, type: WikiPageType, slug: string, title: string) => Promise<string>;
+  createPageBlank: (
+    bookId: string,
+    type: WikiPageType,
+    slug: string,
+    title: string,
+    writingLanguage?: WritingLanguage,
+  ) => Promise<string>;
   savePage: (page: WikiPage) => Promise<void>;
   renamePageSlug: (id: string, newSlug: string) => Promise<void>;
   deletePage: (id: string) => Promise<void>;
@@ -36,7 +44,7 @@ export const useWikiStore = create<WikiState>((set, get) => ({
 
   selectPage: (id) => set({ selectedPageId: id }),
 
-  createPageBlank: async (bookId, type, slug, title) => {
+  createPageBlank: async (bookId, type, slug, title, writingLanguage = 'zh-Hant') => {
     const now = Date.now();
     const id = uuid();
     const page: WikiPage = {
@@ -48,7 +56,7 @@ export const useWikiStore = create<WikiState>((set, get) => ({
       aliases: [],
       relatedSlugs: [],
       description: '',
-      contentMd: `# ${title}\n\n> **Type:** ${type}\n\n## 概述\n\n`,
+      contentMd: buildBlankWikiPageContent(title, type, writingLanguage),
       createdAt: now,
       updatedAt: now,
     };

@@ -47,7 +47,7 @@ export function NewBookModal({ open, onClose, onCreate }: Props) {
       setGenre('');
       setStyle('');
     } catch (err) {
-      alert(`建立失敗：${(err as Error).message}`);
+      alert(`${t('home.createFailed', undefined, locale)}${(err as Error).message}`);
     } finally {
       setLoading(false);
     }
@@ -126,15 +126,13 @@ export function NewBookModal({ open, onClose, onCreate }: Props) {
           <input
             list="genre-list"
             className="form-input"
-            placeholder="點擊選擇或輸入..."
+            placeholder={t('common.selectOrType', undefined, locale)}
             value={genre}
             onChange={(e) => setGenre(e.target.value)}
           />
           <datalist id="genre-list">
             {GENRE_PRESETS.map((g) => (
-              <option key={g.code} value={g.code}>
-                {locale === 'en' ? g.labelEn : g.labelZh}
-              </option>
+              <option key={g.code} value={locale === 'en' ? g.labelEn : g.labelZh} />
             ))}
           </datalist>
         </div>
@@ -145,15 +143,13 @@ export function NewBookModal({ open, onClose, onCreate }: Props) {
           <input
             list="style-list"
             className="form-input"
-            placeholder="點擊選擇或輸入..."
+            placeholder={t('common.selectOrType', undefined, locale)}
             value={style}
             onChange={(e) => setStyle(e.target.value)}
           />
           <datalist id="style-list">
             {STYLE_PRESETS.map((s) => (
-              <option key={s.code} value={s.code}>
-                {locale === 'en' ? s.labelEn : s.labelZh}
-              </option>
+              <option key={s.code} value={locale === 'en' ? s.labelEn : s.labelZh} />
             ))}
           </datalist>
         </div>

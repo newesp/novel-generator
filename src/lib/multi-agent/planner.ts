@@ -93,7 +93,8 @@ export async function executePlannerStep(runId: string, signal?: AbortSignal): P
 
   const project = await storage.projects.get(run.bookId);
   const chapter = await storage.chapters.get(run.chapterId);
-  const isEn = project?.writingLanguage === 'en';
+  const writingLanguage = run.snapshot.writingLanguage || project?.writingLanguage || 'zh-Hant';
+  const isEn = writingLanguage === 'en';
 
   const promptVars = {
     storyTitle: run.snapshot.storyTitle || project?.title || (isEn ? 'Untitled Novel' : '未命名小說'),
@@ -141,6 +142,7 @@ export async function executePlannerStep(runId: string, signal?: AbortSignal): P
         systemPrompt,
         maxTokens: targetProfile.maxTokens,
         temperature: targetProfile.temperature,
+        writingLanguage: run.snapshot.writingLanguage ?? 'zh-Hant',
       },
       signal,
       targetProfile,
@@ -206,6 +208,7 @@ export async function executePlannerStep(runId: string, signal?: AbortSignal): P
           systemPrompt: '請修正並嚴格輸出符合 JSON Schema 的物件。',
           maxTokens: targetProfile.maxTokens,
           temperature: targetProfile.temperature,
+          writingLanguage: run.snapshot.writingLanguage ?? 'zh-Hant',
         },
         signal,
         targetProfile,

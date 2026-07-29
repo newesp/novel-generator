@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { complete, isLLMReady } from '../../lib/llm';
 import { buildWikiQueryPrompt, selectWikiPagesForQuery } from '../../lib/wiki-query';
+import { t } from '../../lib/language-policy';
 import type { WikiPage } from '../../types';
 import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
@@ -15,11 +16,12 @@ interface Props {
 }
 
 export function WikiQueryModal({ open, onClose, pages }: Props) {
-  const { llmConfig, aiPrompts } = useSettingsStore();
+  const { llmConfig, aiPrompts, generalPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
   const [question, setQuestion] = useState('');
   const [answer, setAnswer] = useState('');
   const [isRunning, setIsRunning] = useState(false);
-  const queryActivity = useLocalAIActivity();
+  const queryActivity = useLocalAIActivity(locale);
   const selectedPages = useMemo(
     () => question.trim() ? selectWikiPagesForQuery({ question, pages, maxPages: 8 }) : [],
     [question, pages],
@@ -28,7 +30,7 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
 
   const ask = async () => {
     if (!ready || !question.trim()) return;
-    const signal = queryActivity.start(`正在閱讀 ${selectedPages.length} 頁 Wiki 並整理可追溯的回答…`);
+    const signal = queryActivity.start(t('wiki.queryActivityStart', { count: selectedPages.length }, locale));
     setIsRunning(true);
     setAnswer('');
     try {
@@ -37,8 +39,9 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
         pages: selectedPages,
         template: aiPrompts.wikiQueryAnswerTemplate,
       });
+      // @ts-ignore
       setAnswer(await complete(prompt, { maxTokens: 1600, temperature: 0.2 }, signal));
-      queryActivity.succeed(`已完成 ${selectedPages.length} 頁 Wiki 的查詢`);
+      queryActivity.succeed(t('wiki.queryActivitySuccess', { count: selectedPages.length }, locale));
     } catch (e) {
       queryActivity.fail(e);
     } finally {
@@ -54,22 +57,22 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
         else queryActivity.reset();
         onClose();
       }}
-      title="問 Wiki"
+      title={t('wiki.queryTitle', undefined, locale)}
       width={720}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <textarea
           className="form-input"
           rows={3}
-          placeholder="例如：星塵市的真相在哪幾章被埋伏筆？"
+          placeholder={t('wiki.queryPlaceholder', undefined, locale)}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
         />
         {queryActivity.activity.phase !== 'idle' && (
           <LocalAIActivityCard
             activity={queryActivity.activity}
-            title="AI 助理查詢 Wiki"
-            message={`正在閱讀 ${selectedPages.length} 頁 Wiki 並整理可追溯的回答…`}
+            title={t('wiki.queryActivityTitle', undefined, locale)}
+            message={t('wiki.queryActivityStart', { count: selectedPages.length }, locale)}
             onCancel={queryActivity.cancel}
             onDismiss={queryActivity.reset}
             compact
@@ -77,15 +80,15 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
           <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-            已選 {selectedPages.length} 頁作為回答依據
+            {t('wiki.querySelectedPages', { count: selectedPages.length }, locale)}
           </div>
           <Button variant="primary" onClick={ask} disabled={!ready || !question.trim() || isRunning}>
-            {isRunning ? '查詢中...' : '送出'}
+            {isRunning ? t('wiki.queryThinking', undefined, locale) : t('wiki.queryButton', undefined, locale)}
           </Button>
         </div>
         {!ready && (
           <div style={{ fontSize: 12, color: 'var(--accent-danger)' }}>
-            請先在設定中完成 LLM API 設定。
+            {t('wiki.queryLlmNotReady', undefined, locale)}
           </div>
         )}
         {selectedPages.length > 0 && (

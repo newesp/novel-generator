@@ -112,9 +112,9 @@ export function setDocumentLocale(locale: InterfaceLocale, pageTitle?: string): 
 export function t(
   keyPath: string,
   params?: Record<string, string | number>,
-  locale: InterfaceLocale = 'zh-TW',
+  locale: InterfaceLocale | string = 'zh-TW',
 ): string {
-  const catalog = LOCALES[locale] || LOCALES['zh-TW'];
+  const catalog = LOCALES[locale as InterfaceLocale] || LOCALES['zh-TW'];
   const keys = keyPath.split('.');
   let current: unknown = catalog;
 

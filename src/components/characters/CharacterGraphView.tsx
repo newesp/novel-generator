@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { buildCharacterGraph, layoutCharacterGraph } from '../../lib/character-graph';
 import type { Character } from '../../types';
+import { t } from '../../lib/language-policy';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface Props {
   characters: Character[];
@@ -12,6 +14,7 @@ const HEIGHT = 300;
 const NODE_R = 26;
 
 export function CharacterGraphView({ characters, onSelectCharacter }: Props) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   const graph = useMemo(() => buildCharacterGraph(characters), [characters]);
   const positioned = useMemo(() => layoutCharacterGraph(graph, WIDTH, HEIGHT), [graph]);
   const nodeById = new Map(positioned.nodes.map((node) => [node.id, node]));
@@ -19,7 +22,7 @@ export function CharacterGraphView({ characters, onSelectCharacter }: Props) {
   if (characters.length === 0) {
     return (
       <div style={{ color: 'var(--text-tertiary)', fontSize: 13, padding: '8px 0' }}>
-        尚未建立角色，新增角色後可在此查看關係圖。
+        {t('characters.graphEmpty', undefined, locale)}
       </div>
     );
   }
@@ -27,7 +30,7 @@ export function CharacterGraphView({ characters, onSelectCharacter }: Props) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.6 }}>
-        依角色「關係」欄位中提到的其他角色名字建立連線。
+        {t('characters.graphHelp', undefined, locale)}
       </div>
       <div style={{
         border: '1px solid var(--border)',
@@ -35,7 +38,7 @@ export function CharacterGraphView({ characters, onSelectCharacter }: Props) {
         background: 'var(--bg-tertiary)',
         overflow: 'hidden',
       }}>
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="角色關係圖" style={{ width: '100%', display: 'block' }}>
+        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={t('characters.graphAria', undefined, locale)} style={{ width: '100%', display: 'block' }}>
           <defs>
             <marker id="character-graph-dot" markerWidth="4" markerHeight="4" refX="2" refY="2">
               <circle cx="2" cy="2" r="2" fill="var(--border-light)" />
@@ -100,7 +103,7 @@ export function CharacterGraphView({ characters, onSelectCharacter }: Props) {
 
       {positioned.edges.length === 0 && (
         <div style={{ color: 'var(--text-tertiary)', fontSize: 12, lineHeight: 1.6 }}>
-          尚未偵測到關係。可在角色卡的「關係」欄位寫入其他角色名字，例如「信任蘇沐陽」。
+          {t('characters.graphNoRelations', undefined, locale)}
         </div>
       )}
     </div>

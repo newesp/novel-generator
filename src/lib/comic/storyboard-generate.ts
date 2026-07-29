@@ -14,7 +14,7 @@ export interface StoryboardGenerationInput {
   previousPanels?: Array<{ order: number; beat: string; visualPrompt: string }>;
 }
 
-type CompleteFn = (prompt: string, options?: { maxTokens?: number; temperature?: number; responseFormat?: 'json_object' }) => Promise<string>;
+type CompleteFn = (prompt: string, options?: { maxTokens?: number; temperature?: number; responseFormat?: 'json_object'; writingLanguage?: string }) => Promise<string>;
 
 const STORYBOARD_JSON_KEY_PATTERN = /^(?:chapterTitle|storyboardStyle|visualContinuityBible|panels|qualityChecks|notes|panelNumber|beat|characters|setting|location|action|emotion|shotType|cameraAngle|visualPrompt|negativePrompt|extraGroups|label|count|role|prompt|visualPriority|narration|dialogue|character|text|durationSec)$/;
 
@@ -72,7 +72,7 @@ export async function generateStoryboardDraft(
   completeFn: CompleteFn = complete,
 ): Promise<ReturnType<typeof normalizeStoryboardDraft>> {
   const prompt = buildStoryboardPrompt(input);
-  const raw = await completeFn(prompt, { maxTokens: 8192, temperature: 0.2, responseFormat: 'json_object' });
+  const raw = await completeFn(prompt, { maxTokens: 8192, temperature: 0.2, responseFormat: 'json_object', writingLanguage: input.project.writingLanguage });
   return normalizeStoryboardDraft(parseJsonFromLLM(raw));
 }
 

@@ -17,15 +17,17 @@ import {
   formatSummaryPageLabel,
   getSummaryChapterNumber,
 } from '../../lib/wiki-list';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 import type { WikiPage, WikiPageType } from '../../types';
 
-const TYPE_LABELS: Record<WikiPageType, string> = {
-  concept: '概念',
-  entity: '實體',
-  summary: '摘要',
-  compare: '對比',
-  synthesis: '綜述',
-};
+const getTypeLabels = (locale: string): Record<WikiPageType, string> => ({
+  concept: t('wiki.typeConcept', undefined, locale),
+  entity: t('wiki.typeEntity', undefined, locale),
+  summary: t('wiki.typeSummary', undefined, locale),
+  compare: t('wiki.typeCompare', undefined, locale),
+  synthesis: t('wiki.typeSynthesis', undefined, locale),
+});
 
 const WIKI_TOOL_BUTTON_STYLE: CSSProperties = {
   height: 44,
@@ -47,6 +49,7 @@ export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
   const { project, chapters, characters, loadChapters, loadCharacters } = useProjectStore();
   const { pages, log, selectedPageId, totalLength, loadForBook, selectPage, createPageBlank } = useWikiStore();
   const { runLint, isRunning: lintRunning } = useLintStore();
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   const [filter, setFilter] = useState('');
   const [chapterJump, setChapterJump] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -89,7 +92,10 @@ export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
   }, [filtered]);
 
   const selected = pages.find((p) => p.id === selectedPageId) ?? null;
-  const summaryRanges = useMemo(() => buildSummaryRanges(grouped.summary), [grouped.summary]);
+  const summaryRanges = useMemo(
+    () => buildSummaryRanges(grouped.summary, locale),
+    [grouped.summary, locale],
+  );
 
   const jumpToChapter = () => {
     const chapterNumber = parseInt(chapterJump, 10);
@@ -113,55 +119,55 @@ export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
               size="sm"
               onClick={() => setQueryOpen(true)}
               disabled={!project || pages.length === 0}
-              title="用目前 Wiki 內容回答問題"
+              title={t('wiki.askWikiHelp', undefined, locale)}
               style={WIKI_TOOL_BUTTON_STYLE}
-            ><MessageCircleQuestion size={15} />問 Wiki</Button>
+            ><MessageCircleQuestion size={15} />{t('wiki.askWiki', undefined, locale)}</Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setSummaryQualityOpen(true)}
               disabled={!project}
-              title="檢查 summary/ch-N 品質並重建 Wiki 摘要"
+              title={t('wiki.summaryQualityHelp', undefined, locale)}
               style={WIKI_TOOL_BUTTON_STYLE}
-            ><ClipboardCheck size={15} />摘要品質</Button>
+            ><ClipboardCheck size={15} />{t('wiki.summaryQuality', undefined, locale)}</Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setGraphOpen(true)}
               disabled={!project}
-              title="查詢角色與 Wiki 的 2-hop Graph 關聯"
+              title={t('wiki.graphQueryHelp', undefined, locale)}
               style={WIKI_TOOL_BUTTON_STYLE}
-            ><Network size={15} />關係查詢</Button>
+            ><Network size={15} />{t('wiki.graphQuery', undefined, locale)}</Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => { setLintOpen(true); if (project) runLint(project.id); }}
               disabled={lintRunning || !project}
-              title="跑一致性 Lint：broken link、孤頁、別名重複、未登錄角色、wiki 內部矛盾、wiki vs 章節"
+              title={t('wiki.runLintHelp', undefined, locale)}
               style={WIKI_TOOL_BUTTON_STYLE}
-            ><ScanSearch size={15} />執行 Lint</Button>
+            ><ScanSearch size={15} />{t('wiki.runLint', undefined, locale)}</Button>
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setLogOpen(true)}
-              title="顯示操作記錄"
+              title={t('wiki.actionLogHelp', undefined, locale)}
               style={WIKI_TOOL_BUTTON_STYLE}
-            ><History size={15} />操作紀錄</Button>
+            ><History size={15} />{t('wiki.actionLog', undefined, locale)}</Button>
             <Button
               variant="primary"
               size="sm"
               onClick={() => setShowNew(true)}
-              title="新增 Wiki 頁面"
+              title={t('wiki.newPageHelp', undefined, locale)}
               style={WIKI_TOOL_BUTTON_STYLE}
-            ><Plus size={15} />新增頁面</Button>
+            ><Plus size={15} />{t('wiki.newPage', undefined, locale)}</Button>
           </div>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-tertiary, #888)' }}>
-          {pages.length} 頁 · 約 {Math.round(totalLength / 1000)}k 字
+          {t('wiki.stats', { pages: pages.length, thousands: Math.round(totalLength / 1000) }, locale)}
         </div>
         <div style={{ marginTop: 8 }}>
           <Input
-            placeholder="搜尋 slug/標題/別名…"
+            placeholder={t('wiki.filterPlaceholder', undefined, locale)}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             style={{ width: '100%' }}
@@ -170,14 +176,14 @@ export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
         {pages.some((p) => p.type === 'summary') && (
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
             <Input
-              placeholder="跳到章節 #"
+              placeholder={t('wiki.jumpToChapterPlaceholder', undefined, locale)}
               value={chapterJump}
               onChange={(e) => setChapterJump(e.target.value.replace(/\D/g, ''))}
               onKeyDown={(e) => { if (e.key === 'Enter') jumpToChapter(); }}
               style={{ width: '100%' }}
             />
             <Button variant="secondary" size="sm" onClick={jumpToChapter} disabled={!chapterJump.trim()}>
-              ↩ 跳
+              {t('wiki.jump', undefined, locale)}
             </Button>
           </div>
         )}
@@ -197,7 +203,7 @@ export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
                   color: 'var(--text-tertiary, #888)',
                   background: 'var(--bg-tertiary, #f0f0f0)',
                 }}>
-                  {TYPE_LABELS[type]} ({arr.length})
+                  {getTypeLabels(locale)[type]} ({arr.length})
                 </div>
                 {type === 'summary' && arr.length > 50 ? (
                   summaryRanges.map((range) => {
@@ -245,7 +251,7 @@ export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
           {selected ? (
             <WikiPageEditor page={selected} />
           ) : (
-            <div style={{ padding: 24, color: 'var(--text-tertiary, #888)' }}>選擇左側頁面以檢視 / 編輯</div>
+            <div style={{ padding: 24, color: 'var(--text-tertiary, #888)' }}>{t('wiki.selectToView', undefined, locale)}</div>
           )}
         </div>
       </div>
@@ -254,7 +260,7 @@ export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
         <NewPageInline
           onClose={() => setShowNew(false)}
           onCreate={async (type, slug, title) => {
-            const id = await createPageBlank(project.id, type, slug, title);
+            const id = await createPageBlank(project.id, type, slug, title, project.writingLanguage);
             selectPage(id);
             setShowNew(false);
           }}
@@ -283,14 +289,14 @@ export function WikiPanel({ workspace = false }: { workspace?: boolean }) {
         onClose={() => setQueryOpen(false)}
         pages={pages}
       />
-      <Modal open={logOpen} onClose={() => setLogOpen(false)} title="操作記錄" width={680}>
-        <WikiOperationLog log={log} />
+      <Modal open={logOpen} onClose={() => setLogOpen(false)} title={t('wiki.actionLog', undefined, locale)} width={680}>
+        <WikiOperationLog log={log} locale={locale} />
       </Modal>
     </div>
   );
 }
 
-function WikiOperationLog({ log }: { log: ReturnType<typeof useWikiStore.getState>['log'] }) {
+function WikiOperationLog({ log, locale }: { log: ReturnType<typeof useWikiStore.getState>['log'], locale: string }) {
   return (
     <div style={{
       maxHeight: 420,
@@ -300,7 +306,7 @@ function WikiOperationLog({ log }: { log: ReturnType<typeof useWikiStore.getStat
       lineHeight: 1.6,
     }}>
       {log.length === 0 ? (
-        <div style={{ color: 'var(--text-tertiary, #888)', textAlign: 'center', padding: 24 }}>尚無操作記錄</div>
+        <div style={{ color: 'var(--text-tertiary, #888)', textAlign: 'center', padding: 24 }}>{t('wiki.noData', undefined, locale)}</div>
       ) : (
         log.map((e) => (
           <div
@@ -327,7 +333,8 @@ function WikiListItem({ page, selected, onSelect }: {
   selected: boolean;
   onSelect: () => void;
 }) {
-  const title = page.type === 'summary' ? formatSummaryPageLabel(page) : page.title;
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
+  const title = page.type === 'summary' ? formatSummaryPageLabel(page, locale) : page.title;
   return (
     <div
       onClick={onSelect}
@@ -365,6 +372,7 @@ function NewPageInline(props: {
   onClose: () => void;
   onCreate: (type: WikiPageType, slug: string, title: string) => void;
 }) {
+  const locale = useSettingsStore((s) => s.generalPrefs.interfaceLocale);
   const [type, setType] = useState<WikiPageType>('entity');
   const [slug, setSlug] = useState('');
   const [title, setTitle] = useState('');
@@ -385,23 +393,23 @@ function NewPageInline(props: {
         borderRadius: 8,
         minWidth: 360,
       }}>
-        <h3 style={{ marginTop: 0 }}>新增 Wiki 頁</h3>
+        <h3 style={{ marginTop: 0 }}>{t('wiki.newPage', undefined, locale)}</h3>
         <label style={{ display: 'block', marginBottom: 8 }}>
-          類型
+          {t('wiki.typeLabel', undefined, locale)}
           <select
             value={type}
             onChange={(e) => setType(e.target.value as WikiPageType)}
             className="form-select"
             style={{ width: '100%', marginTop: 4 }}
           >
-            {Object.entries(TYPE_LABELS).map(([k, v]) => (
+            {Object.entries(getTypeLabels(locale)).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
         </label>
         <div style={{ marginTop: 8 }}>
           <Input
-            placeholder="slug (ascii-kebab-case)"
+            placeholder={t('wiki.pageEditorSlugPlaceholder', undefined, locale)}
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             style={{ width: '100%' }}
@@ -409,20 +417,20 @@ function NewPageInline(props: {
         </div>
         <div style={{ marginTop: 8 }}>
           <Input
-            placeholder="標題（可中文）"
+            placeholder={t('wiki.pageEditorTitlePlaceholder', undefined, locale)}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             style={{ width: '100%' }}
           />
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-          <Button variant="secondary" onClick={props.onClose}>✕ 取消</Button>
+          <Button variant="secondary" onClick={props.onClose}>✕ {t('common.cancel', undefined, locale)}</Button>
           <Button
             variant="primary"
             onClick={() => props.onCreate(type, slug.trim(), title.trim())}
             disabled={!valid}
           >
-            ＋ 建立
+            ＋ {t('common.create', undefined, locale)}
           </Button>
         </div>
       </div>

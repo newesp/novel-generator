@@ -67,6 +67,21 @@ describe('Multi-Agent Preferences & Validation', () => {
       ).toBe(false);
     });
 
+    it('localizes validator messages by interface locale', () => {
+      const englishThreshold = validateCriticThresholds(90, 85, 'en');
+      const chineseThreshold = validateCriticThresholds(90, 85, 'zh-TW');
+      const englishWeights = validateCriticWeights({
+        ...DEFAULT_MULTI_AGENT_PREFS.criticRubricWeights,
+        instructionAndBeat: 10,
+      }, 'en');
+
+      expect(englishThreshold.message).not.toMatch(/\p{Script=Han}/u);
+      expect(englishThreshold.message).toContain('human review floor');
+      expect(chineseThreshold.message).toContain('人工審核門檻');
+      expect(englishWeights.message).not.toMatch(/\p{Script=Han}/u);
+      expect(englishWeights.message).toContain('current total');
+    });
+
     it('clamps maxRevisions within [1, 5]', () => {
       expect(clampMaxRevisions(3)).toBe(3);
       expect(clampMaxRevisions(0)).toBe(1);

@@ -5,6 +5,8 @@ import { useGenerationRunStore } from '../../stores/generationRunStore';
 import { isOpenGenerationRun } from '../../lib/multi-agent/presentation';
 import { VersionPanel } from './VersionPanel';
 import { AgentRunPanel } from './AgentRunPanel';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { t } from '../../lib/language-policy';
 
 interface ChapterInspectorProps {
   chapterId: string;
@@ -17,6 +19,7 @@ export function ChapterInspector({
   onApplyVersion,
   onOpenReviewModal,
 }: ChapterInspectorProps) {
+  const locale = useSettingsStore((state) => state.generalPrefs.interfaceLocale);
   const runs = useGenerationRunStore((state) => state.runs);
   const focusedRunId = useUIStore((state) => state.focusedAgentRunId);
   const clearFocusedAgentRun = useUIStore((state) => state.clearFocusedAgentRun);
@@ -39,12 +42,12 @@ export function ChapterInspector({
 
   if (collapsed) {
     return (
-      <aside className="chapter-inspector collapsed" aria-label="章節 Inspector">
+      <aside className="chapter-inspector collapsed" aria-label={t('inspector.ariaLabel', undefined, locale)}>
         <button
           type="button"
           onClick={() => setCollapsed(false)}
-          title="展開版本與 Agent Inspector"
-          aria-label="展開版本與 Agent Inspector"
+          title={t('inspector.expand', undefined, locale)}
+          aria-label={t('inspector.expand', undefined, locale)}
         >
           <ChevronLeft size={16} />
         </button>
@@ -53,20 +56,20 @@ export function ChapterInspector({
   }
 
   return (
-    <aside className={`chapter-inspector tab-${tab}`} aria-label="章節 Inspector">
+    <aside className={`chapter-inspector tab-${tab}`} aria-label={t('inspector.ariaLabel', undefined, locale)}>
       <div className="chapter-inspector-tabs">
         <button type="button" className={tab === 'versions' ? 'active' : ''} onClick={() => selectTab('versions')}>
-          版本
+          {t('inspector.versions', undefined, locale)}
         </button>
         <button type="button" className={tab === 'agent' ? 'active' : ''} onClick={() => selectTab('agent')}>
-          Agent{activeRun ? <span className="inspector-active-dot" aria-label="有未結束執行" /> : null}
+          {t('inspector.agentActive', undefined, locale)}{activeRun ? <span className="inspector-active-dot" aria-label={t('inspector.hasOpenRun', undefined, locale)} /> : null}
         </button>
         <button
           type="button"
           className="chapter-inspector-collapse"
           onClick={() => setCollapsed(true)}
-          title="收合 Inspector"
-          aria-label="收合 Inspector"
+          title={t('inspector.collapse', undefined, locale)}
+          aria-label={t('inspector.collapse', undefined, locale)}
         >
           <ChevronRight size={15} />
         </button>

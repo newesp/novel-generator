@@ -13,7 +13,8 @@ const mockIssue: LintIssue = {
   checkId: 'broken-link',
   title: 'Broken link to entity/unknown',
   detail: 'Wiki page contains broken link to non-existent entity/unknown',
-  severity: 'warning',
+  severity: 'warn',
+  status: 'open',
   targets: [{ kind: 'wikiPage', id: 'page-1', label: 'concept/magic' }],
 };
 

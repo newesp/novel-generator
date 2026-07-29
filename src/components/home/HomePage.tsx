@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../stores/projectStore';
 import { useUIStore } from '../../stores/uiStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import { storage } from '../../lib/storage';
 import { BookCard } from './BookCard';
 import { NewBookModal } from './NewBookModal';
@@ -8,11 +9,13 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { Input } from '../common/Input';
 
-import type { WritingLanguage } from '../../lib/language-policy';
+import { t, type WritingLanguage } from '../../lib/language-policy';
 
 export function HomePage() {
   const { books, loadAllBooks, loadProject, loadChapters, loadCharacters, createProject, deleteProject, updateProject } = useProjectStore();
   const { setView, setActiveTab, setSelectedChapterId } = useUIStore();
+  const { generalPrefs } = useSettingsStore();
+  const locale = generalPrefs.interfaceLocale;
 
   const [wordCounts, setWordCounts] = useState<Record<string, number>>({});
   const [showNewModal, setShowNewModal] = useState(false);
@@ -79,9 +82,9 @@ export function HomePage() {
     <div className="home-page">
       {/* Header */}
       <div className="home-header">
-        <h1 className="home-title">我的書庫</h1>
+        <h1 className="home-title">{t('home.myBooks', undefined, locale)}</h1>
         <Button variant="primary" onClick={() => setShowNewModal(true)}>
-          ＋ 新增書本
+          {t('home.newBook', undefined, locale)}
         </Button>
       </div>
 
@@ -89,7 +92,7 @@ export function HomePage() {
       {books.length === 0 ? (
         <div className="home-empty">
           <div className="home-empty-icon">📚</div>
-          <div className="home-empty-text">尚無書本，點擊右上角「新增書本」開始創作</div>
+          <div className="home-empty-text">{t('home.noBooksDesc', undefined, locale)}</div>
         </div>
       ) : (
         <div className="book-grid">
@@ -107,7 +110,7 @@ export function HomePage() {
           {/* "+ 新增" card */}
           <div className="book-card book-card-add" onClick={() => setShowNewModal(true)}>
             <div className="book-card-add-icon">＋</div>
-            <div className="book-card-add-label">新增書本</div>
+            <div className="book-card-add-label">{t('home.newBook', undefined, locale).replace('✨ ', '')}</div>
           </div>
         </div>
       )}
@@ -124,23 +127,23 @@ export function HomePage() {
         <Modal
           open
           onClose={() => setRenaming(null)}
-          title="重命名書本"
+          title={t('home.renameTitle', undefined, locale)}
           width={360}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setRenaming(null)}>取消</Button>
+              <Button variant="secondary" onClick={() => setRenaming(null)}>{t('common.cancel', undefined, locale)}</Button>
               <Button
                 variant="primary"
                 onClick={handleRenameConfirm}
                 disabled={!renaming.title.trim()}
               >
-                儲存
+                {t('common.save', undefined, locale)}
               </Button>
             </>
           }
         >
           <Input
-            label="書名"
+            label={t('home.bookTitle', undefined, locale)}
             value={renaming.title}
             onChange={(e) => setRenaming({ ...renaming, title: e.target.value })}
             onKeyDown={(e) => e.key === 'Enter' && handleRenameConfirm()}
@@ -154,26 +157,26 @@ export function HomePage() {
         <Modal
           open
           onClose={() => setConfirmDelete(null)}
-          title="刪除書本"
+          title={t('home.deleteTitle', undefined, locale)}
           width={360}
           footer={
             <>
-              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>取消</Button>
+              <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t('common.cancel', undefined, locale)}</Button>
               <Button
                 variant="primary"
                 style={{ background: '#dc2626' }}
                 onClick={handleDeleteConfirm}
               >
-                確認刪除
+                {t('common.confirmDelete', undefined, locale)}
               </Button>
             </>
           }
         >
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
-            確定刪除書本「<strong>{confirmDelete.title}</strong>」？
+            {t('home.deleteConfirmTitle', { title: confirmDelete.title }, locale)}
           </p>
           <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-tertiary)' }}>
-            此操作不可復原，書本內的所有章節、角色與版本記錄將一併刪除。
+            {t('home.deleteConfirmDesc', undefined, locale)}
           </p>
         </Modal>
       )}

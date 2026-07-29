@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildBlankWikiPageContent,
   buildSummaryRanges,
   compareWikiPagesForList,
   formatSummaryPageLabel,
@@ -45,6 +46,13 @@ describe('wiki list helpers', () => {
     expect(formatSummaryPageLabel(page({ slug: 'intro', title: '序章' }))).toBe('序章');
   });
 
+  it('formats summary labels for the English interface', () => {
+    expect(formatSummaryPageLabel(page({ slug: 'ch-3', title: 'Dust Invitation' }), 'en'))
+      .toBe('Chapter 3 | Dust Invitation');
+    expect(formatSummaryPageLabel(page({ slug: 'intro', title: 'Prologue' }), 'en'))
+      .toBe('Prologue');
+  });
+
   it('splits long summary lists into 50-chapter ranges', () => {
     const pages = Array.from({ length: 121 }, (_, i) => page({ slug: `ch-${i + 1}` }));
 
@@ -56,5 +64,18 @@ describe('wiki list helpers', () => {
       { label: '第 51-100 章', count: 50 },
       { label: '第 101-150 章', count: 21 },
     ]);
+  });
+
+  it('formats summary ranges for the English interface', () => {
+    const pages = Array.from({ length: 51 }, (_, i) => page({ slug: `ch-${i + 1}` }));
+    expect(buildSummaryRanges(pages, 'en').map((range) => range.label))
+      .toEqual(['Chapters 1-50', 'Chapters 51-100']);
+  });
+
+  it('builds new Wiki page content in the book writing language', () => {
+    expect(buildBlankWikiPageContent('Aster', 'entity', 'en'))
+      .toBe('# Aster\n\n> **Type:** entity\n\n## Overview\n\n');
+    expect(buildBlankWikiPageContent('星河', 'concept', 'zh-Hant'))
+      .toBe('# 星河\n\n> **Type:** concept\n\n## 概述\n\n');
   });
 });
