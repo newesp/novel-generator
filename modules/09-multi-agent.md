@@ -34,6 +34,9 @@
 
 ### Prompt 管理
 
+- 建立 `GenerationRun` 時，context snapshot 會凍結書本 `writingLanguage`；Planner、Writer、Critic、Editor 全程使用同一創作語言契約。
+- 切換 `interfaceLocale` 只改變執行狀態、Agent Inspector、人工審核與錯誤訊息，不會改變已建立 run 的輸出語言。
+- 自訂 Agent role guidance 與 Prompt 不得覆寫 snapshot 中的創作語言。
 - 快速模式保留既有 `chapterContentTemplate`，不遷移、不改變既有自訂模板。
 - Multi-Agent 新增 Planner、Writer、Critic、Editor 四份獨立 Prompt 契約。
 - 使用者可在偏好設定編輯四個角色的角色指令。
@@ -147,7 +150,7 @@ App 必須依分項配分重新計算總分，不直接信任模型提供的總�
 ### 主要持久化概念
 
 - **Generation Run**：單一章節的一次完整生成歷程。
-- **Generation Context Snapshot**：建立流程時凍結的故事資料、Prompt 契約版本、rubric、門檻與非敏感模型設定。
+- **Generation Context Snapshot**：建立流程時凍結的故事資料、書本創作語言、Prompt 契約版本、rubric、門檻與非敏感模型設定。
 - **Checkpoint**：Agent 步驟完成或進入人工關卡時的可恢復狀態。
 - **Agent Step／Attempt**：角色、嘗試次數、狀態、時間、輸入 checkpoint、Prompt、回應、provider／model 快照、usage、request metadata 與去敏化錯誤。
 - **Candidate Draft／Draft Version**：本次流程中的候選正文及其遞增版本。

@@ -44,6 +44,14 @@ interface LLMProfile {
 
 ---
 
+## 創作語言契約與 Prompt 預設
+
+- `interfaceLocale` 只控制連線驗證、狀態、錯誤與偏好設定介面；不得用來決定小說輸出語言。
+- 每次故事生成都從 `Project.writingLanguage` 取得不可覆寫的內容語言，並沿生成參數傳入快速生成、Wiki、Lint、漫畫及 Multi-Agent 流程。
+- 內建 Prompt 分為 `prompt-defaults-zh.ts` 與 `prompt-defaults-en.ts`，由 `getBuiltInAIPrompts(locale)` 提供相應語言的預設與編輯內容。
+- 自訂 Prompt 可以改變任務指令，但不能覆寫書本的創作語言契約；系統組合最終 prompt 時仍需明確要求以該書語言輸出。
+- provider 所需的技術 prompt 可以使用較可靠的語言或格式；小說正文、角色、Wiki、旁白等故事內容仍必須遵守 `writingLanguage`。
+
 ## Provider 分支與認證
 
 ### `isLLMReady(cfg: LLMConfig | LLMProfile): boolean`

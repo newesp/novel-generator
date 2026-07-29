@@ -25,10 +25,13 @@
 | 電子書生成 | epub-gen 或手寫 EPUB 結構 — Phase 3 |
 | 圖像生成 | `ImageGenerationProvider`：ComfyUI / OpenAI-compatible image / DeepInfra FLUX / Google Gemini Image |
 | TTS | Edge-TTS（桌面已接入漫畫影片 MVP）/ ElevenLabs API（可擴充） |
+| 語言政策 | 自製 locale catalog（`zh-TW` / `en` 介面）+ 每本書不可變的 `Project.writingLanguage`（`zh-Hant` / `en`） |
 
 ---
 
 ## 技術說明
+
+**語言邊界：** `src/lib/language-policy/` 統一管理介面與內容語言政策；`src/lib/i18n/` 管理可見 UI 字串；`src/lib/prompt-defaults-zh.ts`、`src/lib/prompt-defaults-en.ts` 提供雙語內建 Prompt。`interfaceLocale` 只影響 UI、HTML metadata、日期與桌面視窗標題；`Project.writingLanguage` 在建立書本時選定後鎖定，控制小說、角色、Wiki、漫畫旁白與 TTS。題材、風格與節拍使用穩定代碼儲存，顯示時才在地化。
 
 **epub：** epubjs 定位為電子書**閱讀器**，不適合用於生成 epub 檔案。epub 本質上是符合特定規範的 ZIP 壓縮包（包含 OPF、NCX/NAV、HTML 章節檔），建議改用 `epub-gen` 套件，或直接手寫 epub 結構以獲得最大控制彈性。
 

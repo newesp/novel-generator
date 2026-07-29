@@ -2,15 +2,27 @@
 
 [English](README.en.md)
 
-> 版本：1.12（Multi-Agent 協作引擎與 LLM Connection Profiles）　更新：2026-07-27
+> 版本：1.13（中英雙語介面與不可變書籍創作語言）　更新：2026-07-29
 
-本機優先的中文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文（支援單 Writer 快速生成與 Planner / Writer / Critic / Editor 四角色的高品質 Multi-Agent 生成）、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出、單格影片重輸出、鏡頭動態效果與章節內影片庫。
+本機優先的中、英文小說創作工具，提供瀏覽器 Web App 與 Windows 桌面版（Tauri）。核心流程涵蓋書本管理、大綱、角色、章節正文（支援單 Writer 快速生成與 Planner / Writer / Critic / Editor 四角色的高品質 Multi-Agent 生成）、版本、LLM Wiki、全文檢索、知識圖、漫畫圖片生成，以及桌面版漫畫 TTS / MP4 / SRT 輸出、單格影片重輸出、鏡頭動態效果與章節內影片庫。
 
-- 目標語言：中文小說（優先）
+- 介面語言：繁體中文（`zh-TW`）／English（`en`），可在偏好設定即時切換
+- 創作語言：每本書建立時選擇繁體中文（`zh-Hant`）或 English（`en`），建立後鎖定
 - 使用方式：本機瀏覽器或 Windows 桌面版
 - 目前資料層：瀏覽器版 IndexedDB（Dexie）；桌面版 SQLite（`tauri-plugin-sql`）
 - 輸出格式：已支援整本 `.txt` / `.html` / `.epub` 導出
 - 目前介面：Mantine Gray 主題；大綱、角色、場景、章節、Wiki、漫畫、影片各自使用獨立工作區，v1 保留於 tag `v1.0.0` / branch `release/v1`
+
+---
+
+## 語言模型
+
+- **Interface Locale** 只控制 UI、狀態、驗證、錯誤、日期與原生視窗標題，不決定小說內容語言。
+- **Writing Language** 屬於書本，決定大綱、角色、章節、Wiki、Lint 修復、漫畫旁白、Multi-Agent 與成書匯出的內容語言。
+- 偏好設定的「新書預設創作語言」只影響建立表單預設值；每本書仍需在建立時確認，之後不可中途變更。
+- 內建 AI Prompt 依書本創作語言選用中／英文版本；使用者自訂 Prompt 仍受不可覆寫的創作語言契約約束。
+- 英文書籍預設使用英文 Edge-TTS voice；單格與整章影片輸出都會阻擋不相符的 TTS voice。
+- 題材、風格與章節節拍以穩定代碼儲存、依介面語言顯示；自訂值保留使用者原文。
 
 ---
 

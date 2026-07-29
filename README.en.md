@@ -2,17 +2,29 @@
 
 [繁體中文](README.md)
 
-> Version: 1.12 (Multi-Agent collaboration engine and LLM Connection Profiles)
+> Version: 1.13 (bilingual interface and immutable per-book writing language)
 >
-> Updated: 2026-07-27
+> Updated: 2026-07-29
 
-A local-first Chinese novel writing tool available as a browser Web App and a Windows desktop app built with Tauri. The core workflow covers book management, outlines, characters, chapter drafting (supporting single-Writer fast drafting and Planner / Writer / Critic / Editor high-quality Multi-Agent drafting), versions, LLM Wiki, full-text search, knowledge graph, comic image generation, and desktop comic TTS / MP4 / SRT output, including single-panel video rerendering, motion effects, and a chapter-level video library.
+A local-first Chinese and English novel writing tool available as a browser Web App and a Windows desktop app built with Tauri. The core workflow covers book management, outlines, characters, chapter drafting (supporting single-Writer fast drafting and Planner / Writer / Critic / Editor high-quality Multi-Agent drafting), versions, LLM Wiki, full-text search, knowledge graph, comic image generation, and desktop comic TTS / MP4 / SRT output, including single-panel video rerendering, motion effects, and a chapter-level video library.
 
-- Target language: Chinese novels first
+- Interface languages: Traditional Chinese (`zh-TW`) and English (`en`), switchable immediately in Preferences
+- Writing languages: Traditional Chinese (`zh-Hant`) and English (`en`), selected when a book is created and immutable afterward
 - Usage: local browser or Windows desktop app
 - Current data layer: IndexedDB (Dexie) in browser; SQLite (`tauri-plugin-sql`) on desktop
 - Export formats: full-book `.txt` / `.html` / `.epub` export is implemented
 - Current UI: Mantine Gray theme with independent Outline, Character, Scene, Chapter, Wiki, Comic, and Video workspaces; v1 remains available at tag `v1.0.0` and branch `release/v1`
+
+---
+
+## Language Model
+
+- **Interface Locale** controls UI labels, status, validation, errors, date formatting, and the native window title. It does not determine story language.
+- **Writing Language** belongs to each book and governs outlines, characters, chapters, Wiki content, Lint fixes, comic narration, Multi-Agent output, and book export.
+- The “default writing language for new books” preference only preselects the creation form. The language is confirmed per book and cannot be changed later.
+- Built-in AI prompts have Chinese and English variants. Custom prompts remain subject to the non-overridable writing-language contract.
+- English books default to an English Edge-TTS voice; panel and chapter video rendering reject a voice that does not match the book.
+- Built-in genres, styles, and chapter beats are stored as stable codes and localized for display. Custom values retain the user’s original text.
 
 ---
 

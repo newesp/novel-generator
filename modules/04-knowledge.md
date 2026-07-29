@@ -141,3 +141,9 @@ AI 提取章節關鍵資訊 + deterministic integrity guards
 - Wiki 面板提供「問 Wiki」入口。
 - 問題會先用 deterministic relevance selection 挑出相關 Wiki pages，再套用 `wikiQueryAnswerTemplate` 呼叫 LLM。
 - 回答要求標註 `type/slug`，若 Wiki 無相關內容需誠實說明。
+
+## 語言規則
+
+- Wiki 頁面、章節摘要、問答、ingest plan 與 Lint 修復內容依書本 `writingLanguage` 產生。
+- Wiki 與 Lint 的操作標籤、狀態、確認、錯誤及動態訊息依 `interfaceLocale` 顯示。
+- 切換介面語言不翻譯或重寫既有 Wiki、章節與角色內容；一致性檢查也不得把介面語言誤當成內容語言。

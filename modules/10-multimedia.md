@@ -88,6 +88,13 @@ PNG / JPG / WEBP 圖片 + MediaAsset metadata
 - Full-chapter export validates every panel first. Missing images or narration are shown in a dismissible top notice instead of failing silently.
 - ComicModal includes a chapter-scoped `影片庫` popup for current chapter MP4 files, SRT subtitles, and panel segments, with open, reveal in folder, delete, and rerender actions.
 
+### 語言規則
+
+- 漫畫分鏡、對白、旁白與字幕依書本 `writingLanguage` 產生；漫畫與影片操作介面依 `interfaceLocale` 顯示。
+- 繁體中文書籍使用相容的中文 Edge-TTS voice；英文書籍預設 `en-US-AriaNeural`。單格與整章輸出都會在執行前拒絕與創作語言不相符的 voice。
+- 語音試聽文字依書本創作語言，不依介面語言；voice 群組名稱、按鈕與驗證訊息則依介面語言。
+- 生圖的 final technical prompt 可採 provider 較可靠的語言，但故事設定、分鏡敘事與可見文字仍遵守書本創作語言。
+
 ### 儲存規則
 
 - **metadata 進 StorageAdapter**：ChapterComic、ComicPanel、ComicPanelImageVariant、MediaAsset、SceneVisual、provider params、seed、錯誤狀態。

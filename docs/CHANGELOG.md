@@ -1,5 +1,12 @@
 # 開發日誌
 
+## 2026-07-29 - 同步雙語介面與創作語言文件
+
+- 更新中、英文 README，說明 `interfaceLocale` 與每本書不可變 `writingLanguage` 的責任邊界、雙語 Prompt、穩定預設代碼與英文 TTS。
+- 更新 UI、版面、技術棧及 roadmap 規格，記錄全站翻譯覆蓋、雙語視覺 QA 與語言政策的權威程式位置。
+- 更新書本、大綱、角色、章節、Wiki、LLM、Multi-Agent 與多媒體模組文件，確保所有 AI 內容流程依創作語言，而 UI 與動態訊息依介面語言。
+- 純 Markdown 更新；已與 `Project.writingLanguage`、language policy、locale catalog、雙語 Prompt defaults、漫畫 TTS voice 與輸出驗證實作交叉檢查。
+
 ## 2026-07-29 - 完成全站中英介面覆蓋與動態語言邊界
 
 - 將首頁、導覽、Toolbar、偏好設定、大綱、角色、章節、編輯器、Wiki、Lint、搜尋、備份、漫畫、場景、影片及 Multi-Agent 工作區全面接入 `zh-TW` / `en` locale catalog。

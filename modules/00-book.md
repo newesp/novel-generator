@@ -14,8 +14,9 @@
 |------|------|------|
 | id | string | 唯一識別碼（UUID），在多數文件中語意上等同 `bookId` |
 | title | string | 書名 |
-| genre | string | 題材（玄幻/都市/仙俠/科幻/言情/懸疑/自定義） |
-| style | string | 風格（輕鬆/沉重/黑暗/熱血/幽默/爽文/自定義） |
+| genre | string | 題材穩定代碼或自訂值；內建值依介面語言顯示 |
+| style | string | 風格穩定代碼或自訂值；內建值依介面語言顯示 |
+| writingLanguage | `'zh-Hant' \| 'en'` | 書本創作語言；建立時選定，建立後不可變更 |
 | worldSetting | string | 世界觀設定 |
 | mainPlot | string | 主線劇情 |
 | chapterOutline | string | 章節大綱文字 |
@@ -29,6 +30,7 @@
 ## 核心功能（✅ = 已實作）
 
 - ✅ 建立新書
+- ✅ 建立時選擇並鎖定書本創作語言；舊資料缺值時正規化為 `zh-Hant`
 - ✅ 開啟書本
 - ✅ 重命名書本
 - ✅ 刪除書本（含確認提示，避免誤刪；同時刪除所有章節/版本/角色）
@@ -36,7 +38,7 @@
 - ✅ **匯入 JSON**（取代本機資料）
 - ✅ **連結同步資料夾**（File System Access API，自動寫入；建議選 OneDrive/Google Drive 同步資料夾）
 - ✅ 匯出整本書（成書格式 .txt/.html/.epub，見 specs/output-formats）[Phase 3]
-- ❌ 書本層級設定（預設 LLM provider、語言風格等）[Phase 2]；目前 LLM / 圖片 provider 設定仍是全域偏好設定
+- ❌ 其他書本層級設定（預設 LLM provider 等）[Phase 2]；目前 LLM / 圖片 provider 設定仍是全域偏好設定
 
 ---
 
@@ -80,8 +82,9 @@
 
 **新增書本表單（彈窗）：**
 - 書名（文字輸入，必填）
-- 題材（文字輸入，點擊出現預設列表：玄幻/都市/仙俠/科幻/言情/懸疑/自定義）
-- 風格（文字輸入，點擊出現預設列表：輕鬆/沉重/黑暗/熱血/幽默/爽文/自定義）
+- 創作語言（繁體中文／English，預設取自偏好設定，建立後鎖定）
+- 題材（內建 localized preset 或自定義）
+- 風格（內建 localized preset 或自定義）
 - [建立]（主按鈕）/ [取消]（次按鈕）
 
 **刪除確認彈窗：**
@@ -96,6 +99,7 @@
 - 書本字數由 `chapters` 陣列的 `content.length` 加總，在首頁載入時計算（非即時）
 - `updatedAt` 欄位需在 Dexie schema 中索引才可 `orderBy`（v3 migration 補足）
 - `NewBookModal` 按鈕 always enabled，click 時才做 inline validation（書名必填）
+- `writingLanguage` 是內容生成契約，不隨 `interfaceLocale` 改變；書本卡片與大綱基本資料只讀顯示。
 
 ---
 
