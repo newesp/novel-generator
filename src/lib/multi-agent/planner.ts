@@ -32,16 +32,18 @@ export function parsePlannerResponse(rawText: string): PlannedOutline {
     cleaned = cleaned.substring(firstBrace, lastBrace + 1);
   }
 
-  let obj: any;
+  let parsed: unknown;
   try {
-    obj = JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned);
   } catch (err) {
-    throw new Error(`無法解析 Planner 模型 JSON 回應：${(err as Error).message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`無法解析 Planner 模型 JSON 回應：${message}`, { cause: err });
   }
 
-  if (!obj || typeof obj !== 'object') {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Planner 回應非有效 JSON 物件');
   }
+  const obj = parsed as Record<string, unknown>;
 
   const beat = typeof obj.beat === 'string' ? obj.beat.trim() : '';
   let points = '';
@@ -159,7 +161,7 @@ export async function executePlannerStep(runId: string, signal?: AbortSignal): P
     if (!cancelled) {
       await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
     }
-    throw new Error(`Planner 呼叫 LLM 失敗：${errorText}`);
+    throw new Error(`Planner 呼叫 LLM 失敗：${errorText}`, { cause: err });
   }
 
   let plan: PlannedOutline;
@@ -234,7 +236,7 @@ export async function executePlannerStep(runId: string, signal?: AbortSignal): P
       if (!cancelled) {
         await storage.generationRuns.update(runId, { status: 'awaiting_input', updatedAt: Date.now() });
       }
-      throw new Error(`Planner 格式自動修復失敗：${errorText2}。流程已暫停，可手動重試。`);
+      throw new Error(`Planner 格式自動修復失敗：${errorText2}。流程已暫停，可手動重試。`, { cause: repairErr });
     }
   }
 

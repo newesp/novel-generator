@@ -39,7 +39,6 @@ export function WikiQueryModal({ open, onClose, pages }: Props) {
         pages: selectedPages,
         template: aiPrompts.wikiQueryAnswerTemplate,
       });
-      // @ts-ignore
       setAnswer(await complete(prompt, { maxTokens: 1600, temperature: 0.2 }, signal));
       queryActivity.succeed(t('wiki.queryActivitySuccess', { count: selectedPages.length }, locale));
     } catch (e) {

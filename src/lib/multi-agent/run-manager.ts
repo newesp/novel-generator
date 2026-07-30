@@ -89,6 +89,7 @@ export async function createGenerationRun(
   const sanitizeProfiles: Record<string, Omit<LLMProfile, 'apiKey'>> = {};
   for (const p of profiles) {
     const { apiKey, ...safeP } = p;
+    void apiKey;
     sanitizeProfiles[p.id] = safeP;
   }
 

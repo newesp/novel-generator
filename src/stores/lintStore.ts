@@ -182,8 +182,6 @@ export const useLintStore = create<LintState>((set, get) => ({
         useSettingsStore.getState().generalPrefs.interfaceLocale,
       );
       set((s) => ({ fixSuggestions: { ...s.fixSuggestions, [issue.id]: suggestion } }));
-    } catch (e) {
-      throw e;
     } finally {
       const busy2 = new Set(get().busyIssueIds); busy2.delete(issue.id);
       set({ busyIssueIds: busy2 });

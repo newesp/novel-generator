@@ -27,4 +27,11 @@ export default defineConfig([
       'react-hooks/purity': 'off',
     },
   },
+  {
+    files: ['**/*.test.{ts,tsx}'],
+    rules: {
+      // Test doubles intentionally use partial, dynamically shaped adapters.
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 ])

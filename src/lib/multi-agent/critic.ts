@@ -74,16 +74,18 @@ export function parseCriticResponse(
     cleaned = cleaned.substring(firstBrace, lastBrace + 1);
   }
 
-  let obj: any;
+  let parsed: unknown;
   try {
-    obj = JSON.parse(cleaned);
+    parsed = JSON.parse(cleaned);
   } catch (err) {
-    throw new Error(`無法解析 Critic 回應 JSON：${(err as Error).message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`無法解析 Critic 回應 JSON：${message}`, { cause: err });
   }
 
-  if (!obj || typeof obj !== 'object') {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error('Critic 回應非有效 JSON 物件');
   }
+  const obj = parsed as Record<string, unknown>;
 
   const draftVersion = Number(obj.draftVersion);
   if (Number.isNaN(draftVersion) || draftVersion !== expectedDraftVersion) {
@@ -92,7 +94,9 @@ export function parseCriticResponse(
     );
   }
 
-  const rawScores = obj.scores || {};
+  const rawScores = obj.scores && typeof obj.scores === 'object' && !Array.isArray(obj.scores)
+    ? obj.scores as Record<string, unknown>
+    : {};
   const scores: CriticScores = {
     instructionAndBeat: Number(rawScores.instructionAndBeat ?? rawScores.instructionGoal ?? 0),
     plotLogic: Number(rawScores.plotLogic ?? 0),
@@ -200,8 +204,8 @@ export async function executeCriticStep(runId: string, signal?: AbortSignal): Pr
     throw new Error('找不到可供 Critic 評審的候選草稿 Checkpoint');
   }
 
-  let candidateDraft = '';
-  let draftVersion = 1;
+  let candidateDraft: string;
+  let draftVersion: number;
   try {
     const data = JSON.parse(draftChk.data);
     candidateDraft = data.candidateDraft || '';
@@ -241,7 +245,9 @@ export async function executeCriticStep(runId: string, signal?: AbortSignal): Pr
       const data = JSON.parse(plannerChk.data);
       beat = data.beat || beat;
       points = data.points || points;
-    } catch {}
+    } catch {
+      // Ignore malformed optional planner context and keep chapter defaults.
+    }
   }
 
   const weights = run.snapshot.criticRubricWeights;
@@ -311,7 +317,7 @@ export async function executeCriticStep(runId: string, signal?: AbortSignal): Pr
     if (!cancelled) {
       await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
     }
-    throw new Error(`Critic 呼叫 LLM 失敗：${errorText}`);
+    throw new Error(`Critic 呼叫 LLM 失敗：${errorText}`, { cause: err });
   }
 
   let feedback: CriticFeedback;
@@ -378,7 +384,7 @@ export async function executeCriticStep(runId: string, signal?: AbortSignal): Pr
       if (!cancelled) {
         await storage.generationRuns.update(runId, { status: 'awaiting_input', updatedAt: Date.now() });
       }
-      throw new Error(`Critic 格式自動修復失敗：${errorText2}`);
+      throw new Error(`Critic 格式自動修復失敗：${errorText2}`, { cause: repairErr });
     }
   }
 

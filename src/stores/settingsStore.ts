@@ -459,20 +459,29 @@ export const useSettingsStore = create<SettingsState>()(
             const nextBuiltIn = getBuiltInAIPrompts(prefs.interfaceLocale);
             const defaultZH = getBuiltInAIPrompts('zh-TW');
 
-            const pairKeys: (keyof AIPromptPrefs)[] = [
+            type PromptPairKey =
+              | 'chapterDrafts'
+              | 'chapterOutline'
+              | 'characterProfile'
+              | 'expandContent'
+              | 'polishContent'
+              | 'summaryGeneration'
+              | 'wikiIngest';
+            const pairKeys: PromptPairKey[] = [
               'chapterDrafts', 'chapterOutline', 'characterProfile', 'expandContent',
               'polishContent', 'summaryGeneration', 'wikiIngest'
             ];
             for (const key of pairKeys) {
-              const val = currentPrompts[key] as PromptPair;
-              const builtinVal = currentBuiltIn[key] as PromptPair;
-              const zhVal = defaultZH[key] as PromptPair;
+              const val = currentPrompts[key];
+              const builtinVal = currentBuiltIn[key];
+              const zhVal = defaultZH[key];
               if (val && builtinVal && zhVal && (val.systemPrompt === builtinVal.systemPrompt || val.systemPrompt === zhVal.systemPrompt)) {
-                (nextPrompts as any)[key] = nextBuiltIn[key];
+                nextPrompts[key] = nextBuiltIn[key];
               }
             }
 
-            const templateKeys: (keyof AIPromptPrefs)[] = [
+            type PromptTemplateKey = Exclude<keyof AIPromptPrefs, PromptPairKey>;
+            const templateKeys: PromptTemplateKey[] = [
               'chapterDraftsTemplate', 'chapterContinuationRules', 'chapterContentTemplate',
               'chapterPointsTemplate', 'characterDraftsTemplate', 'inlineAdjustTemplate',
               'comicStoryboardTemplate', 'wikiIngestPlanTemplate', 'wikiIngestCreateTemplate',
@@ -480,11 +489,11 @@ export const useSettingsStore = create<SettingsState>()(
               'lintWikiContradictTemplate', 'lintWikiVsChapterTemplate', 'lintFixSuggestTemplate'
             ];
             for (const key of templateKeys) {
-              const val = currentPrompts[key] as string;
-              const builtinVal = (currentBuiltIn as any)[key] as string;
-              const zhVal = (defaultZH as any)[key] as string;
+              const val = currentPrompts[key];
+              const builtinVal = currentBuiltIn[key];
+              const zhVal = defaultZH[key];
               if (val === builtinVal || val === zhVal) {
-                (nextPrompts as any)[key] = (nextBuiltIn as any)[key];
+                nextPrompts[key] = nextBuiltIn[key];
               }
             }
 

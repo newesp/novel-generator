@@ -81,7 +81,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   updateProject: async (id, data) => {
     // 嚴格防止一般更新操作修改不可變的 writingLanguage
-    const { writingLanguage: _ignored, ...allowedData } = data;
+    const allowedData = { ...data };
+    delete allowedData.writingLanguage;
     await storage.projects.update(id, { ...allowedData, updatedAt: Date.now() });
     const project = await storage.projects.get(id);
     set({ project: project ? normalizeProjectLanguage(project) : null });

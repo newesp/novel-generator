@@ -35,8 +35,8 @@ export async function executeEditorStep(runId: string, signal?: AbortSignal): Pr
     throw new Error('缺少前置 Candidate Draft 或 Critic Checkpoint');
   }
 
-  let candidateDraft = '';
-  let draftVersion = 1;
+  let candidateDraft: string;
+  let draftVersion: number;
   try {
     const data = JSON.parse(draftChk.data);
     candidateDraft = data.candidateDraft || '';
@@ -107,7 +107,9 @@ export async function executeEditorStep(runId: string, signal?: AbortSignal): Pr
       const data = JSON.parse(plannerChk.data);
       beat = data.beat || beat;
       points = data.points || points;
-    } catch {}
+    } catch {
+      // Ignore malformed optional planner context and keep chapter defaults.
+    }
   }
 
   const nextDraftVersion = draftVersion + 1;
@@ -187,7 +189,7 @@ export async function executeEditorStep(runId: string, signal?: AbortSignal): Pr
     if (!cancelled) {
       await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
     }
-    throw new Error(`Editor 呼叫 LLM 失敗：${errorText}`);
+    throw new Error(`Editor 呼叫 LLM 失敗：${errorText}`, { cause: err });
   }
 
   await assertRunWritable(runId);

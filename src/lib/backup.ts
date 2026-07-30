@@ -12,7 +12,7 @@ import { storage } from './storage';
 import type {
   Project, Chapter, ChapterVersion, Character,
   WikiPage, WikiLogEntry, ChapterComic, ComicPanel, ComicPanelImageVariant, MediaAsset, SceneVisual,
-  GenerationRun, GenerationStep, GenerationCheckpoint,
+  GenerationRun, GenerationStep, GenerationCheckpoint, LLMProfile,
 } from '../types';
 
 // v1: 無 wiki；v2: 含 wikiPages / wikiLog / multi-agent
@@ -67,10 +67,11 @@ export async function exportSnapshot(options?: BackupExportOptions): Promise<Bac
   ]);
 
   const sanitizedRuns = runs.map((r) => {
-    const profilesSnapshot: Record<string, any> = {};
+    const profilesSnapshot: Record<string, Omit<LLMProfile, 'apiKey'>> = {};
     if (r.snapshot?.profilesSnapshot) {
       for (const [k, p] of Object.entries(r.snapshot.profilesSnapshot)) {
-        const { apiKey, ...rest } = p as any;
+        const { apiKey, ...rest } = p as Omit<LLMProfile, 'apiKey'> & { apiKey?: unknown };
+        void apiKey;
         profilesSnapshot[k] = rest;
       }
     }

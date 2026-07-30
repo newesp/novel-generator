@@ -142,7 +142,7 @@ export async function executeWriterStep(runId: string, signal?: AbortSignal): Pr
     if (!cancelled) {
       await storage.generationRuns.update(runId, { status: 'failed', updatedAt: Date.now() });
     }
-    throw new Error(`Writer 呼叫 LLM 失敗：${errorText}`);
+    throw new Error(`Writer 呼叫 LLM 失敗：${errorText}`, { cause: err });
   }
 
   await assertRunWritable(runId);

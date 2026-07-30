@@ -103,21 +103,16 @@ async function postToLLMWithRetry(
       if (signal.reason instanceof Error) throw signal.reason;
       throw new DOMException(typeof signal.reason === 'string' ? signal.reason : 'Aborted', 'AbortError');
     }
-    try {
-      const resp = await postToLLM(targetUrl, apiKey, body, sendAuthorization, signal, extraHeaders);
-      if (resp.ok || !TRANSIENT_STATUSES.has(resp.status) || attempt === RETRY_DELAYS_MS.length) {
-        return resp;
-      }
-      const errText = await resp.text();
-      const sanitizedErrText = sanitizeApiKey(errText, apiKey);
-      console.warn(
-        `[llm] transient ${resp.status} on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}: ${sanitizedErrText.slice(0, 200)}`,
-      );
-      lastError = new Error(`LLM API error ${resp.status}: ${sanitizedErrText}`);
-    } catch (e) {
-      // Network exceptions, TimeoutError, AbortError are uncertain outcomes; throw immediately without auto-retry
-      throw e;
+    const resp = await postToLLM(targetUrl, apiKey, body, sendAuthorization, signal, extraHeaders);
+    if (resp.ok || !TRANSIENT_STATUSES.has(resp.status) || attempt === RETRY_DELAYS_MS.length) {
+      return resp;
     }
+    const errText = await resp.text();
+    const sanitizedErrText = sanitizeApiKey(errText, apiKey);
+    console.warn(
+      `[llm] transient ${resp.status} on attempt ${attempt + 1}/${RETRY_DELAYS_MS.length + 1}: ${sanitizedErrText.slice(0, 200)}`,
+    );
+    lastError = new Error(`LLM API error ${resp.status}: ${sanitizedErrText}`);
     await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt]));
   }
   throw lastError ?? new Error('unreachable');

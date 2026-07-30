@@ -1,5 +1,15 @@
 # 開發日誌
 
+## 2026-07-30 - 修復 CI/CD lint 阻塞
+
+- 修正 Multi-Agent、備份、LLM 與 Zustand stores 的嚴格 lint 錯誤，包括 JSON 回應的 `unknown` 型別驗證、錯誤 cause 保留、無效 catch／賦值與未使用變數。
+- 保持 production TypeScript 的嚴格 lint 規則，僅對測試 mock 與 fixture 允許顯式 `any`。
+- 移除 Wiki 查詢中已不需要的 TypeScript ignore，並維持備份及 Multi-Agent snapshot 不輸出 API key。
+
+**Verification**
+- `npm.cmd run lint` 通過（0 errors；保留 12 個既有 React Hook warnings）。
+- `npx.cmd tsc -b` 通過。
+
 ## 2026-07-29 - 微調介面 Logo 字型大小、連線測試按鈕寬度與偏好設定用語
 
 - 將側邊欄 Logo 標題英文 `Novel Generator` 字型大小由 `15px` 微調為 `14px`，避免標題被 CSS 截斷。

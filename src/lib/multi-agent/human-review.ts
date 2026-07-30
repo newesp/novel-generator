@@ -52,10 +52,12 @@ export async function prepareHumanEditorRevision(
           ...(feedback.requiredChanges || []),
           `[使用者人工補充方向]: ${customDirection.trim()}`,
         ];
-        await storage.generationCheckpoints.update?.(criticChk.id, {
+        await storage.generationCheckpoints.update(criticChk.id, {
           data: JSON.stringify(feedback),
-        } as any);
-      } catch {}
+        });
+      } catch {
+        // Ignore malformed optional critic feedback; the review can still continue.
+      }
     }
   }
 
@@ -91,7 +93,9 @@ export async function humanEditDraft(
   if (draftChk) {
     try {
       currentVersion = Number(JSON.parse(draftChk.data).draftVersion || 1);
-    } catch {}
+    } catch {
+      // Ignore malformed optional draft metadata and keep the initial version.
+    }
   }
 
   const nextDraftVersion = currentVersion + 1;
