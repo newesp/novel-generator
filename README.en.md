@@ -77,6 +77,28 @@ GitHub Actions uses `.github/workflows/ci-cd.yml`:
 
 ---
 
+## Tech Stack
+
+For a detailed rationale on technology choices, see [specs/tech-stack.md](specs/tech-stack.md). Core technologies include (package versions are tracked in `package.json`):
+
+| Layer / Category | Technologies | Description |
+|------------------|--------------|-------------|
+| **Frontend Framework** | React 19 + TypeScript (Strict Mode) | Modern UI architecture with end-to-end type safety |
+| **Build Tool** | Vite 8 | Fast development server and production bundling |
+| **State Management** | Zustand 5 | Lightweight, modular global state management and snapshots |
+| **UI & Styling** | Mantine v9 (Gray theme) + Lucide React | Unified design system, CSS variables, and icons (no Tailwind / shadcn) |
+| **Content Rendering** | react-markdown | Markdown parsing and preview rendering |
+| **Desktop Shell** | Tauri 2.x (Rust) | Lightweight native desktop shell with low resource footprint |
+| **Data Storage** | IndexedDB (`Dexie.js`) / SQLite (`tauri-plugin-sql`) | Dual-engine persistence (IndexedDB for Web, SQLite for Desktop) unified by `StorageAdapter` |
+| **Full-Text Search** | SQLite FTS5 (trigram tokenizer) | Fast Chinese and English search for knowledge base and Wiki |
+| **Multimedia & Audio** | Edge-TTS + FFmpeg Sidecar | Speech synthesis for comic narration, single-panel and chapter MP4 rendering with motion effects |
+| **LLM Adapter** | Custom Adapter (Named Profiles) | Direct integration with OpenAI-compatible, Google Gemini, Grok, and Anthropic Claude APIs |
+| **Multi-Agent** | Custom Collaboration Engine | Four-agent workflow (Planner, Writer, Critic, Editor) for iterative drafting and critique |
+| **Image Generation** | Custom ImageProvider | Supports ComfyUI, OpenAI-compatible image, DeepInfra FLUX, and Google Gemini Image |
+| **Testing & Quality** | Vitest + JSDOM + ESLint + TypeScript ESLint | Unit/integration testing, linting, and strict code quality checks |
+
+---
+
 ## Module Index
 
 | File | Module | Phase | Depends On |

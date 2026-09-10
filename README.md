@@ -75,6 +75,28 @@ GitHub Actions 使用 `.github/workflows/ci-cd.yml`：
 
 ---
 
+## 技術棧（Tech Stack）
+
+本專案詳細技術選型與架構說明請參見 [specs/tech-stack.md](specs/tech-stack.md)，核心技術組成如下（套件版本以 `package.json` 為準）：
+
+| 領域 / 層級 | 技術與工具 | 說明 |
+|-------------|------------|------|
+| **前端框架** | React 19 + TypeScript（Strict 模式） | 現代化前端架構與完整型別安全 |
+| **建構工具** | Vite 8 | 快速開發伺服器與模組打包 |
+| **狀態管理** | Zustand 5 | 輕量且模組化的全域狀態管理與快照 |
+| **UI 與樣式** | Mantine v9（Gray 主題）+ Lucide React | 統一設計系統、CSS 變數與圖示庫（無 Tailwind / shadcn） |
+| **內容渲染** | react-markdown | Markdown 格式渲染與預覽 |
+| **桌面端核心** | Tauri 2.x (Rust) | 輕量級本機桌面殼層（比 Electron 佔用更低資源） |
+| **資料儲存** | IndexedDB (`Dexie.js`) / SQLite (`tauri-plugin-sql`) | 雙引擎架構（Web 版走 IndexedDB，桌面版走 SQLite），由抽象 `StorageAdapter` 統一介面 |
+| **全文檢索** | SQLite FTS5 (trigram tokenizer) | 桌面端高效繁簡中文與英文知識檢索 |
+| **多媒體與音訊** | Edge-TTS + FFmpeg Sidecar | 漫畫對白/旁白語音合成、單格/整章 MP4 視訊渲染與鏡頭動態效果 |
+| **LLM 適配** | 自製 Adapter（具名 Profile 管理） | 直連 OpenAI-compatible、Google Gemini、Grok、Anthropic Claude |
+| **Multi-Agent** | 自製協作引擎 | Planner、Writer、Critic、Editor 四角色協同生成與反思精煉 |
+| **圖像生成** | 自製 ImageProvider | 支援 ComfyUI、OpenAI-compatible image、DeepInfra FLUX、Google Gemini Image |
+| **測試與品管** | Vitest + JSDOM + ESLint + TypeScript ESLint | 單元與整合測試、程式碼靜態分析與 React Hook 規範檢查 |
+
+---
+
 ## 模組總表
 
 | 檔案 | 模組 | Phase | 依賴 |

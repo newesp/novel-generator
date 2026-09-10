@@ -1,5 +1,10 @@
 # 開發日誌
 
+## 2026-09-10 - 在 README 新增技術棧總表
+
+- 在繁中與英文 `README.md` 及 `README.en.md` 新增「技術棧（Tech Stack）」區塊，詳細列出前端框架、建構工具、狀態管理、UI 與樣式、桌面端核心、雙引擎儲存層、全文檢索、多媒體 Sidecar、LLM/Multi-Agent 引擎及測試品管工具。
+- 與 `package.json`、`specs/tech-stack.md` 及目前實作架構進行交叉校對。
+
 ## 2026-07-30 - 修復 CI/CD lint 阻塞
 
 - 修正 Multi-Agent、備份、LLM 與 Zustand stores 的嚴格 lint 錯誤，包括 JSON 回應的 `unknown` 型別驗證、錯誤 cause 保留、無效 catch／賦值與未使用變數。
